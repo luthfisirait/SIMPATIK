@@ -1,8 +1,10 @@
 import Database from "better-sqlite3";
 import fs from "fs";
+import os from "os";
 import path from "path";
 
-const dbDir = path.join(process.cwd(), "database");
+const isVercel = process.env.VERCEL === "1";
+const dbDir = isVercel ? path.join(os.tmpdir(), "simpatik") : path.join(process.cwd(), "database");
 const dbPath = path.join(dbDir, "simpatik.db");
 
 let db: Database.Database | null = null;
@@ -14,7 +16,7 @@ export function getDb() {
 
   if (!db) {
     db = new Database(dbPath);
-    db.pragma("journal_mode = WAL");
+    db.pragma(`journal_mode = ${isVercel ? "DELETE" : "WAL"}`);
     db.pragma("foreign_keys = ON");
     initSchema(db);
   }
