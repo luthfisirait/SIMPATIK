@@ -1,0 +1,14 @@
+node_modules
+.next
+out
+build
+dist
+.env*.local
+database/*.db
+database/*.db-journal
+database/*.db-shm
+database/*.db-wal
+next-dev*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
