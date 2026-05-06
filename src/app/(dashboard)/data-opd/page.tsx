@@ -258,7 +258,7 @@ export default async function DataOpdPage({ searchParams }: { searchParams?: Pag
     <>
       <PageHeader
         title="Data OPD"
-        description="Master data OPD, NPWP, status pemungut PPN, bendahara, PIC kepegawaian, dan AR pengampu."
+        description="Master data sekaligus direktori kontak OPD: NPWP, status pemungut PPN, bendahara, PIC kepegawaian, dan AR pengampu."
         actions={
           <>
             <Link className="btn btn-secondary" href={exportHref} target="_blank">
@@ -283,7 +283,7 @@ export default async function DataOpdPage({ searchParams }: { searchParams?: Pag
         <div className="card-header">
           <div>
             <div className="card-title">Daftar OPD</div>
-            <div className="card-subtitle">CRUD lengkap dengan pembatasan role dan export CSV.</div>
+            <div className="card-subtitle">Direktori kontak dan pengelolaan master data sesuai hak akses role.</div>
           </div>
         </div>
         <div className="card-body">

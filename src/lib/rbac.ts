@@ -19,7 +19,7 @@ const pageRules: Array<{ prefix: string; roles: Role[] }> = [
   { prefix: "/modul5-deposit", roles: ALL_ROLES },
   { prefix: "/scoring-opd", roles: ALL_ROLES },
   { prefix: "/action-log/input", roles: OPERATIONAL_ROLES },
-  { prefix: "/data-opd", roles: OPERATIONAL_ROLES },
+  { prefix: "/data-opd", roles: ALL_ROLES },
   { prefix: "/pegawai-belum-lapor", roles: OPERATIONAL_ROLES },
   { prefix: "/direktori-ar", roles: ALL_ROLES },
   { prefix: "/direktori-opd", roles: ALL_ROLES },

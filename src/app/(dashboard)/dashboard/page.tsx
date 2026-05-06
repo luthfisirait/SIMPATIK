@@ -61,7 +61,7 @@ export default async function DashboardPage({ searchParams }: { searchParams?: P
           <span className="quick-card-icon">
             <FileCheck2 size={19} />
           </span>
-          <span>
+          <span className="quick-card-copy">
             <span className="quick-card-label">Monitoring SPT</span>
             <span className="quick-card-sub">Traffic light OPD</span>
           </span>
@@ -70,7 +70,7 @@ export default async function DashboardPage({ searchParams }: { searchParams?: P
           <span className="quick-card-icon" style={{ background: "var(--navy)" }}>
             <ReceiptText size={19} />
           </span>
-          <span>
+          <span className="quick-card-copy">
             <span className="quick-card-label">PPh 21</span>
             <span className="quick-card-sub">Status bendahara</span>
           </span>
@@ -79,7 +79,7 @@ export default async function DashboardPage({ searchParams }: { searchParams?: P
           <span className="quick-card-icon" style={{ background: "var(--gold)" }}>
             <Presentation size={19} />
           </span>
-          <span>
+          <span className="quick-card-copy">
             <span className="quick-card-label">Sosialisasi</span>
             <span className="quick-card-sub">Jadwal dan rekam jejak</span>
           </span>
@@ -89,7 +89,7 @@ export default async function DashboardPage({ searchParams }: { searchParams?: P
             <span className="quick-card-icon" style={{ background: "var(--red)" }}>
               <UsersRound size={19} />
             </span>
-            <span>
+            <span className="quick-card-copy">
               <span className="quick-card-label">Belum Lapor</span>
               <span className="quick-card-sub">Daftar individu</span>
             </span>
@@ -100,7 +100,7 @@ export default async function DashboardPage({ searchParams }: { searchParams?: P
             <span className="quick-card-icon" style={{ background: "var(--green)" }}>
               <Building2 size={19} />
             </span>
-            <span>
+            <span className="quick-card-copy">
               <span className="quick-card-label">Data OPD</span>
               <span className="quick-card-sub">{formatNumber(data.kpis.totalOpd)} instansi</span>
             </span>
