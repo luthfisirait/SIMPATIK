@@ -1,0 +1,320 @@
+- generic [ref=e2]:
+  - complementary [ref=e3]:
+    - generic [ref=e4]:
+      - generic [ref=e5]: SP
+      - generic [ref=e6]:
+        - generic [ref=e7]: SIMPATIK
+        - generic [ref=e8]: KPP Pratama Padang Satu
+      - button "Ciutkan sidebar" [ref=e9] [cursor=pointer]:
+        - img [ref=e10]
+    - navigation "Navigasi utama" [ref=e12]:
+      - generic [ref=e13]:
+        - generic [ref=e14]: Monitoring
+        - link "Dashboard" [ref=e15] [cursor=pointer]:
+          - /url: /dashboard
+          - img [ref=e17]
+          - generic [ref=e22]: Dashboard
+        - link "Modul 1 SPT" [ref=e23] [cursor=pointer]:
+          - /url: /modul1-spt
+          - img [ref=e25]
+          - generic [ref=e29]: Modul 1 SPT
+        - link "Modul 2 PPh 21" [ref=e30] [cursor=pointer]:
+          - /url: /modul2-pph21
+          - img [ref=e32]
+          - generic [ref=e34]: Modul 2 PPh 21
+        - link "Modul 3 Sosialisasi" [ref=e35] [cursor=pointer]:
+          - /url: /modul3-sosialisasi
+          - img [ref=e37]
+          - generic [ref=e40]: Modul 3 Sosialisasi
+        - link "Modul 4 SPT Masa" [ref=e41] [cursor=pointer]:
+          - /url: /modul4-spt-masa
+          - img [ref=e43]
+          - generic [ref=e47]: Modul 4 SPT Masa
+        - link "Modul 5 Deposit" [ref=e48] [cursor=pointer]:
+          - /url: /modul5-deposit
+          - img [ref=e50]
+          - generic [ref=e52]: Modul 5 Deposit
+        - link "Scoring OPD" [ref=e53] [cursor=pointer]:
+          - /url: /scoring-opd
+          - img [ref=e55]
+          - generic [ref=e61]: Scoring OPD
+        - link "Input Action Log" [ref=e62] [cursor=pointer]:
+          - /url: /action-log/input
+          - img [ref=e64]
+          - generic [ref=e67]: Input Action Log
+      - generic [ref=e68]:
+        - generic [ref=e69]: Data
+        - link "Data OPD" [ref=e70] [cursor=pointer]:
+          - /url: /data-opd
+          - img [ref=e72]
+          - generic [ref=e76]: Data OPD
+        - link "Pegawai Belum Lapor !" [ref=e77] [cursor=pointer]:
+          - /url: /pegawai-belum-lapor
+          - img [ref=e79]
+          - generic [ref=e83]: Pegawai Belum Lapor
+          - generic [ref=e84]: "!"
+        - link "Direktori AR" [ref=e85] [cursor=pointer]:
+          - /url: /direktori-ar
+          - img [ref=e87]
+          - generic [ref=e91]: Direktori AR
+        - link "Direktori Bendahara" [ref=e92] [cursor=pointer]:
+          - /url: /direktori-bendahara
+          - img [ref=e94]
+          - generic [ref=e98]: Direktori Bendahara
+      - generic [ref=e99]:
+        - generic [ref=e100]: Sistem
+        - link "Analitik" [ref=e101] [cursor=pointer]:
+          - /url: /analitik
+          - img [ref=e103]
+          - generic [ref=e105]: Analitik
+        - link "Pengguna" [ref=e106] [cursor=pointer]:
+          - /url: /pengguna
+          - img [ref=e108]
+          - generic [ref=e111]: Pengguna
+        - link "Pengaturan" [ref=e112] [cursor=pointer]:
+          - /url: /pengaturan
+          - img [ref=e114]
+          - generic [ref=e117]: Pengaturan
+    - button "Keluar" [ref=e119] [cursor=pointer]:
+      - img [ref=e121]
+      - generic [ref=e124]: Keluar
+  - banner [ref=e125]:
+    - generic [ref=e126]:
+      - generic [ref=e127]: Dashboard
+      - generic [ref=e128]: / Ringkasan Kepatuhan
+    - generic [ref=e129]:
+      - img [ref=e130]
+      - textbox "Cari OPD, AR, pegawai" [ref=e133]
+    - button "Notifikasi" [ref=e134] [cursor=pointer]:
+      - img [ref=e135]
+    - generic [ref=e139]:
+      - generic [ref=e140]: ET
+      - generic [ref=e141]:
+        - generic [ref=e142]: Elsa Trisni
+        - generic [ref=e143]: Kasiwas
+  - main [ref=e144]:
+    - generic [ref=e145]:
+      - generic [ref=e146]:
+        - heading "Dashboard SIMPATIK" [level=1] [ref=e147]
+        - paragraph [ref=e148]: Periode monitoring Mar 26. Data dummy siap diganti integrasi Coretax/BKPSDM.
+      - generic [ref=e149]:
+        - link "JSON" [ref=e150] [cursor=pointer]:
+          - /url: /api/dashboard
+          - img [ref=e151]
+          - text: JSON
+        - link "Tindak Lanjut" [ref=e154] [cursor=pointer]:
+          - /url: /modul1-spt
+          - img [ref=e155]
+          - text: Tindak Lanjut
+    - generic [ref=e158]:
+      - link "Monitoring SPT Traffic light OPD" [ref=e159] [cursor=pointer]:
+        - /url: /modul1-spt
+        - img [ref=e161]
+        - generic [ref=e165]:
+          - generic [ref=e166]: Monitoring SPT
+          - generic [ref=e167]: Traffic light OPD
+      - link "PPh 21 Status bendahara" [ref=e168] [cursor=pointer]:
+        - /url: /modul2-pph21
+        - img [ref=e170]
+        - generic [ref=e172]:
+          - generic [ref=e173]: PPh 21
+          - generic [ref=e174]: Status bendahara
+      - link "Sosialisasi Jadwal dan rekam jejak" [ref=e175] [cursor=pointer]:
+        - /url: /modul3-sosialisasi
+        - img [ref=e177]
+        - generic [ref=e180]:
+          - generic [ref=e181]: Sosialisasi
+          - generic [ref=e182]: Jadwal dan rekam jejak
+      - link "Belum Lapor Daftar individu" [ref=e183] [cursor=pointer]:
+        - /url: /pegawai-belum-lapor
+        - img [ref=e185]
+        - generic [ref=e189]:
+          - generic [ref=e190]: Belum Lapor
+          - generic [ref=e191]: Daftar individu
+      - link "Data OPD 185 instansi" [ref=e192] [cursor=pointer]:
+        - /url: /data-opd
+        - img [ref=e194]
+        - generic [ref=e198]:
+          - generic [ref=e199]: Data OPD
+          - generic [ref=e200]: 185 instansi
+    - generic [ref=e201]:
+      - generic [ref=e202]:
+        - generic [ref=e203]:
+          - generic [ref=e204]: Kepatuhan SPT
+          - img [ref=e206]
+        - generic [ref=e209]: 77,1%
+        - generic [ref=e210]: 32.538 dari 42.215 wajib lapor
+        - generic [ref=e211]: + dibanding bulan lalu
+      - generic [ref=e212]:
+        - generic [ref=e213]:
+          - generic [ref=e214]: SPT Masuk
+          - img [ref=e216]
+        - generic [ref=e220]: "32.538"
+        - generic [ref=e221]: Tahun pajak 2025 per Mar 26
+      - generic [ref=e222]:
+        - generic [ref=e223]:
+          - generic [ref=e224]: PPh 21 Belum Setor
+          - img [ref=e226]
+        - generic [ref=e228]: "47"
+        - generic [ref=e229]: 22 under-reporting
+        - generic [ref=e230]: Rp 5,7 M
+      - generic [ref=e231]:
+        - generic [ref=e232]:
+          - generic [ref=e233]: Belum Sosialisasi
+          - img [ref=e235]
+        - generic [ref=e238]: "23"
+        - generic [ref=e239]: 162 OPD sudah tercatat
+      - generic [ref=e240]:
+        - generic [ref=e241]:
+          - generic [ref=e242]: Total OPD
+          - img [ref=e244]
+        - generic [ref=e248]: "185"
+        - generic [ref=e249]: 9.440 peserta sosialisasi
+    - generic [ref=e250]:
+      - generic [ref=e251]:
+        - generic [ref=e253]:
+          - generic [ref=e254]: Tren Kepatuhan SPT Bulanan
+          - generic [ref=e255]: Perbandingan realisasi tahun pajak berjalan dan historis
+        - img [ref=e258]
+      - generic [ref=e259]:
+        - generic [ref=e261]:
+          - generic [ref=e262]: Distribusi Wilayah
+          - generic [ref=e263]: SPT masuk per wilayah
+        - generic [ref=e264]:
+          - img [ref=e266]
+          - generic [ref=e267]:
+            - generic [ref=e269]:
+              - generic [ref=e270]: Kota Padang
+              - generic [ref=e271]: 77,5%
+            - generic [ref=e275]:
+              - generic [ref=e276]: Prov. Sumbar
+              - generic [ref=e277]: 77,5%
+            - generic [ref=e281]:
+              - generic [ref=e282]: Kota Pariaman
+              - generic [ref=e283]: 75,6%
+            - generic [ref=e287]:
+              - generic [ref=e288]: Kab. Padang Pariaman
+              - generic [ref=e289]: 76,1%
+    - generic [ref=e292]:
+      - generic [ref=e293]:
+        - generic [ref=e295]:
+          - generic [ref=e296]: Aktivitas Terbaru
+          - generic [ref=e297]: Log tindak lanjut AR
+        - generic [ref=e299]:
+          - generic [ref=e300]:
+            - strong [ref=e301]: Menandai OPD perlu tindak lanjut
+            - generic [ref=e302]: Kecamatan Koto Tangah Kota Padang
+            - generic [ref=e303]: Maya Safitri - 29/4/2026, 16.39.00
+          - generic [ref=e304]:
+            - strong [ref=e305]: Mengunggah hasil sosialisasi
+            - generic [ref=e306]: Satuan Polisi Pamong Praja Provinsi Sumatera Barat
+            - generic [ref=e307]: Aditya Pratama - 29/4/2026, 16.21.00
+          - generic [ref=e308]:
+            - strong [ref=e309]: Memperbarui kontak bendahara
+            - generic [ref=e310]: Dinas Pemuda dan Olahraga Kota Padang
+            - generic [ref=e311]: Aditya Pratama - 29/4/2026, 15.37.00
+          - generic [ref=e312]:
+            - strong [ref=e313]: Menandai OPD perlu tindak lanjut
+            - generic [ref=e314]: Dinas Sosial Provinsi Sumatera Barat
+            - generic [ref=e315]: Bagus Firmansyah - 29/4/2026, 15.19.00
+          - generic [ref=e316]:
+            - strong [ref=e317]: Mengirim imbauan SPT
+            - generic [ref=e318]: Dinas Perumahan Rakyat dan Kawasan Permukiman Kota Padang
+            - generic [ref=e319]: Bagus Firmansyah - 29/4/2026, 14.35.00
+      - generic [ref=e320]:
+        - generic [ref=e321]:
+          - generic [ref=e322]:
+            - generic [ref=e323]: Traffic Light OPD Prioritas
+            - generic [ref=e324]: Urutan dari kepatuhan terendah
+          - link "Lihat semua" [ref=e325] [cursor=pointer]:
+            - /url: /modul1-spt
+        - table [ref=e327]:
+          - rowgroup [ref=e328]:
+            - row "OPD Wilayah AR Kepatuhan Status" [ref=e329]:
+              - columnheader "OPD" [ref=e330]
+              - columnheader "Wilayah" [ref=e331]
+              - columnheader "AR" [ref=e332]
+              - columnheader "Kepatuhan" [ref=e333]
+              - columnheader "Status" [ref=e334]
+          - rowgroup [ref=e335]:
+            - row "Dinas Perumahan Rakyat dan Kawasan Permukiman Wilayah 2 Kota Padang Kota Padang Nanda Putri 28,8% Merah" [ref=e336]:
+              - cell "Dinas Perumahan Rakyat dan Kawasan Permukiman Wilayah 2 Kota Padang" [ref=e337]:
+                - strong [ref=e338]: Dinas Perumahan Rakyat dan Kawasan Permukiman Wilayah 2 Kota Padang
+              - cell "Kota Padang" [ref=e339]
+              - cell "Nanda Putri" [ref=e340]
+              - cell "28,8%" [ref=e341]
+              - cell "Merah" [ref=e342]:
+                - generic [ref=e343]: Merah
+            - row "UPTD Laboratorium Kesehatan Kota Padang Kota Padang Hendra Wijaya 30,7% Merah" [ref=e344]:
+              - cell "UPTD Laboratorium Kesehatan Kota Padang" [ref=e345]:
+                - strong [ref=e346]: UPTD Laboratorium Kesehatan Kota Padang
+              - cell "Kota Padang" [ref=e347]
+              - cell "Hendra Wijaya" [ref=e348]
+              - cell "30,7%" [ref=e349]
+              - cell "Merah" [ref=e350]:
+                - generic [ref=e351]: Merah
+            - row "Puskesmas Lubuk Buaya Kota Padang Kota Padang Nita Anggraini 31,1% Merah" [ref=e352]:
+              - cell "Puskesmas Lubuk Buaya Kota Padang" [ref=e353]:
+                - strong [ref=e354]: Puskesmas Lubuk Buaya Kota Padang
+              - cell "Kota Padang" [ref=e355]
+              - cell "Nita Anggraini" [ref=e356]
+              - cell "31,1%" [ref=e357]
+              - cell "Merah" [ref=e358]:
+                - generic [ref=e359]: Merah
+            - row "Dinas Penanaman Modal dan PTSP Kota Padang Kota Padang Bagus Firmansyah 33,2% Merah" [ref=e360]:
+              - cell "Dinas Penanaman Modal dan PTSP Kota Padang" [ref=e361]:
+                - strong [ref=e362]: Dinas Penanaman Modal dan PTSP Kota Padang
+              - cell "Kota Padang" [ref=e363]
+              - cell "Bagus Firmansyah" [ref=e364]
+              - cell "33,2%" [ref=e365]
+              - cell "Merah" [ref=e366]:
+                - generic [ref=e367]: Merah
+            - row "SMP Negeri 7 Provinsi Sumatera Barat Prov. Sumbar Bagus Firmansyah 34,6% Merah" [ref=e368]:
+              - cell "SMP Negeri 7 Provinsi Sumatera Barat" [ref=e369]:
+                - strong [ref=e370]: SMP Negeri 7 Provinsi Sumatera Barat
+              - cell "Prov. Sumbar" [ref=e371]
+              - cell "Bagus Firmansyah" [ref=e372]
+              - cell "34,6%" [ref=e373]
+              - cell "Merah" [ref=e374]:
+                - generic [ref=e375]: Merah
+            - row "Dinas Perikanan dan Pangan Kabupaten Padang Pariaman Kab. Padang Pariaman Hendra Wijaya 34,9% Merah" [ref=e376]:
+              - cell "Dinas Perikanan dan Pangan Kabupaten Padang Pariaman" [ref=e377]:
+                - strong [ref=e378]: Dinas Perikanan dan Pangan Kabupaten Padang Pariaman
+              - cell "Kab. Padang Pariaman" [ref=e379]
+              - cell "Hendra Wijaya" [ref=e380]
+              - cell "34,9%" [ref=e381]
+              - cell "Merah" [ref=e382]:
+                - generic [ref=e383]: Merah
+            - row "Dinas Koperasi dan UKM Kota Pariaman Kota Pariaman Dewi Lestari 35,4% Merah" [ref=e384]:
+              - cell "Dinas Koperasi dan UKM Kota Pariaman" [ref=e385]:
+                - strong [ref=e386]: Dinas Koperasi dan UKM Kota Pariaman
+              - cell "Kota Pariaman" [ref=e387]
+              - cell "Dewi Lestari" [ref=e388]
+              - cell "35,4%" [ref=e389]
+              - cell "Merah" [ref=e390]:
+                - generic [ref=e391]: Merah
+            - row "Satuan Polisi Pamong Praja Provinsi Sumatera Barat Prov. Sumbar Maya Safitri 35,7% Merah" [ref=e392]:
+              - cell "Satuan Polisi Pamong Praja Provinsi Sumatera Barat" [ref=e393]:
+                - strong [ref=e394]: Satuan Polisi Pamong Praja Provinsi Sumatera Barat
+              - cell "Prov. Sumbar" [ref=e395]
+              - cell "Maya Safitri" [ref=e396]
+              - cell "35,7%" [ref=e397]
+              - cell "Merah" [ref=e398]:
+                - generic [ref=e399]: Merah
+    - generic [ref=e400]:
+      - generic [ref=e402]:
+        - generic [ref=e403]: warning
+        - heading "Sinkronisasi data selesai" [level=3] [ref=e404]
+        - paragraph [ref=e405]: Data dummy Coretax dan BKPSDM berhasil diproses.
+      - generic [ref=e407]:
+        - generic [ref=e408]: danger
+        - heading "Perlu tindak lanjut OPD merah" [level=3] [ref=e409]
+        - paragraph [ref=e410]: Beberapa OPD masih berada di bawah 40% kepatuhan SPT.
+      - generic [ref=e412]:
+        - generic [ref=e413]: success
+        - heading "Jadwal sosialisasi pekan ini" [level=3] [ref=e414]
+        - paragraph [ref=e415]: Ada sesi sosialisasi Coretax yang perlu dikonfirmasi.
+    - link "Kelola Jadwal Sosialisasi" [ref=e416] [cursor=pointer]:
+      - /url: /modul3-sosialisasi
+      - img [ref=e417]
+      - text: Kelola Jadwal Sosialisasi
