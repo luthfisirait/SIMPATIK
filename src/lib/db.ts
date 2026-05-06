@@ -50,13 +50,23 @@ function initSchema(database: Database.Database) {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       nama TEXT NOT NULL,
       wilayah_id INTEGER NOT NULL REFERENCES wilayah(id),
+      jenis_instansi TEXT,
       jumlah_asn INTEGER NOT NULL DEFAULT 0,
+      jumlah_pppk INTEGER NOT NULL DEFAULT 0,
+      npwp_opd TEXT,
+      status_pemungut_ppn TEXT NOT NULL DEFAULT 'TIDAK',
       nama_bendahara TEXT NOT NULL,
+      nip_bendahara TEXT,
       hp_bendahara TEXT NOT NULL,
+      email_bendahara TEXT,
+      nama_bendahara_penerimaan TEXT,
+      hp_bendahara_penerimaan TEXT,
       nama_pic_kepeg TEXT NOT NULL,
       hp_pic_kepeg TEXT NOT NULL,
       ar_id INTEGER REFERENCES users(id),
       status TEXT NOT NULL DEFAULT 'aktif' CHECK(status IN ('aktif','tidak_aktif','perlu_update')),
+      tanggal_input TEXT,
+      tanggal_update_kontak TEXT,
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
 
@@ -84,6 +94,53 @@ function initSchema(database: Database.Database) {
       UNIQUE(opd_id, bulan)
     );
 
+    CREATE TABLE IF NOT EXISTS spt_masa_monitoring (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      opd_id INTEGER NOT NULL REFERENCES opd(id) ON DELETE CASCADE,
+      masa_pajak TEXT NOT NULL,
+      pph22_nominal INTEGER NOT NULL DEFAULT 0,
+      pph22_status TEXT,
+      pph23_nominal INTEGER NOT NULL DEFAULT 0,
+      pph23_status TEXT,
+      ppn_put_nominal INTEGER NOT NULL DEFAULT 0,
+      ppn_put_status TEXT,
+      status_opd_pemungut TEXT,
+      status_keseluruhan TEXT,
+      catatan_ar TEXT,
+      UNIQUE(opd_id, masa_pajak)
+    );
+
+    CREATE TABLE IF NOT EXISTS deposit_monitoring (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      opd_id INTEGER NOT NULL REFERENCES opd(id) ON DELETE CASCADE,
+      masa_pajak TEXT NOT NULL,
+      deposit_pph21 INTEGER NOT NULL DEFAULT 0,
+      status_pph21 TEXT,
+      deposit_pph_unifikasi INTEGER NOT NULL DEFAULT 0,
+      status_unifikasi TEXT,
+      deposit_ppn_put INTEGER NOT NULL DEFAULT 0,
+      status_ppn_put TEXT,
+      total_deposit INTEGER NOT NULL DEFAULT 0,
+      status_deposit_overall TEXT,
+      UNIQUE(opd_id, masa_pajak)
+    );
+
+    CREATE TABLE IF NOT EXISTS scoring_opd (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      opd_id INTEGER NOT NULL REFERENCES opd(id) ON DELETE CASCADE,
+      bulan_scoring TEXT NOT NULL,
+      skor_spt_op REAL NOT NULL DEFAULT 0,
+      skor_pph21 REAL NOT NULL DEFAULT 0,
+      skor_spt_masa REAL NOT NULL DEFAULT 0,
+      skor_deposit REAL NOT NULL DEFAULT 0,
+      skor_total REAL NOT NULL DEFAULT 0,
+      kategori TEXT NOT NULL CHECK(kategori IN ('hijau','kuning','merah')),
+      status_rp TEXT NOT NULL CHECK(status_rp IN ('reward','monitor','punishment')),
+      catatan TEXT,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(opd_id, bulan_scoring)
+    );
+
     CREATE TABLE IF NOT EXISTS sosialisasi (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       opd_id INTEGER NOT NULL REFERENCES opd(id) ON DELETE CASCADE,
@@ -106,9 +163,15 @@ function initSchema(database: Database.Database) {
     CREATE TABLE IF NOT EXISTS action_log (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id INTEGER REFERENCES users(id),
+      opd_id INTEGER REFERENCES opd(id) ON DELETE SET NULL,
       action TEXT NOT NULL,
       target_type TEXT NOT NULL,
       target_name TEXT NOT NULL,
+      description TEXT,
+      result TEXT,
+      follow_up TEXT,
+      next_follow_up_at TEXT,
+      attachment_url TEXT,
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
 
@@ -129,6 +192,58 @@ function initSchema(database: Database.Database) {
     CREATE INDEX IF NOT EXISTS idx_opd_wilayah ON opd(wilayah_id);
     CREATE INDEX IF NOT EXISTS idx_spt_period ON spt_monitoring(periode, tahun_pajak);
     CREATE INDEX IF NOT EXISTS idx_pph_bulan ON pph21_monitoring(bulan);
+    CREATE INDEX IF NOT EXISTS idx_spt_masa_period ON spt_masa_monitoring(masa_pajak);
+    CREATE INDEX IF NOT EXISTS idx_deposit_period ON deposit_monitoring(masa_pajak);
+    CREATE INDEX IF NOT EXISTS idx_scoring_period ON scoring_opd(bulan_scoring);
+    CREATE INDEX IF NOT EXISTS idx_scoring_status ON scoring_opd(status_rp, kategori);
     CREATE INDEX IF NOT EXISTS idx_pegawai_status ON pegawai(status_coretax);
   `);
+
+  ensureExistingSchema(database);
+
+  database.exec("CREATE INDEX IF NOT EXISTS idx_action_log_opd ON action_log(opd_id)");
+}
+
+function ensureExistingSchema(database: Database.Database) {
+  const columns: Record<string, string[]> = {
+    opd: [
+      "jenis_instansi TEXT",
+      "jumlah_pppk INTEGER NOT NULL DEFAULT 0",
+      "npwp_opd TEXT",
+      "status_pemungut_ppn TEXT NOT NULL DEFAULT 'TIDAK'",
+      "nip_bendahara TEXT",
+      "email_bendahara TEXT",
+      "nama_bendahara_penerimaan TEXT",
+      "hp_bendahara_penerimaan TEXT",
+      "tanggal_input TEXT",
+      "tanggal_update_kontak TEXT",
+    ],
+    action_log: [
+      "opd_id INTEGER REFERENCES opd(id) ON DELETE SET NULL",
+      "description TEXT",
+      "result TEXT",
+      "follow_up TEXT",
+      "next_follow_up_at TEXT",
+      "attachment_url TEXT",
+    ],
+  };
+
+  Object.entries(columns).forEach(([table, definitions]) => {
+    const existing = new Set(
+      (
+        database.prepare(`PRAGMA table_info(${quoteIdentifier(table)})`).all() as Array<{ name: string }>
+      ).map((column) => column.name),
+    );
+
+    definitions.forEach((definition) => {
+      const [name] = definition.split(/\s+/, 1);
+      if (!existing.has(name)) {
+        database.exec(`ALTER TABLE ${quoteIdentifier(table)} ADD COLUMN ${definition}`);
+      }
+    });
+  });
+}
+
+function quoteIdentifier(value: string) {
+  return `"${value.replaceAll('"', '""')}"`;
 }

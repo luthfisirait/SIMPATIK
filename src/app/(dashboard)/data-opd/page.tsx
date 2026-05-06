@@ -23,9 +23,17 @@ async function addOpdAction(formData: FormData) {
   createOpd({
     nama: String(formData.get("nama") ?? ""),
     wilayah_id: Number(formData.get("wilayah_id")),
+    jenis_instansi: String(formData.get("jenis_instansi") ?? "") || null,
     jumlah_asn: Number(formData.get("jumlah_asn") ?? 0),
+    jumlah_pppk: Number(formData.get("jumlah_pppk") ?? 0),
+    npwp_opd: String(formData.get("npwp_opd") ?? "") || null,
+    status_pemungut_ppn: String(formData.get("status_pemungut_ppn") ?? "TIDAK"),
     nama_bendahara: String(formData.get("nama_bendahara") ?? ""),
+    nip_bendahara: String(formData.get("nip_bendahara") ?? "") || null,
     hp_bendahara: String(formData.get("hp_bendahara") ?? ""),
+    email_bendahara: String(formData.get("email_bendahara") ?? "") || null,
+    nama_bendahara_penerimaan: String(formData.get("nama_bendahara_penerimaan") ?? "") || null,
+    hp_bendahara_penerimaan: String(formData.get("hp_bendahara_penerimaan") ?? "") || null,
     nama_pic_kepeg: String(formData.get("nama_pic_kepeg") ?? ""),
     hp_pic_kepeg: String(formData.get("hp_pic_kepeg") ?? ""),
     ar_id: Number(formData.get("ar_id")) || null,
@@ -49,9 +57,17 @@ async function updateOpdAction(formData: FormData) {
   updateOpd(id, {
     nama: String(formData.get("nama") ?? ""),
     wilayah_id: Number(formData.get("wilayah_id")),
+    jenis_instansi: String(formData.get("jenis_instansi") ?? "") || null,
     jumlah_asn: Number(formData.get("jumlah_asn") ?? 0),
+    jumlah_pppk: Number(formData.get("jumlah_pppk") ?? 0),
+    npwp_opd: String(formData.get("npwp_opd") ?? "") || null,
+    status_pemungut_ppn: String(formData.get("status_pemungut_ppn") ?? "TIDAK"),
     nama_bendahara: String(formData.get("nama_bendahara") ?? ""),
+    nip_bendahara: String(formData.get("nip_bendahara") ?? "") || null,
     hp_bendahara: String(formData.get("hp_bendahara") ?? ""),
+    email_bendahara: String(formData.get("email_bendahara") ?? "") || null,
+    nama_bendahara_penerimaan: String(formData.get("nama_bendahara_penerimaan") ?? "") || null,
+    hp_bendahara_penerimaan: String(formData.get("hp_bendahara_penerimaan") ?? "") || null,
     nama_pic_kepeg: String(formData.get("nama_pic_kepeg") ?? ""),
     hp_pic_kepeg: String(formData.get("hp_pic_kepeg") ?? ""),
     ar_id: Number(formData.get("ar_id")) || null,
@@ -123,16 +139,51 @@ function OpdForm({
           </select>
         </label>
         <label className="field">
+          <span>Jenis Instansi</span>
+          <input name="jenis_instansi" defaultValue={opd?.jenis_instansi ?? ""} placeholder="Dinas / Badan / Sekolah" />
+        </label>
+        <label className="field">
           <span>Jumlah ASN</span>
           <input name="jumlah_asn" type="number" min="0" defaultValue={opd?.jumlah_asn} required />
+        </label>
+        <label className="field">
+          <span>Jumlah PPPK</span>
+          <input name="jumlah_pppk" type="number" min="0" defaultValue={opd?.jumlah_pppk ?? 0} />
+        </label>
+        <label className="field">
+          <span>NPWP OPD</span>
+          <input name="npwp_opd" defaultValue={opd?.npwp_opd ?? ""} />
+        </label>
+        <label className="field">
+          <span>Pemungut PPN</span>
+          <select name="status_pemungut_ppn" defaultValue={opd?.status_pemungut_ppn ?? "TIDAK"}>
+            <option value="YA">YA</option>
+            <option value="TIDAK">TIDAK</option>
+          </select>
         </label>
         <label className="field">
           <span>Bendahara</span>
           <input name="nama_bendahara" defaultValue={opd?.nama_bendahara} required />
         </label>
         <label className="field">
+          <span>NIP Bendahara</span>
+          <input name="nip_bendahara" defaultValue={opd?.nip_bendahara ?? ""} />
+        </label>
+        <label className="field">
           <span>HP Bendahara</span>
           <input name="hp_bendahara" defaultValue={opd?.hp_bendahara} required />
+        </label>
+        <label className="field">
+          <span>Email Bendahara</span>
+          <input name="email_bendahara" type="email" defaultValue={opd?.email_bendahara ?? ""} />
+        </label>
+        <label className="field">
+          <span>Bendahara Penerimaan</span>
+          <input name="nama_bendahara_penerimaan" defaultValue={opd?.nama_bendahara_penerimaan ?? ""} />
+        </label>
+        <label className="field">
+          <span>HP Penerimaan</span>
+          <input name="hp_bendahara_penerimaan" defaultValue={opd?.hp_bendahara_penerimaan ?? ""} />
         </label>
         <label className="field">
           <span>PIC Kepegawaian</span>
@@ -189,11 +240,12 @@ export default async function DataOpdPage({ searchParams }: { searchParams?: Pag
   const q = firstParam(searchParams, "q");
   const wilayah = firstParam(searchParams, "wilayah", "all");
   const status = firstParam(searchParams, "status", "all");
+  const arFilter = role === "ar" ? String(userId) : firstParam(searchParams, "ar", "all");
   const page = numericParam(searchParams, "page");
   const detailId = numericParam(searchParams, "detail", 0);
   const editId = numericParam(searchParams, "edit", 0);
   const createMode = firstParam(searchParams, "create") === "1";
-  const result = listOpd({ q, wilayah, status, page, pageSize: 12 });
+  const result = listOpd({ q, wilayah, status, ar: arFilter, page, pageSize: 12 });
   const wilayahOptions = getWilayah();
   const arOptions = listAr();
   const selectedOpd = detailId || editId ? getOpd(detailId || editId) : undefined;
@@ -206,7 +258,7 @@ export default async function DataOpdPage({ searchParams }: { searchParams?: Pag
     <>
       <PageHeader
         title="Data OPD"
-        description="Master data OPD, bendahara, PIC kepegawaian, dan AR pengampu."
+        description="Master data OPD, NPWP, status pemungut PPN, bendahara, PIC kepegawaian, dan AR pengampu."
         actions={
           <>
             <Link className="btn btn-secondary" href={exportHref} target="_blank">
@@ -224,7 +276,7 @@ export default async function DataOpdPage({ searchParams }: { searchParams?: Pag
       />
 
       {role === "ar" ? (
-        <div className="alert">Role AR dapat melihat semua OPD dan mengedit hanya OPD yang berada di bawah ampuannya.</div>
+        <div className="alert">Role AR hanya melihat dan mengelola OPD yang berada di bawah ampuannya.</div>
       ) : null}
 
       <div className="card">
@@ -263,7 +315,8 @@ export default async function DataOpdPage({ searchParams }: { searchParams?: Pag
               <tr>
                 <th>OPD</th>
                 <th>Wilayah</th>
-                <th>ASN</th>
+                <th>ASN/PPPK</th>
+                <th>NPWP</th>
                 <th>Bendahara</th>
                 <th>PIC Kepeg.</th>
                 <th>AR</th>
@@ -280,7 +333,10 @@ export default async function DataOpdPage({ searchParams }: { searchParams?: Pag
                       <strong>{item.nama}</strong>
                     </td>
                     <td>{item.wilayah_nama}</td>
-                    <td className="td-mono">{formatNumber(item.jumlah_asn)}</td>
+                    <td className="td-mono">
+                      {formatNumber(item.jumlah_asn)} / {formatNumber(item.jumlah_pppk ?? 0)}
+                    </td>
+                    <td className="td-mono">{item.npwp_opd ?? "-"}</td>
                     <td>
                       <div>{item.nama_bendahara}</div>
                       <a className="wa-link" href={toWaLink(item.hp_bendahara)} target="_blank">
@@ -341,9 +397,17 @@ export default async function DataOpdPage({ searchParams }: { searchParams?: Pag
         <Modal title="Detail OPD" description={selectedOpd.nama} closeHref={baseHref}>
           <div className="detail-grid">
             <DetailItem label="Wilayah" value={selectedOpd.wilayah_nama} />
+            <DetailItem label="Jenis Instansi" value={selectedOpd.jenis_instansi ?? "-"} />
             <DetailItem label="Jumlah ASN" value={formatNumber(selectedOpd.jumlah_asn)} />
+            <DetailItem label="Jumlah PPPK" value={formatNumber(selectedOpd.jumlah_pppk ?? 0)} />
+            <DetailItem label="NPWP OPD" value={selectedOpd.npwp_opd ?? "-"} />
+            <DetailItem label="Pemungut PPN" value={selectedOpd.status_pemungut_ppn ?? "TIDAK"} />
             <DetailItem label="Bendahara" value={selectedOpd.nama_bendahara} />
+            <DetailItem label="NIP Bendahara" value={selectedOpd.nip_bendahara ?? "-"} />
             <DetailItem label="HP Bendahara" value={<a className="wa-link" href={toWaLink(selectedOpd.hp_bendahara)} target="_blank">{selectedOpd.hp_bendahara}</a>} />
+            <DetailItem label="Email Bendahara" value={selectedOpd.email_bendahara ? <a className="wa-link" href={`mailto:${selectedOpd.email_bendahara}`}>{selectedOpd.email_bendahara}</a> : "-"} />
+            <DetailItem label="Bendahara Penerimaan" value={selectedOpd.nama_bendahara_penerimaan ?? "-"} />
+            <DetailItem label="HP Penerimaan" value={selectedOpd.hp_bendahara_penerimaan ? <a className="wa-link" href={toWaLink(selectedOpd.hp_bendahara_penerimaan)} target="_blank">{selectedOpd.hp_bendahara_penerimaan}</a> : "-"} />
             <DetailItem label="PIC Kepegawaian" value={selectedOpd.nama_pic_kepeg} />
             <DetailItem label="HP PIC" value={<a className="wa-link" href={toWaLink(selectedOpd.hp_pic_kepeg)} target="_blank">{selectedOpd.hp_pic_kepeg}</a>} />
             <DetailItem label="AR Pengampu" value={selectedOpd.ar_nama ?? "-"} />

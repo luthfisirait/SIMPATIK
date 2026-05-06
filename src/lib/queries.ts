@@ -2,11 +2,15 @@ import { getDb } from "@/lib/db";
 import { ensureSeeded } from "@/lib/seed";
 import type {
   ActionLog,
+  BendaharaRecord,
+  DepositRecord,
   Notification,
   Opd,
   PegawaiRecord,
   Pph21Record,
+  ScoringRecord,
   SosialisasiRecord,
+  SptMasaRecord,
   SptRecord,
   User,
   Wilayah,
@@ -24,13 +28,23 @@ type ListParams = {
 type WriteOpdPayload = {
   nama: string;
   wilayah_id: number;
+  jenis_instansi?: string | null;
   jumlah_asn: number;
+  jumlah_pppk?: number;
+  npwp_opd?: string | null;
+  status_pemungut_ppn?: string;
   nama_bendahara: string;
+  nip_bendahara?: string | null;
   hp_bendahara: string;
+  email_bendahara?: string | null;
+  nama_bendahara_penerimaan?: string | null;
+  hp_bendahara_penerimaan?: string | null;
   nama_pic_kepeg: string;
   hp_pic_kepeg: string;
   ar_id?: number | null;
   status?: string;
+  tanggal_input?: string | null;
+  tanggal_update_kontak?: string | null;
 };
 
 function db() {
@@ -50,6 +64,27 @@ function latestPphMonth() {
   return (
     (db().prepare("SELECT MAX(bulan) AS bulan FROM pph21_monitoring").get() as { bulan: string | null }).bulan ??
     "2026-03"
+  );
+}
+
+function latestSptMasaPeriod() {
+  return (
+    (db().prepare("SELECT MAX(masa_pajak) AS period FROM spt_masa_monitoring").get() as { period: string | null }).period ??
+    "2026-03"
+  );
+}
+
+function latestDepositPeriod() {
+  return (
+    (db().prepare("SELECT MAX(masa_pajak) AS period FROM deposit_monitoring").get() as { period: string | null }).period ??
+    latestSptMasaPeriod()
+  );
+}
+
+function latestScoringPeriod() {
+  return (
+    (db().prepare("SELECT MAX(bulan_scoring) AS period FROM scoring_opd").get() as { period: string | null }).period ??
+    latestDepositPeriod()
   );
 }
 
@@ -238,7 +273,8 @@ export function listOpd(params: ListParams = {}) {
   const data = database
     .prepare(
       `
-      SELECT o.*, w.nama AS wilayah_nama, w.kode AS wilayah_kode, u.nama AS ar_nama
+      SELECT o.*, (o.jumlah_asn + o.jumlah_pppk) AS total_wajib_lapor,
+        w.nama AS wilayah_nama, w.kode AS wilayah_kode, u.nama AS ar_nama
       FROM opd o
       JOIN wilayah w ON w.id = o.wilayah_id
       LEFT JOIN users u ON u.id = o.ar_id
@@ -252,11 +288,35 @@ export function listOpd(params: ListParams = {}) {
   return { data, total, page, pageSize, pages: Math.ceil(total / pageSize) || 1 };
 }
 
+export function listOpdOptions(params: { ar?: string } = {}) {
+  const where: string[] = ["o.status != 'tidak_aktif'"];
+  const values: Array<string | number> = [];
+
+  if (params.ar && params.ar !== "all") {
+    where.push("o.ar_id = ?");
+    values.push(Number(params.ar));
+  }
+
+  return db()
+    .prepare(
+      `
+      SELECT o.id, o.nama, w.nama AS wilayah_nama, u.nama AS ar_nama, o.ar_id
+      FROM opd o
+      JOIN wilayah w ON w.id = o.wilayah_id
+      LEFT JOIN users u ON u.id = o.ar_id
+      WHERE ${where.join(" AND ")}
+      ORDER BY w.id, o.nama
+    `,
+    )
+    .all(...values) as Array<{ id: number; nama: string; wilayah_nama: string; ar_nama: string | null; ar_id: number | null }>;
+}
+
 export function getOpd(id: number) {
   return db()
     .prepare(
       `
-      SELECT o.*, w.nama AS wilayah_nama, w.kode AS wilayah_kode, u.nama AS ar_nama
+      SELECT o.*, (o.jumlah_asn + o.jumlah_pppk) AS total_wajib_lapor,
+        w.nama AS wilayah_nama, w.kode AS wilayah_kode, u.nama AS ar_nama
       FROM opd o
       JOIN wilayah w ON w.id = o.wilayah_id
       LEFT JOIN users u ON u.id = o.ar_id
@@ -272,22 +332,34 @@ export function createOpd(payload: WriteOpdPayload) {
     .prepare(
       `
       INSERT INTO opd (
-        nama, wilayah_id, jumlah_asn, nama_bendahara, hp_bendahara,
-        nama_pic_kepeg, hp_pic_kepeg, ar_id, status
+        nama, wilayah_id, jenis_instansi, jumlah_asn, jumlah_pppk, npwp_opd, status_pemungut_ppn,
+        nama_bendahara, nip_bendahara, hp_bendahara, email_bendahara,
+        nama_bendahara_penerimaan, hp_bendahara_penerimaan,
+        nama_pic_kepeg, hp_pic_kepeg, ar_id, status, tanggal_input, tanggal_update_kontak
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `,
     )
     .run(
       payload.nama,
       payload.wilayah_id,
+      payload.jenis_instansi ?? null,
       payload.jumlah_asn,
+      payload.jumlah_pppk ?? 0,
+      payload.npwp_opd ?? null,
+      payload.status_pemungut_ppn ?? "TIDAK",
       payload.nama_bendahara,
+      payload.nip_bendahara ?? null,
       payload.hp_bendahara,
+      payload.email_bendahara ?? null,
+      payload.nama_bendahara_penerimaan ?? null,
+      payload.hp_bendahara_penerimaan ?? null,
       payload.nama_pic_kepeg,
       payload.hp_pic_kepeg,
       payload.ar_id ?? null,
       payload.status ?? "aktif",
+      payload.tanggal_input ?? new Date().toISOString().slice(0, 10),
+      payload.tanggal_update_kontak ?? new Date().toISOString().slice(0, 10),
     );
 
   return getOpd(Number(result.lastInsertRowid));
@@ -303,26 +375,46 @@ export function updateOpd(id: number, payload: Partial<WriteOpdPayload>) {
       UPDATE opd SET
         nama = ?,
         wilayah_id = ?,
+        jenis_instansi = ?,
         jumlah_asn = ?,
+        jumlah_pppk = ?,
+        npwp_opd = ?,
+        status_pemungut_ppn = ?,
         nama_bendahara = ?,
+        nip_bendahara = ?,
         hp_bendahara = ?,
+        email_bendahara = ?,
+        nama_bendahara_penerimaan = ?,
+        hp_bendahara_penerimaan = ?,
         nama_pic_kepeg = ?,
         hp_pic_kepeg = ?,
         ar_id = ?,
-        status = ?
+        status = ?,
+        tanggal_input = ?,
+        tanggal_update_kontak = ?
       WHERE id = ?
     `,
     )
     .run(
       payload.nama ?? current.nama,
       payload.wilayah_id ?? current.wilayah_id,
+      payload.jenis_instansi ?? current.jenis_instansi,
       payload.jumlah_asn ?? current.jumlah_asn,
+      payload.jumlah_pppk ?? current.jumlah_pppk,
+      payload.npwp_opd ?? current.npwp_opd,
+      payload.status_pemungut_ppn ?? current.status_pemungut_ppn,
       payload.nama_bendahara ?? current.nama_bendahara,
+      payload.nip_bendahara ?? current.nip_bendahara,
       payload.hp_bendahara ?? current.hp_bendahara,
+      payload.email_bendahara ?? current.email_bendahara,
+      payload.nama_bendahara_penerimaan ?? current.nama_bendahara_penerimaan,
+      payload.hp_bendahara_penerimaan ?? current.hp_bendahara_penerimaan,
       payload.nama_pic_kepeg ?? current.nama_pic_kepeg,
       payload.hp_pic_kepeg ?? current.hp_pic_kepeg,
       payload.ar_id ?? current.ar_id,
       payload.status ?? current.status,
+      payload.tanggal_input ?? current.tanggal_input,
+      payload.tanggal_update_kontak ?? new Date().toISOString().slice(0, 10),
       id,
     );
 
@@ -394,17 +486,19 @@ export function listSpt(params: ListParams & { periode?: string; traffic?: strin
     )
     .all(...values, pageSize, offset) as SptRecord[];
 
+  const arFilter = params.ar && params.ar !== "all" ? Number(params.ar) : null;
   const summary = database
     .prepare(
       `
-      SELECT traffic_light AS status, COUNT(*) AS total,
-        COALESCE(SUM(jumlah_wajib_lapor - jumlah_sudah_lapor), 0) AS belum_lapor
-      FROM spt_monitoring
-      WHERE tahun_pajak = 2025 AND periode = ?
-      GROUP BY traffic_light
+      SELECT s.traffic_light AS status, COUNT(*) AS total,
+        COALESCE(SUM(s.jumlah_wajib_lapor - s.jumlah_sudah_lapor), 0) AS belum_lapor
+      FROM spt_monitoring s
+      JOIN opd o ON o.id = s.opd_id
+      WHERE s.tahun_pajak = 2025 AND s.periode = ? AND (? IS NULL OR o.ar_id = ?)
+      GROUP BY s.traffic_light
     `,
     )
-    .all(periode) as Array<{ status: string; total: number; belum_lapor: number }>;
+    .all(periode, arFilter, arFilter) as Array<{ status: string; total: number; belum_lapor: number }>;
 
   return { data, summary, total, page, pageSize, pages: Math.ceil(total / pageSize) || 1, periode };
 }
@@ -427,6 +521,10 @@ export function listPph21(params: ListParams & { bulan?: string; pphStatus?: str
   if (params.pphStatus && params.pphStatus !== "all") {
     where.push("p.status = ?");
     values.push(params.pphStatus);
+  }
+  if (params.ar && params.ar !== "all") {
+    where.push("o.ar_id = ?");
+    values.push(Number(params.ar));
   }
 
   const page = Math.max(1, params.page ?? 1);
@@ -462,21 +560,297 @@ export function listPph21(params: ListParams & { bulan?: string; pphStatus?: str
     )
     .all(...values, pageSize, offset) as Pph21Record[];
 
+  const arFilter = params.ar && params.ar !== "all" ? Number(params.ar) : null;
   const summary = database
     .prepare(
       `
       SELECT
-        SUM(CASE WHEN ketepatan = 'tepat_waktu' THEN 1 ELSE 0 END) AS tepat,
-        SUM(CASE WHEN ketepatan != 'tepat_waktu' THEN 1 ELSE 0 END) AS belum,
-        SUM(CASE WHEN status = 'under_reporting' THEN 1 ELSE 0 END) AS under_reporting,
-        SUM(nominal_setor) AS total_setor
-      FROM pph21_monitoring
-      WHERE bulan = ?
+        SUM(CASE WHEN p.ketepatan = 'tepat_waktu' THEN 1 ELSE 0 END) AS tepat,
+        SUM(CASE WHEN p.ketepatan != 'tepat_waktu' THEN 1 ELSE 0 END) AS belum,
+        SUM(CASE WHEN p.status = 'under_reporting' THEN 1 ELSE 0 END) AS under_reporting,
+        SUM(p.nominal_setor) AS total_setor
+      FROM pph21_monitoring p
+      JOIN opd o ON o.id = p.opd_id
+      WHERE p.bulan = ? AND (? IS NULL OR o.ar_id = ?)
     `,
     )
-    .get(bulan) as { tepat: number; belum: number; under_reporting: number; total_setor: number };
+    .get(bulan, arFilter, arFilter) as { tepat: number; belum: number; under_reporting: number; total_setor: number };
 
   return { data, summary, total, page, pageSize, pages: Math.ceil(total / pageSize) || 1, bulan };
+}
+
+export function listSptMasa(params: ListParams & { masa?: string; overallStatus?: string } = {}) {
+  const database = db();
+  const masa = params.masa ?? latestSptMasaPeriod();
+  const where = ["m.masa_pajak = ?"];
+  const values: Array<string | number> = [masa];
+
+  if (params.q) {
+    where.push("(LOWER(o.nama) LIKE ? OR LOWER(u.nama) LIKE ?)");
+    const q = `%${params.q.toLowerCase()}%`;
+    values.push(q, q);
+  }
+  if (params.wilayah && params.wilayah !== "all") {
+    where.push("w.kode = ?");
+    values.push(params.wilayah);
+  }
+  if (params.overallStatus && params.overallStatus !== "all") {
+    where.push("LOWER(m.status_keseluruhan) = ?");
+    values.push(params.overallStatus.toLowerCase());
+  }
+  if (params.ar && params.ar !== "all") {
+    where.push("o.ar_id = ?");
+    values.push(Number(params.ar));
+  }
+
+  const page = Math.max(1, params.page ?? 1);
+  const pageSize = Math.min(100, Math.max(5, params.pageSize ?? 12));
+  const offset = (page - 1) * pageSize;
+  const clause = `WHERE ${where.join(" AND ")}`;
+
+  const total = (
+    database
+      .prepare(
+        `
+        SELECT COUNT(*) AS total
+        FROM spt_masa_monitoring m
+        JOIN opd o ON o.id = m.opd_id
+        JOIN wilayah w ON w.id = o.wilayah_id
+        LEFT JOIN users u ON u.id = o.ar_id
+        ${clause}
+      `,
+      )
+      .get(...values) as { total: number }
+  ).total;
+
+  const data = database
+    .prepare(
+      `
+      SELECT m.id, o.id AS opd_id, o.nama AS opd_nama, w.nama AS wilayah_nama, u.nama AS ar_nama,
+        m.masa_pajak, m.pph22_nominal, m.pph22_status, m.pph23_nominal, m.pph23_status,
+        m.ppn_put_nominal, m.ppn_put_status, m.status_opd_pemungut,
+        LOWER(COALESCE(m.status_keseluruhan, 'merah')) AS status_keseluruhan,
+        m.catatan_ar
+      FROM spt_masa_monitoring m
+      JOIN opd o ON o.id = m.opd_id
+      JOIN wilayah w ON w.id = o.wilayah_id
+      LEFT JOIN users u ON u.id = o.ar_id
+      ${clause}
+      ORDER BY CASE LOWER(m.status_keseluruhan) WHEN 'merah' THEN 1 WHEN 'kuning' THEN 2 ELSE 3 END, o.nama
+      LIMIT ? OFFSET ?
+    `,
+    )
+    .all(...values, pageSize, offset) as SptMasaRecord[];
+
+  const arFilter = params.ar && params.ar !== "all" ? Number(params.ar) : null;
+  const summary = database
+    .prepare(
+      `
+      SELECT LOWER(COALESCE(m.status_keseluruhan, 'merah')) AS status, COUNT(*) AS total,
+        COALESCE(SUM(m.pph22_nominal + m.pph23_nominal + m.ppn_put_nominal), 0) AS nominal
+      FROM spt_masa_monitoring m
+      JOIN opd o ON o.id = m.opd_id
+      WHERE m.masa_pajak = ? AND (? IS NULL OR o.ar_id = ?)
+      GROUP BY LOWER(COALESCE(m.status_keseluruhan, 'merah'))
+    `,
+    )
+    .all(masa, arFilter, arFilter) as Array<{ status: string; total: number; nominal: number }>;
+
+  return { data, summary, total, page, pageSize, pages: Math.ceil(total / pageSize) || 1, masa };
+}
+
+export function listDeposit(params: ListParams & { masa?: string; overallStatus?: string } = {}) {
+  const database = db();
+  const masa = params.masa ?? latestDepositPeriod();
+  const where = ["d.masa_pajak = ?"];
+  const values: Array<string | number> = [masa];
+
+  if (params.q) {
+    where.push("(LOWER(o.nama) LIKE ? OR LOWER(u.nama) LIKE ?)");
+    const q = `%${params.q.toLowerCase()}%`;
+    values.push(q, q);
+  }
+  if (params.wilayah && params.wilayah !== "all") {
+    where.push("w.kode = ?");
+    values.push(params.wilayah);
+  }
+  if (params.overallStatus && params.overallStatus !== "all") {
+    where.push("LOWER(d.status_deposit_overall) = ?");
+    values.push(params.overallStatus.toLowerCase());
+  }
+  if (params.ar && params.ar !== "all") {
+    where.push("o.ar_id = ?");
+    values.push(Number(params.ar));
+  }
+
+  const page = Math.max(1, params.page ?? 1);
+  const pageSize = Math.min(100, Math.max(5, params.pageSize ?? 12));
+  const offset = (page - 1) * pageSize;
+  const clause = `WHERE ${where.join(" AND ")}`;
+
+  const total = (
+    database
+      .prepare(
+        `
+        SELECT COUNT(*) AS total
+        FROM deposit_monitoring d
+        JOIN opd o ON o.id = d.opd_id
+        JOIN wilayah w ON w.id = o.wilayah_id
+        LEFT JOIN users u ON u.id = o.ar_id
+        ${clause}
+      `,
+      )
+      .get(...values) as { total: number }
+  ).total;
+
+  const data = database
+    .prepare(
+      `
+      SELECT d.id, o.id AS opd_id, o.nama AS opd_nama, w.nama AS wilayah_nama, u.nama AS ar_nama,
+        d.masa_pajak, d.deposit_pph21, d.status_pph21, d.deposit_pph_unifikasi, d.status_unifikasi,
+        d.deposit_ppn_put, d.status_ppn_put, d.total_deposit,
+        LOWER(COALESCE(d.status_deposit_overall, 'merah')) AS status_deposit_overall
+      FROM deposit_monitoring d
+      JOIN opd o ON o.id = d.opd_id
+      JOIN wilayah w ON w.id = o.wilayah_id
+      LEFT JOIN users u ON u.id = o.ar_id
+      ${clause}
+      ORDER BY CASE LOWER(d.status_deposit_overall) WHEN 'merah' THEN 1 WHEN 'kuning' THEN 2 ELSE 3 END, d.total_deposit ASC, o.nama
+      LIMIT ? OFFSET ?
+    `,
+    )
+    .all(...values, pageSize, offset) as DepositRecord[];
+
+  const arFilter = params.ar && params.ar !== "all" ? Number(params.ar) : null;
+  const summary = database
+    .prepare(
+      `
+      SELECT LOWER(COALESCE(d.status_deposit_overall, 'merah')) AS status, COUNT(*) AS total,
+        COALESCE(SUM(d.total_deposit), 0) AS nominal
+      FROM deposit_monitoring d
+      JOIN opd o ON o.id = d.opd_id
+      WHERE d.masa_pajak = ? AND (? IS NULL OR o.ar_id = ?)
+      GROUP BY LOWER(COALESCE(d.status_deposit_overall, 'merah'))
+    `,
+    )
+    .all(masa, arFilter, arFilter) as Array<{ status: string; total: number; nominal: number }>;
+
+  return { data, summary, total, page, pageSize, pages: Math.ceil(total / pageSize) || 1, masa };
+}
+
+export function listScoring(params: ListParams & { bulan?: string; kategori?: string; statusRp?: string } = {}) {
+  const database = db();
+  const bulan = params.bulan ?? latestScoringPeriod();
+  const where = ["s.bulan_scoring = ?"];
+  const values: Array<string | number> = [bulan];
+
+  if (params.q) {
+    where.push("(LOWER(o.nama) LIKE ? OR LOWER(u.nama) LIKE ?)");
+    const q = `%${params.q.toLowerCase()}%`;
+    values.push(q, q);
+  }
+  if (params.wilayah && params.wilayah !== "all") {
+    where.push("w.kode = ?");
+    values.push(params.wilayah);
+  }
+  if (params.kategori && params.kategori !== "all") {
+    where.push("s.kategori = ?");
+    values.push(params.kategori);
+  }
+  if (params.statusRp && params.statusRp !== "all") {
+    where.push("s.status_rp = ?");
+    values.push(params.statusRp);
+  }
+  if (params.ar && params.ar !== "all") {
+    where.push("o.ar_id = ?");
+    values.push(Number(params.ar));
+  }
+
+  const page = Math.max(1, params.page ?? 1);
+  const pageSize = Math.min(100, Math.max(5, params.pageSize ?? 12));
+  const offset = (page - 1) * pageSize;
+  const clause = `WHERE ${where.join(" AND ")}`;
+
+  const total = (
+    database
+      .prepare(
+        `
+        SELECT COUNT(*) AS total
+        FROM scoring_opd s
+        JOIN opd o ON o.id = s.opd_id
+        JOIN wilayah w ON w.id = o.wilayah_id
+        LEFT JOIN users u ON u.id = o.ar_id
+        ${clause}
+      `,
+      )
+      .get(...values) as { total: number }
+  ).total;
+
+  const data = database
+    .prepare(
+      `
+      SELECT s.id, o.id AS opd_id, o.nama AS opd_nama, w.nama AS wilayah_nama, u.nama AS ar_nama,
+        s.bulan_scoring, s.skor_spt_op, s.skor_pph21, s.skor_spt_masa, s.skor_deposit,
+        s.skor_total, s.kategori, s.status_rp, s.catatan
+      FROM scoring_opd s
+      JOIN opd o ON o.id = s.opd_id
+      JOIN wilayah w ON w.id = o.wilayah_id
+      LEFT JOIN users u ON u.id = o.ar_id
+      ${clause}
+      ORDER BY s.skor_total ASC, o.nama
+      LIMIT ? OFFSET ?
+    `,
+    )
+    .all(...values, pageSize, offset) as ScoringRecord[];
+
+  const arFilter = params.ar && params.ar !== "all" ? Number(params.ar) : null;
+  const summary = database
+    .prepare(
+      `
+      SELECT s.kategori, s.status_rp, COUNT(*) AS total, ROUND(AVG(s.skor_total), 1) AS avg_score
+      FROM scoring_opd s
+      JOIN opd o ON o.id = s.opd_id
+      WHERE s.bulan_scoring = ? AND (? IS NULL OR o.ar_id = ?)
+      GROUP BY s.kategori, s.status_rp
+    `,
+    )
+    .all(bulan, arFilter, arFilter) as Array<{ kategori: string; status_rp: string; total: number; avg_score: number }>;
+
+  const topReward = database
+    .prepare(
+      `
+      SELECT s.id, o.id AS opd_id, o.nama AS opd_nama, w.nama AS wilayah_nama, u.nama AS ar_nama,
+        s.bulan_scoring, s.skor_spt_op, s.skor_pph21, s.skor_spt_masa, s.skor_deposit,
+        s.skor_total, s.kategori, s.status_rp, s.catatan
+      FROM scoring_opd s
+      JOIN opd o ON o.id = s.opd_id
+      JOIN wilayah w ON w.id = o.wilayah_id
+      LEFT JOIN users u ON u.id = o.ar_id
+      WHERE s.bulan_scoring = ? AND s.status_rp = 'reward' AND (? IS NULL OR o.ar_id = ?)
+      ORDER BY s.skor_total DESC, o.nama
+      LIMIT 5
+    `,
+    )
+    .all(bulan, arFilter, arFilter) as ScoringRecord[];
+
+  const topPunishment = database
+    .prepare(
+      `
+      SELECT s.id, o.id AS opd_id, o.nama AS opd_nama, w.nama AS wilayah_nama, u.nama AS ar_nama,
+        s.bulan_scoring, s.skor_spt_op, s.skor_pph21, s.skor_spt_masa, s.skor_deposit,
+        s.skor_total, s.kategori, s.status_rp, s.catatan
+      FROM scoring_opd s
+      JOIN opd o ON o.id = s.opd_id
+      JOIN wilayah w ON w.id = o.wilayah_id
+      LEFT JOIN users u ON u.id = o.ar_id
+      WHERE s.bulan_scoring = ? AND s.status_rp = 'punishment' AND (? IS NULL OR o.ar_id = ?)
+      ORDER BY s.skor_total ASC, o.nama
+      LIMIT 10
+    `,
+    )
+    .all(bulan, arFilter, arFilter) as ScoringRecord[];
+
+  return { data, summary, topReward, topPunishment, total, page, pageSize, pages: Math.ceil(total / pageSize) || 1, bulan };
 }
 
 export function listSosialisasi(params: ListParams = {}) {
@@ -499,6 +873,10 @@ export function listSosialisasi(params: ListParams = {}) {
   if (params.status && params.status !== "all") {
     where.push("s.status = ?");
     values.push(params.status);
+  }
+  if (params.ar && params.ar !== "all") {
+    where.push("o.ar_id = ?");
+    values.push(Number(params.ar));
   }
 
   const clause = where.length ? `WHERE ${where.join(" AND ")}` : "";
@@ -532,18 +910,25 @@ export function listSosialisasi(params: ListParams = {}) {
     )
     .all(...values, pageSize, offset) as SosialisasiRecord[];
 
+  const arFilter = params.ar && params.ar !== "all" ? Number(params.ar) : null;
   const summary = database
     .prepare(
       `
       SELECT
         COUNT(*) AS sesi,
-        COUNT(DISTINCT opd_id) AS sudah,
-        COALESCE(SUM(jumlah_peserta), 0) AS peserta
-      FROM sosialisasi
+        COUNT(DISTINCT s.opd_id) AS sudah,
+        COALESCE(SUM(s.jumlah_peserta), 0) AS peserta
+      FROM sosialisasi s
+      JOIN opd o ON o.id = s.opd_id
+      WHERE (? IS NULL OR o.ar_id = ?)
     `,
     )
-    .get() as { sesi: number; sudah: number; peserta: number };
-  const totalOpd = (database.prepare("SELECT COUNT(*) AS total FROM opd").get() as { total: number }).total;
+    .get(arFilter, arFilter) as { sesi: number; sudah: number; peserta: number };
+  const totalOpd = (
+    database.prepare("SELECT COUNT(*) AS total FROM opd WHERE (? IS NULL OR ar_id = ?)").get(arFilter, arFilter) as {
+      total: number;
+    }
+  ).total;
 
   const priority = database
     .prepare(
@@ -553,11 +938,12 @@ export function listSosialisasi(params: ListParams = {}) {
       JOIN wilayah w ON w.id = o.wilayah_id
       LEFT JOIN users u ON u.id = o.ar_id
       WHERE o.id NOT IN (SELECT DISTINCT opd_id FROM sosialisasi)
+        AND (? IS NULL OR o.ar_id = ?)
       ORDER BY o.jumlah_asn DESC
       LIMIT 6
     `,
     )
-    .all() as Array<{ id: number; nama: string; wilayah_nama: string; ar_nama: string | null; jumlah_asn: number }>;
+    .all(arFilter, arFilter) as Array<{ id: number; nama: string; wilayah_nama: string; ar_nama: string | null; jumlah_asn: number }>;
 
   return {
     data,
@@ -610,6 +996,10 @@ export function listPegawai(params: ListParams = {}) {
     where.push("p.status_coretax = ?");
     values.push(params.status);
   }
+  if (params.ar && params.ar !== "all") {
+    where.push("o.ar_id = ?");
+    values.push(Number(params.ar));
+  }
 
   const clause = `WHERE ${where.join(" AND ")}`;
   const total = (
@@ -642,15 +1032,18 @@ export function listPegawai(params: ListParams = {}) {
     )
     .all(...values, pageSize, offset) as PegawaiRecord[];
 
+  const arFilter = params.ar && params.ar !== "all" ? Number(params.ar) : null;
   const summary = database
     .prepare(
       `
-      SELECT status_coretax AS status, COUNT(*) AS total
-      FROM pegawai
-      GROUP BY status_coretax
+      SELECT p.status_coretax AS status, COUNT(*) AS total
+      FROM pegawai p
+      JOIN opd o ON o.id = p.opd_id
+      WHERE (? IS NULL OR o.ar_id = ?)
+      GROUP BY p.status_coretax
     `,
     )
-    .all() as Array<{ status: string; total: number }>;
+    .all(arFilter, arFilter) as Array<{ status: string; total: number }>;
 
   return { data, summary, total, page, pageSize, pages: Math.ceil(total / pageSize) || 1 };
 }
@@ -671,6 +1064,69 @@ export function listAr() {
     `,
     )
     .all() as Array<User & { opd_count: number; avg_kepatuhan: number | null }>;
+}
+
+export function listBendahara(params: ListParams = {}) {
+  const database = db();
+  const page = Math.max(1, params.page ?? 1);
+  const pageSize = Math.min(100, Math.max(5, params.pageSize ?? 12));
+  const offset = (page - 1) * pageSize;
+  const scoringPeriod = latestScoringPeriod();
+  const pphMonth = latestPphMonth();
+  const where: string[] = [];
+  const values: Array<string | number> = [];
+
+  if (params.q) {
+    where.push(
+      "(LOWER(o.nama) LIKE ? OR LOWER(o.nama_bendahara) LIKE ? OR LOWER(o.nama_bendahara_penerimaan) LIKE ? OR LOWER(u.nama) LIKE ?)",
+    );
+    const q = `%${params.q.toLowerCase()}%`;
+    values.push(q, q, q, q);
+  }
+  if (params.wilayah && params.wilayah !== "all") {
+    where.push("w.kode = ?");
+    values.push(params.wilayah);
+  }
+  if (params.ar && params.ar !== "all") {
+    where.push("o.ar_id = ?");
+    values.push(Number(params.ar));
+  }
+
+  const clause = where.length ? `WHERE ${where.join(" AND ")}` : "";
+  const total = (
+    database
+      .prepare(
+        `
+        SELECT COUNT(*) AS total
+        FROM opd o
+        JOIN wilayah w ON w.id = o.wilayah_id
+        LEFT JOIN users u ON u.id = o.ar_id
+        ${clause}
+      `,
+      )
+      .get(...values) as { total: number }
+  ).total;
+
+  const data = database
+    .prepare(
+      `
+      SELECT o.*, (o.jumlah_asn + o.jumlah_pppk) AS total_wajib_lapor,
+        w.nama AS wilayah_nama, w.kode AS wilayah_kode, u.nama AS ar_nama,
+        p.ketepatan AS status_pph21_terakhir,
+        s.skor_total AS skor_terakhir
+      FROM opd o
+      JOIN wilayah w ON w.id = o.wilayah_id
+      LEFT JOIN users u ON u.id = o.ar_id
+      LEFT JOIN pph21_monitoring p ON p.opd_id = o.id AND p.bulan = ?
+      LEFT JOIN scoring_opd s ON s.opd_id = o.id AND s.bulan_scoring = ?
+      ${clause}
+      ORDER BY COALESCE(s.skor_total, 999) ASC, w.id, o.nama
+      LIMIT ? OFFSET ?
+    `,
+    )
+    .all(pphMonth, scoringPeriod, ...values, pageSize, offset) as BendaharaRecord[];
+
+  return { data, total, page, pageSize, pages: Math.ceil(total / pageSize) || 1, pphMonth, scoringPeriod };
 }
 
 export function listUsers() {
@@ -715,29 +1171,71 @@ export function createUser(payload: {
   return result.lastInsertRowid;
 }
 
-export function getActionLog(limit = 20) {
+export function getActionLog(limit = 20, params: { userId?: string; ar?: string } = {}) {
+  const where: string[] = [];
+  const values: Array<string | number> = [];
+
+  if (params.userId) {
+    where.push("l.user_id = ?");
+    values.push(Number(params.userId));
+  }
+
+  if (params.ar && params.ar !== "all") {
+    where.push("o.ar_id = ?");
+    values.push(Number(params.ar));
+  }
+
+  const clause = where.length ? `WHERE ${where.join(" AND ")}` : "";
+
   return db()
     .prepare(
       `
-      SELECT l.id, l.user_id, u.nama AS user_nama, l.action, l.target_type, l.target_name, l.created_at
+      SELECT l.id, l.user_id, u.nama AS user_nama, l.opd_id, l.action, l.target_type, l.target_name,
+        l.description, l.result, l.follow_up, l.next_follow_up_at, l.attachment_url, l.created_at
       FROM action_log l
       LEFT JOIN users u ON u.id = l.user_id
+      LEFT JOIN opd o ON o.id = l.opd_id
+      ${clause}
       ORDER BY l.created_at DESC, l.id DESC
       LIMIT ?
     `,
     )
-    .all(limit) as ActionLog[];
+    .all(...values, limit) as ActionLog[];
 }
 
-export function createActionLog(payload: { user_id?: number | null; action: string; target_type: string; target_name: string }) {
+export function createActionLog(payload: {
+  user_id?: number | null;
+  opd_id?: number | null;
+  action: string;
+  target_type: string;
+  target_name: string;
+  description?: string | null;
+  result?: string | null;
+  follow_up?: string | null;
+  next_follow_up_at?: string | null;
+  attachment_url?: string | null;
+}) {
   const result = db()
     .prepare(
       `
-      INSERT INTO action_log (user_id, action, target_type, target_name)
-      VALUES (?, ?, ?, ?)
+      INSERT INTO action_log (
+        user_id, opd_id, action, target_type, target_name, description, result, follow_up, next_follow_up_at, attachment_url
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `,
     )
-    .run(payload.user_id ?? null, payload.action, payload.target_type, payload.target_name);
+    .run(
+      payload.user_id ?? null,
+      payload.opd_id ?? null,
+      payload.action,
+      payload.target_type,
+      payload.target_name,
+      payload.description ?? null,
+      payload.result ?? null,
+      payload.follow_up ?? null,
+      payload.next_follow_up_at ?? null,
+      payload.attachment_url ?? null,
+    );
   return result.lastInsertRowid;
 }
 

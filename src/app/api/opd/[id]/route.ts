@@ -17,6 +17,9 @@ export async function GET(request: Request, context: RouteContext) {
 
   const data = getOpd(Number(context.params.id));
   if (!data) return NextResponse.json({ message: "OPD tidak ditemukan" }, { status: 404 });
+  if (auth.session?.user.role === "ar" && String(data.ar_id ?? "") !== auth.session.user.id) {
+    return NextResponse.json({ message: "AR hanya dapat membuka OPD ampuannya." }, { status: 403 });
+  }
   return NextResponse.json(data);
 }
 

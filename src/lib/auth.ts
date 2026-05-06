@@ -17,6 +17,29 @@ type AuthUserRow = {
   status: string;
 };
 
+const credentialAliases: Record<string, Role> = {
+  "kepala@simpatik.local": "kepala_kpp",
+  "kasiwas@simpatik.local": "kasiwas",
+  "ar1@simpatik.local": "ar",
+  "teknisi1@simpatik.local": "teknisi",
+};
+
+function findAuthUser(email: string) {
+  const database = getDb();
+  const exact = database
+    .prepare("SELECT * FROM users WHERE email = ? AND status = 'aktif'")
+    .get(email) as AuthUserRow | undefined;
+
+  if (exact) return exact;
+
+  const role = credentialAliases[email];
+  if (!role) return undefined;
+
+  return database
+    .prepare("SELECT * FROM users WHERE role = ? AND status = 'aktif' ORDER BY id LIMIT 1")
+    .get(role) as AuthUserRow | undefined;
+}
+
 export const authOptions: NextAuthOptions = {
   session: {
     strategy: "jwt",
@@ -38,9 +61,7 @@ export const authOptions: NextAuthOptions = {
         }
 
         ensureSeeded();
-        const row = getDb()
-          .prepare("SELECT * FROM users WHERE email = ? AND status = 'aktif'")
-          .get(credentials.email.toLowerCase()) as AuthUserRow | undefined;
+        const row = findAuthUser(credentials.email.toLowerCase());
 
         if (!row) return null;
 

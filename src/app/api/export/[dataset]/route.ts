@@ -15,7 +15,11 @@ export async function GET(request: Request, context: RouteContext) {
   if (auth.response) return auth.response;
 
   const url = new URL(request.url);
-  const rows = exportDataset(context.params.dataset, url.searchParams);
+  const params = new URLSearchParams(url.searchParams);
+  if (auth.session?.user.role === "ar") {
+    params.set("ar", auth.session.user.id);
+  }
+  const rows = exportDataset(context.params.dataset, params);
 
   if (!rows) {
     return NextResponse.json({ message: "Dataset export tidak dikenal." }, { status: 404 });

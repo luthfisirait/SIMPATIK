@@ -218,6 +218,9 @@ function reset(database: Database.Database) {
     DELETE FROM action_log;
     DELETE FROM pegawai;
     DELETE FROM sosialisasi;
+    DELETE FROM scoring_opd;
+    DELETE FROM deposit_monitoring;
+    DELETE FROM spt_masa_monitoring;
     DELETE FROM pph21_monitoring;
     DELETE FROM spt_monitoring;
     DELETE FROM opd;
@@ -225,6 +228,7 @@ function reset(database: Database.Database) {
     DELETE FROM wilayah;
     DELETE FROM sqlite_sequence WHERE name IN (
       'wilayah','users','opd','spt_monitoring','pph21_monitoring',
+      'spt_masa_monitoring','deposit_monitoring','scoring_opd',
       'sosialisasi','pegawai','action_log','notifications'
     );
   `);
@@ -234,7 +238,7 @@ export function seedDatabase(options: { force?: boolean } = {}): SeedResult {
   const database = getDb();
   const existing = database.prepare("SELECT COUNT(*) AS total FROM opd").get() as { total: number };
 
-  if (!options.force && existing.total >= 185) {
+  if (!options.force && existing.total > 0) {
     return counts(database, false);
   }
 
@@ -272,10 +276,12 @@ export function seedDatabase(options: { force?: boolean } = {}): SeedResult {
 
     const insertOpd = database.prepare(`
       INSERT INTO opd (
-        nama, wilayah_id, jumlah_asn, nama_bendahara, hp_bendahara,
-        nama_pic_kepeg, hp_pic_kepeg, ar_id, status
+        nama, wilayah_id, jenis_instansi, jumlah_asn, jumlah_pppk, npwp_opd, status_pemungut_ppn,
+        nama_bendahara, nip_bendahara, hp_bendahara, email_bendahara,
+        nama_bendahara_penerimaan, hp_bendahara_penerimaan,
+        nama_pic_kepeg, hp_pic_kepeg, ar_id, status, tanggal_input, tanggal_update_kontak
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     const opdRows: Array<{ id: number; index: number; jumlahAsn: number; wilayahIndex: number }> = [];
@@ -289,18 +295,39 @@ export function seedDatabase(options: { force?: boolean } = {}): SeedResult {
         const nama = `${base}${numbered} ${wilayah.suffix}`;
         const jumlahAsn = 35 + Math.floor(random() * 390);
         const bendahara = `${pick(firstNames, random)} ${pick(lastNames, random)}`;
+        const bendaharaPenerimaan = `${pick(firstNames, random)} ${pick(lastNames, random)}`;
         const pic = `${pick(firstNames, random)} ${pick(lastNames, random)}`;
         const status = globalIndex % 49 === 0 ? "tidak_aktif" : globalIndex % 17 === 0 ? "perlu_update" : "aktif";
         const result = insertOpd.run(
           nama,
           wilayahIds[wilayahIndex],
+          base.startsWith("Dinas")
+            ? "Dinas"
+            : base.startsWith("Badan")
+              ? "Badan"
+              : base.startsWith("Sekretariat")
+                ? "Sekretariat"
+                : base.includes("Rumah Sakit")
+                  ? "Rumah Sakit"
+                  : base.includes("SMP")
+                    ? "Sekolah"
+                    : "Lainnya",
           jumlahAsn,
+          5 + Math.floor(random() * 85),
+          `00.${String(100000 + globalIndex).slice(0, 6)}.${String(900 + (globalIndex % 99)).padStart(3, "0")}.0-201.000`,
+          globalIndex % 4 === 0 ? "YA" : "TIDAK",
           bendahara,
+          nip(1000 + globalIndex),
           phone(11 + (globalIndex % 8), globalIndex),
+          `bendahara${globalIndex}@opd.local`,
+          bendaharaPenerimaan,
+          phone(41 + (globalIndex % 7), globalIndex),
           pic,
           phone(21 + (globalIndex % 8), globalIndex),
           arIds[globalIndex % arIds.length],
           status,
+          "2026-01-02",
+          "2026-04-30",
         );
         opdRows.push({
           id: Number(result.lastInsertRowid),
@@ -354,13 +381,72 @@ export function seedDatabase(options: { force?: boolean } = {}): SeedResult {
 
     const pphMonths = ["2025-10", "2025-11", "2025-12", "2026-01", "2026-02", "2026-03"];
     opdRows.forEach((opd) => {
-      pphMonths.forEach((bulan, idx) => {
+    pphMonths.forEach((bulan, idx) => {
         const estimasi = opd.jumlahAsn * (110_000 + Math.floor(random() * 95_000));
         const severity = (opd.index + idx) % 19 === 0 ? "kritis" : (opd.index + idx) % 8 === 0 ? "under_reporting" : "normal";
         const nominal = severity === "kritis" ? 0 : severity === "under_reporting" ? Math.round(estimasi * (0.48 + random() * 0.2)) : Math.round(estimasi * (0.92 + random() * 0.16));
         const ketepatan = severity === "kritis" ? "belum_setor" : severity === "under_reporting" || (opd.index + idx) % 11 === 0 ? "terlambat" : "tepat_waktu";
         insertPph.run(opd.id, bulan, Math.round(opd.jumlahAsn * (0.78 + random() * 0.2)), nominal, estimasi, ketepatan, severity);
       });
+    });
+
+    const insertSptMasa = database.prepare(`
+      INSERT INTO spt_masa_monitoring (
+        opd_id, masa_pajak, pph22_nominal, pph22_status, pph23_nominal, pph23_status,
+        ppn_put_nominal, ppn_put_status, status_opd_pemungut, status_keseluruhan, catatan_ar
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    const insertDeposit = database.prepare(`
+      INSERT INTO deposit_monitoring (
+        opd_id, masa_pajak, deposit_pph21, status_pph21, deposit_pph_unifikasi,
+        status_unifikasi, deposit_ppn_put, status_ppn_put, total_deposit, status_deposit_overall
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    const insertScore = database.prepare(`
+      INSERT INTO scoring_opd (
+        opd_id, bulan_scoring, skor_spt_op, skor_pph21, skor_spt_masa, skor_deposit,
+        skor_total, kategori, status_rp, catatan
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    const latestSpt = database.prepare(`
+      SELECT persen_kepatuhan FROM spt_monitoring WHERE opd_id = ? AND tahun_pajak = 2025 AND periode = '2026-03'
+    `);
+    const latestPph = database.prepare("SELECT ketepatan, nominal_setor FROM pph21_monitoring WHERE opd_id = ? AND bulan = '2026-03'");
+
+    opdRows.forEach((opd) => {
+      const isPemungut = opd.index % 4 === 0;
+      const sptMasaRisk = opd.index % 18 === 0 ? "merah" : opd.index % 6 === 0 ? "kuning" : "hijau";
+      const pph22Status: string = sptMasaRisk === "merah" ? "NIHIL" : sptMasaRisk === "kuning" ? "TERLAMBAT" : "TEPAT WAKTU";
+      const pph23Status: string = opd.index % 13 === 0 ? "TERLAMBAT" : "TEPAT WAKTU";
+      const ppnStatus: string = !isPemungut ? "BUKAN PEMUNGUT" : opd.index % 21 === 0 ? "NIHIL" : pph22Status;
+      const statusKeseluruhan = pph22Status === "NIHIL" || pph23Status === "NIHIL" || ppnStatus === "NIHIL" ? "merah" : pph22Status === "TERLAMBAT" || pph23Status === "TERLAMBAT" || ppnStatus === "TERLAMBAT" ? "kuning" : "hijau";
+      const pph22 = pph22Status === "NIHIL" ? 0 : Math.round(opd.jumlahAsn * (18_000 + random() * 42_000));
+      const pph23 = pph23Status === "NIHIL" ? 0 : Math.round(opd.jumlahAsn * (15_000 + random() * 38_000));
+      const ppn = ppnStatus === "NIHIL" || ppnStatus === "BUKAN PEMUNGUT" ? 0 : Math.round(opd.jumlahAsn * (30_000 + random() * 70_000));
+      insertSptMasa.run(opd.id, "2026-03", pph22, pph22Status, pph23, pph23Status, ppn, ppnStatus, isPemungut ? "YA" : "TIDAK", statusKeseluruhan, null);
+
+      const pph = latestPph.get(opd.id) as { ketepatan: string; nominal_setor: number };
+      const statusPph21 = pph.ketepatan === "belum_setor" ? "NIHIL" : pph.ketepatan === "terlambat" ? "TERLAMBAT" : "TEPAT WAKTU";
+      const statusUnifikasi = statusKeseluruhan === "merah" ? "NIHIL" : statusKeseluruhan === "kuning" ? "TERLAMBAT" : "TEPAT WAKTU";
+      const statusDepositOverall = statusPph21 === "NIHIL" || statusUnifikasi === "NIHIL" || ppnStatus === "NIHIL" ? "merah" : statusPph21 === "TERLAMBAT" || statusUnifikasi === "TERLAMBAT" || ppnStatus === "TERLAMBAT" ? "kuning" : "hijau";
+      const totalDeposit = pph.nominal_setor + pph22 + pph23 + ppn;
+      insertDeposit.run(opd.id, "2026-03", pph.nominal_setor, statusPph21, pph22 + pph23, statusUnifikasi, ppn, ppnStatus, totalDeposit, statusDepositOverall);
+
+      const spt = latestSpt.get(opd.id) as { persen_kepatuhan: number };
+      const skorSpt = Math.min(100, spt.persen_kepatuhan);
+      const skorPph21 = statusPph21 === "TEPAT WAKTU" ? 100 : statusPph21 === "TERLAMBAT" ? 60 : 0;
+      const skorSptMasa = statusKeseluruhan === "hijau" ? 100 : statusKeseluruhan === "kuning" ? 60 : 0;
+      const skorDeposit = statusDepositOverall === "hijau" ? 100 : statusDepositOverall === "kuning" ? 60 : 0;
+      const skorTotal = Number((skorSpt * 0.3 + skorPph21 * 0.25 + skorSptMasa * 0.25 + skorDeposit * 0.2).toFixed(2));
+      const kategori = skorTotal >= 90 ? "hijau" : skorTotal >= 70 ? "kuning" : "merah";
+      const statusRp = skorTotal >= 90 ? "reward" : skorTotal < 70 ? "punishment" : "monitor";
+      insertScore.run(opd.id, "2026-03", skorSpt, skorPph21, skorSptMasa, skorDeposit, skorTotal, kategori, statusRp, null);
     });
 
     const insertSos = database.prepare(`
@@ -444,6 +530,7 @@ export function seedDatabase(options: { force?: boolean } = {}): SeedResult {
     }
 
     const insertSetting = database.prepare("INSERT INTO settings (key, value) VALUES (?, ?)");
+    insertSetting.run("data_source", "dummy_seed");
     insertSetting.run("integration_coretax", "simulated");
     insertSetting.run("integration_bkpsdm", "simulated");
     insertSetting.run("notification_email", "disabled");

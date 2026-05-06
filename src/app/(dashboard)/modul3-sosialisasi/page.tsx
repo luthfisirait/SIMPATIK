@@ -1,10 +1,12 @@
 import { CalendarPlus, Download, Presentation, Search } from "lucide-react";
+import { getServerSession } from "next-auth";
 import Link from "next/link";
 
 import { Badge } from "@/components/ui/Badge";
 import { KpiCard } from "@/components/ui/KpiCard";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Pagination } from "@/components/ui/Pagination";
+import { authOptions } from "@/lib/auth";
 import { getWilayah, listSosialisasi } from "@/lib/queries";
 import { firstParam, keepQuery, numericParam, queryString, type PageSearchParams } from "@/lib/search";
 import { formatNumber } from "@/lib/utils";
@@ -21,12 +23,14 @@ const statusLabel: Record<string, string> = {
   belum: "Belum",
 };
 
-export default function ModulSosialisasiPage({ searchParams }: { searchParams?: PageSearchParams }) {
+export default async function ModulSosialisasiPage({ searchParams }: { searchParams?: PageSearchParams }) {
+  const session = await getServerSession(authOptions);
   const q = firstParam(searchParams, "q");
   const wilayah = firstParam(searchParams, "wilayah", "all");
   const status = firstParam(searchParams, "status", "all");
+  const ar = session?.user.role === "ar" ? session.user.id : undefined;
   const page = numericParam(searchParams, "page");
-  const result = listSosialisasi({ q, wilayah, status, page, pageSize: 12 });
+  const result = listSosialisasi({ q, wilayah, status, ar, page, pageSize: 12 });
   const wilayahOptions = getWilayah();
   const exportQuery = queryString({ q, wilayah, status });
   const exportHref = exportQuery ? `/api/export/sosialisasi?${exportQuery}` : "/api/export/sosialisasi";

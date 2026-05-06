@@ -49,11 +49,13 @@ export function exportDataset(dataset: string, params: URLSearchParams) {
   const db = database();
 
   if (dataset === "opd") {
-    const { clause, values } = filteredClause(params, { wilayah: "w.kode", status: "o.status" });
+    const { clause, values } = filteredClause(params, { wilayah: "w.kode", status: "o.status", ar: "o.ar_id" });
     return db
       .prepare(
         `
         SELECT o.id, o.nama, w.nama AS wilayah, o.jumlah_asn, o.nama_bendahara, o.hp_bendahara,
+          o.jenis_instansi, o.jumlah_pppk, o.npwp_opd, o.status_pemungut_ppn,
+          o.nip_bendahara, o.email_bendahara, o.nama_bendahara_penerimaan, o.hp_bendahara_penerimaan,
           o.nama_pic_kepeg, o.hp_pic_kepeg, u.nama AS ar_pengampu, o.status
         FROM opd o
         JOIN wilayah w ON w.id = o.wilayah_id
@@ -69,7 +71,7 @@ export function exportDataset(dataset: string, params: URLSearchParams) {
     const period =
       params.get("periode") ??
       ((db.prepare("SELECT MAX(periode) AS periode FROM spt_monitoring WHERE tahun_pajak = 2025").get() as { periode: string }).periode);
-    const { clause, values } = filteredClause(params, { wilayah: "w.kode", status: "s.traffic_light" });
+    const { clause, values } = filteredClause(params, { wilayah: "w.kode", status: "s.traffic_light", ar: "o.ar_id" });
     const prefix = clause ? `${clause} AND` : "WHERE";
     return db
       .prepare(
@@ -89,7 +91,7 @@ export function exportDataset(dataset: string, params: URLSearchParams) {
 
   if (dataset === "pph21") {
     const bulan = params.get("bulan") ?? ((db.prepare("SELECT MAX(bulan) AS bulan FROM pph21_monitoring").get() as { bulan: string }).bulan);
-    const { clause, values } = filteredClause(params, { wilayah: "w.kode", status: "p.status" });
+    const { clause, values } = filteredClause(params, { wilayah: "w.kode", status: "p.status", ar: "o.ar_id" });
     const prefix = clause ? `${clause} AND` : "WHERE";
     return db
       .prepare(
@@ -107,7 +109,7 @@ export function exportDataset(dataset: string, params: URLSearchParams) {
   }
 
   if (dataset === "sosialisasi") {
-    const { clause, values } = filteredClause(params, { wilayah: "w.kode", status: "s.status" });
+    const { clause, values } = filteredClause(params, { wilayah: "w.kode", status: "s.status", ar: "o.ar_id" });
     return db
       .prepare(
         `
@@ -124,8 +126,101 @@ export function exportDataset(dataset: string, params: URLSearchParams) {
       .all(...values) as CsvRow[];
   }
 
+  if (dataset === "spt-masa") {
+    const masa =
+      params.get("masa") ??
+      ((db.prepare("SELECT MAX(masa_pajak) AS masa FROM spt_masa_monitoring").get() as { masa: string }).masa);
+    const { clause, values } = filteredClause(params, { wilayah: "w.kode", status: "LOWER(m.status_keseluruhan)", ar: "o.ar_id" });
+    const prefix = clause ? `${clause} AND` : "WHERE";
+    return db
+      .prepare(
+        `
+        SELECT o.nama AS opd, w.nama AS wilayah, u.nama AS ar_pengampu, m.masa_pajak,
+          m.pph22_nominal, m.pph22_status, m.pph23_nominal, m.pph23_status,
+          m.ppn_put_nominal, m.ppn_put_status, m.status_opd_pemungut,
+          m.status_keseluruhan, m.catatan_ar
+        FROM spt_masa_monitoring m
+        JOIN opd o ON o.id = m.opd_id
+        JOIN wilayah w ON w.id = o.wilayah_id
+        LEFT JOIN users u ON u.id = o.ar_id
+        ${prefix} m.masa_pajak = ?
+        ORDER BY m.status_keseluruhan, o.nama
+      `,
+      )
+      .all(...values, masa) as CsvRow[];
+  }
+
+  if (dataset === "deposit") {
+    const masa =
+      params.get("masa") ??
+      ((db.prepare("SELECT MAX(masa_pajak) AS masa FROM deposit_monitoring").get() as { masa: string }).masa);
+    const { clause, values } = filteredClause(params, { wilayah: "w.kode", status: "LOWER(d.status_deposit_overall)", ar: "o.ar_id" });
+    const prefix = clause ? `${clause} AND` : "WHERE";
+    return db
+      .prepare(
+        `
+        SELECT o.nama AS opd, w.nama AS wilayah, u.nama AS ar_pengampu, d.masa_pajak,
+          d.deposit_pph21, d.status_pph21, d.deposit_pph_unifikasi, d.status_unifikasi,
+          d.deposit_ppn_put, d.status_ppn_put, d.total_deposit, d.status_deposit_overall
+        FROM deposit_monitoring d
+        JOIN opd o ON o.id = d.opd_id
+        JOIN wilayah w ON w.id = o.wilayah_id
+        LEFT JOIN users u ON u.id = o.ar_id
+        ${prefix} d.masa_pajak = ?
+        ORDER BY d.status_deposit_overall, d.total_deposit ASC, o.nama
+      `,
+      )
+      .all(...values, masa) as CsvRow[];
+  }
+
+  if (dataset === "scoring") {
+    const bulan =
+      params.get("bulan") ??
+      ((db.prepare("SELECT MAX(bulan_scoring) AS bulan FROM scoring_opd").get() as { bulan: string }).bulan);
+    const { clause, values } = filteredClause(params, { wilayah: "w.kode", kategori: "s.kategori", status: "s.status_rp", ar: "o.ar_id" });
+    const prefix = clause ? `${clause} AND` : "WHERE";
+    return db
+      .prepare(
+        `
+        SELECT o.nama AS opd, w.nama AS wilayah, u.nama AS ar_pengampu, s.bulan_scoring,
+          s.skor_spt_op, s.skor_pph21, s.skor_spt_masa, s.skor_deposit,
+          s.skor_total, s.kategori, s.status_rp, s.catatan
+        FROM scoring_opd s
+        JOIN opd o ON o.id = s.opd_id
+        JOIN wilayah w ON w.id = o.wilayah_id
+        LEFT JOIN users u ON u.id = o.ar_id
+        ${prefix} s.bulan_scoring = ?
+        ORDER BY s.skor_total ASC, o.nama
+      `,
+      )
+      .all(...values, bulan) as CsvRow[];
+  }
+
+  if (dataset === "bendahara") {
+    const pphMonth = (db.prepare("SELECT MAX(bulan) AS bulan FROM pph21_monitoring").get() as { bulan: string }).bulan;
+    const scoringPeriod = (db.prepare("SELECT MAX(bulan_scoring) AS bulan FROM scoring_opd").get() as { bulan: string }).bulan;
+    const { clause, values } = filteredClause(params, { wilayah: "w.kode", ar: "o.ar_id" });
+    return db
+      .prepare(
+        `
+        SELECT o.nama AS opd, w.nama AS wilayah, o.nama_bendahara, o.nip_bendahara, o.hp_bendahara,
+          o.email_bendahara, o.nama_bendahara_penerimaan, o.hp_bendahara_penerimaan,
+          p.ketepatan AS status_pph21_terakhir, s.skor_total AS skor_terakhir,
+          u.nama AS ar_pengampu, o.tanggal_update_kontak
+        FROM opd o
+        JOIN wilayah w ON w.id = o.wilayah_id
+        LEFT JOIN users u ON u.id = o.ar_id
+        LEFT JOIN pph21_monitoring p ON p.opd_id = o.id AND p.bulan = ?
+        LEFT JOIN scoring_opd s ON s.opd_id = o.id AND s.bulan_scoring = ?
+        ${clause}
+        ORDER BY COALESCE(s.skor_total, 999) ASC, o.nama
+      `,
+      )
+      .all(pphMonth, scoringPeriod, ...values) as CsvRow[];
+  }
+
   if (dataset === "pegawai") {
-    const { clause, values } = filteredClause(params, { wilayah: "w.kode", status: "p.status_coretax" });
+    const { clause, values } = filteredClause(params, { wilayah: "w.kode", status: "p.status_coretax", ar: "o.ar_id" });
     const prefix = clause ? `${clause} AND` : "WHERE";
     return db
       .prepare(

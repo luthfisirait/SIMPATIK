@@ -1,19 +1,22 @@
 import { Download, FileCheck2, Search, Send } from "lucide-react";
+import { getServerSession } from "next-auth";
 import Link from "next/link";
 
 import { Badge, toneForTraffic } from "@/components/ui/Badge";
 import { KpiCard } from "@/components/ui/KpiCard";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Pagination } from "@/components/ui/Pagination";
+import { authOptions } from "@/lib/auth";
 import { getWilayah, listAr, listSpt } from "@/lib/queries";
 import { firstParam, keepQuery, numericParam, queryString, type PageSearchParams } from "@/lib/search";
 import { formatNumber, formatPercent, monthLabel, trafficLabel } from "@/lib/utils";
 
-export default function ModulSptPage({ searchParams }: { searchParams?: PageSearchParams }) {
+export default async function ModulSptPage({ searchParams }: { searchParams?: PageSearchParams }) {
+  const session = await getServerSession(authOptions);
   const q = firstParam(searchParams, "q");
   const wilayah = firstParam(searchParams, "wilayah", "all");
   const status = firstParam(searchParams, "status", "all");
-  const ar = firstParam(searchParams, "ar", "all");
+  const ar = session?.user.role === "ar" ? session.user.id : firstParam(searchParams, "ar", "all");
   const page = numericParam(searchParams, "page");
   const result = listSpt({ q, wilayah, traffic: status, ar, page, pageSize: 12 });
   const wilayahOptions = getWilayah();

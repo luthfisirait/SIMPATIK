@@ -5,6 +5,7 @@ build
 dist
 .env*.local
 database/*.db
+database/*.xlsx
 database/*.db-journal
 database/*.db-shm
 database/*.db-wal

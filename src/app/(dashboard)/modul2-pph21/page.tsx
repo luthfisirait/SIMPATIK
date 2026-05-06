@@ -1,10 +1,12 @@
 import { Download, ReceiptText, Search } from "lucide-react";
+import { getServerSession } from "next-auth";
 import Link from "next/link";
 
 import { Badge, toneForPph } from "@/components/ui/Badge";
 import { KpiCard } from "@/components/ui/KpiCard";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Pagination } from "@/components/ui/Pagination";
+import { authOptions } from "@/lib/auth";
 import { getWilayah, listPph21 } from "@/lib/queries";
 import { firstParam, keepQuery, numericParam, queryString, type PageSearchParams } from "@/lib/search";
 import { formatCompactRupiah, formatNumber, monthLabel } from "@/lib/utils";
@@ -18,12 +20,14 @@ const statusLabel: Record<string, string> = {
   belum_setor: "Belum setor",
 };
 
-export default function ModulPph21Page({ searchParams }: { searchParams?: PageSearchParams }) {
+export default async function ModulPph21Page({ searchParams }: { searchParams?: PageSearchParams }) {
+  const session = await getServerSession(authOptions);
   const q = firstParam(searchParams, "q");
   const wilayah = firstParam(searchParams, "wilayah", "all");
   const status = firstParam(searchParams, "status", "all");
+  const ar = session?.user.role === "ar" ? session.user.id : undefined;
   const page = numericParam(searchParams, "page");
-  const result = listPph21({ q, wilayah, pphStatus: status, page, pageSize: 12 });
+  const result = listPph21({ q, wilayah, pphStatus: status, ar, page, pageSize: 12 });
   const wilayahOptions = getWilayah();
   const exportQuery = queryString({ q, wilayah, status });
   const exportHref = exportQuery ? `/api/export/pph21?${exportQuery}` : "/api/export/pph21";

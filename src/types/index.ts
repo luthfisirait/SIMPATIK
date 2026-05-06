@@ -26,14 +26,25 @@ export type Opd = {
   wilayah_id: number;
   wilayah_nama: string;
   wilayah_kode: string;
+  jenis_instansi: string | null;
   jumlah_asn: number;
+  jumlah_pppk: number;
+  total_wajib_lapor?: number;
+  npwp_opd: string | null;
+  status_pemungut_ppn: "YA" | "TIDAK" | string;
   nama_bendahara: string;
+  nip_bendahara: string | null;
   hp_bendahara: string;
+  email_bendahara: string | null;
+  nama_bendahara_penerimaan: string | null;
+  hp_bendahara_penerimaan: string | null;
   nama_pic_kepeg: string;
   hp_pic_kepeg: string;
   ar_id: number | null;
   ar_nama: string | null;
   status: "aktif" | "tidak_aktif" | "perlu_update";
+  tanggal_input: string | null;
+  tanggal_update_kontak: string | null;
 };
 
 export type SptRecord = {
@@ -61,6 +72,63 @@ export type Pph21Record = {
   estimasi_wajar: number;
   ketepatan: "tepat_waktu" | "terlambat" | "belum_setor";
   status: "normal" | "under_reporting" | "kritis";
+};
+
+export type SptMasaRecord = {
+  id: number;
+  opd_id: number;
+  opd_nama: string;
+  wilayah_nama: string;
+  ar_nama: string | null;
+  masa_pajak: string;
+  pph22_nominal: number;
+  pph22_status: string | null;
+  pph23_nominal: number;
+  pph23_status: string | null;
+  ppn_put_nominal: number;
+  ppn_put_status: string | null;
+  status_opd_pemungut: string | null;
+  status_keseluruhan: TrafficLight | string | null;
+  catatan_ar: string | null;
+};
+
+export type DepositRecord = {
+  id: number;
+  opd_id: number;
+  opd_nama: string;
+  wilayah_nama: string;
+  ar_nama: string | null;
+  masa_pajak: string;
+  deposit_pph21: number;
+  status_pph21: string | null;
+  deposit_pph_unifikasi: number;
+  status_unifikasi: string | null;
+  deposit_ppn_put: number;
+  status_ppn_put: string | null;
+  total_deposit: number;
+  status_deposit_overall: TrafficLight | string | null;
+};
+
+export type ScoringRecord = {
+  id: number;
+  opd_id: number;
+  opd_nama: string;
+  wilayah_nama: string;
+  ar_nama: string | null;
+  bulan_scoring: string;
+  skor_spt_op: number;
+  skor_pph21: number;
+  skor_spt_masa: number;
+  skor_deposit: number;
+  skor_total: number;
+  kategori: TrafficLight;
+  status_rp: "reward" | "monitor" | "punishment";
+  catatan: string | null;
+};
+
+export type BendaharaRecord = Opd & {
+  status_pph21_terakhir: string | null;
+  skor_terakhir: number | null;
 };
 
 export type SosialisasiRecord = {
@@ -92,9 +160,15 @@ export type ActionLog = {
   id: number;
   user_id: number | null;
   user_nama: string | null;
+  opd_id: number | null;
   action: string;
   target_type: string;
   target_name: string;
+  description: string | null;
+  result: string | null;
+  follow_up: string | null;
+  next_follow_up_at: string | null;
+  attachment_url: string | null;
   created_at: string;
 };
 
