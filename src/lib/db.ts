@@ -184,6 +184,19 @@ function initSchema(database: Database.Database) {
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
 
+    CREATE TABLE IF NOT EXISTS audit_log (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      actor_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      actor_name TEXT,
+      action TEXT NOT NULL CHECK(action IN ('create','update','delete','import')),
+      entity_type TEXT NOT NULL CHECK(entity_type IN ('opd','user')),
+      entity_id INTEGER,
+      entity_name TEXT NOT NULL,
+      before_json TEXT,
+      after_json TEXT,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+
     CREATE TABLE IF NOT EXISTS settings (
       key TEXT PRIMARY KEY,
       value TEXT NOT NULL
@@ -197,11 +210,13 @@ function initSchema(database: Database.Database) {
     CREATE INDEX IF NOT EXISTS idx_scoring_period ON scoring_opd(bulan_scoring);
     CREATE INDEX IF NOT EXISTS idx_scoring_status ON scoring_opd(status_rp, kategori);
     CREATE INDEX IF NOT EXISTS idx_pegawai_status ON pegawai(status_coretax);
+    CREATE INDEX IF NOT EXISTS idx_audit_log_entity ON audit_log(entity_type, entity_id);
   `);
 
   ensureExistingSchema(database);
 
   database.exec("CREATE INDEX IF NOT EXISTS idx_action_log_opd ON action_log(opd_id)");
+  database.exec("CREATE INDEX IF NOT EXISTS idx_audit_log_created ON audit_log(created_at)");
 }
 
 function ensureExistingSchema(database: Database.Database) {

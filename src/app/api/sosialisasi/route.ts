@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 
 import { requireApiPermission } from "@/lib/api-auth";
-import { createSosialisasi, listSosialisasi } from "@/lib/queries";
+import { createSosialisasi, getOpd, listSosialisasi } from "@/lib/queries";
+import { validateSosialisasiPayload, validationError } from "@/lib/validation";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -29,6 +30,20 @@ export async function POST(request: Request) {
   if (auth.response) return auth.response;
 
   const body = await request.json();
-  const id = createSosialisasi(body);
+  const parsed = validateSosialisasiPayload(body);
+  if (!parsed.ok) {
+    return NextResponse.json(validationError(parsed.errors), { status: 400 });
+  }
+
+  const opd = getOpd(parsed.data.opd_id);
+  if (!opd) {
+    return NextResponse.json({ message: "OPD tidak ditemukan." }, { status: 404 });
+  }
+
+  if (auth.session?.user.role === "ar" && String(opd.ar_id ?? "") !== auth.session.user.id) {
+    return NextResponse.json({ message: "AR hanya dapat menjadwalkan sosialisasi untuk OPD ampuannya." }, { status: 403 });
+  }
+
+  const id = createSosialisasi(parsed.data);
   return NextResponse.json({ id }, { status: 201 });
 }

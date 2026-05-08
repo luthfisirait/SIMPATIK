@@ -25,7 +25,7 @@ type ListParams = {
   pageSize?: number;
 };
 
-type WriteOpdPayload = {
+export type WriteOpdPayload = {
   nama: string;
   wilayah_id: number;
   jenis_instansi?: string | null;
@@ -45,6 +45,34 @@ type WriteOpdPayload = {
   status?: string;
   tanggal_input?: string | null;
   tanggal_update_kontak?: string | null;
+};
+
+export type AuditActor = {
+  id?: string | number | null;
+  name?: string | null;
+};
+
+export type AuditLogPayload = {
+  actor?: AuditActor;
+  action: "create" | "update" | "delete" | "import";
+  entity_type: "opd" | "user";
+  entity_id?: number | null;
+  entity_name: string;
+  before?: unknown;
+  after?: unknown;
+};
+
+export type AuditLogRecord = {
+  id: number;
+  actor_user_id: number | null;
+  actor_name: string | null;
+  action: "create" | "update" | "delete" | "import";
+  entity_type: "opd" | "user";
+  entity_id: number | null;
+  entity_name: string;
+  before_json: string | null;
+  after_json: string | null;
+  created_at: string;
 };
 
 function db() {
@@ -86,6 +114,52 @@ function latestScoringPeriod() {
     (db().prepare("SELECT MAX(bulan_scoring) AS period FROM scoring_opd").get() as { period: string | null }).period ??
     latestDepositPeriod()
   );
+}
+
+function jsonForAudit(value: unknown) {
+  if (value === undefined) return null;
+  return JSON.stringify(value);
+}
+
+function auditActorId(actor: AuditActor | undefined) {
+  const id = Number(actor?.id ?? 0);
+  return Number.isFinite(id) && id > 0 ? id : null;
+}
+
+export function createAuditLog(payload: AuditLogPayload) {
+  const result = db()
+    .prepare(
+      `
+      INSERT INTO audit_log (
+        actor_user_id, actor_name, action, entity_type, entity_id, entity_name, before_json, after_json
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `,
+    )
+    .run(
+      auditActorId(payload.actor),
+      payload.actor?.name ?? null,
+      payload.action,
+      payload.entity_type,
+      payload.entity_id ?? null,
+      payload.entity_name,
+      jsonForAudit(payload.before),
+      jsonForAudit(payload.after),
+    );
+  return Number(result.lastInsertRowid);
+}
+
+export function listAuditLogs(limit = 80) {
+  return db()
+    .prepare(
+      `
+      SELECT id, actor_user_id, actor_name, action, entity_type, entity_id, entity_name, before_json, after_json, created_at
+      FROM audit_log
+      ORDER BY created_at DESC, id DESC
+      LIMIT ?
+    `,
+    )
+    .all(Math.min(200, Math.max(10, limit))) as AuditLogRecord[];
 }
 
 export function getWilayah() {
@@ -326,7 +400,7 @@ export function getOpd(id: number) {
     .get(id) as Opd | undefined;
 }
 
-export function createOpd(payload: WriteOpdPayload) {
+export function createOpd(payload: WriteOpdPayload, audit?: { actor?: AuditActor; action?: "create" | "import" }) {
   const database = db();
   const result = database
     .prepare(
@@ -362,10 +436,21 @@ export function createOpd(payload: WriteOpdPayload) {
       payload.tanggal_update_kontak ?? new Date().toISOString().slice(0, 10),
     );
 
-  return getOpd(Number(result.lastInsertRowid));
+  const created = getOpd(Number(result.lastInsertRowid));
+  if (created && audit) {
+    createAuditLog({
+      actor: audit.actor,
+      action: audit.action ?? "create",
+      entity_type: "opd",
+      entity_id: created.id,
+      entity_name: created.nama,
+      after: created,
+    });
+  }
+  return created;
 }
 
-export function updateOpd(id: number, payload: Partial<WriteOpdPayload>) {
+export function updateOpd(id: number, payload: Partial<WriteOpdPayload>, audit?: { actor?: AuditActor }) {
   const current = getOpd(id);
   if (!current) return undefined;
 
@@ -418,11 +503,34 @@ export function updateOpd(id: number, payload: Partial<WriteOpdPayload>) {
       id,
     );
 
-  return getOpd(id);
+  const updated = getOpd(id);
+  if (updated && audit) {
+    createAuditLog({
+      actor: audit.actor,
+      action: "update",
+      entity_type: "opd",
+      entity_id: id,
+      entity_name: updated.nama,
+      before: current,
+      after: updated,
+    });
+  }
+  return updated;
 }
 
-export function deleteOpd(id: number) {
+export function deleteOpd(id: number, audit?: { actor?: AuditActor }) {
+  const current = audit ? getOpd(id) : undefined;
   const result = db().prepare("DELETE FROM opd WHERE id = ?").run(id);
+  if (result.changes > 0 && current && audit) {
+    createAuditLog({
+      actor: audit.actor,
+      action: "delete",
+      entity_type: "opd",
+      entity_id: id,
+      entity_name: current.nama,
+      before: current,
+    });
+  }
   return result.changes > 0;
 }
 
@@ -1141,16 +1249,28 @@ export function listUsers() {
     .all() as User[];
 }
 
+export function getUser(id: number) {
+  return db()
+    .prepare(
+      `
+      SELECT id, nama, email, nip, jabatan, role, phone, avatar_color, status
+      FROM users
+      WHERE id = ?
+    `,
+    )
+    .get(id) as User | undefined;
+}
+
 export function createUser(payload: {
   nama: string;
   email: string;
   password_hash: string;
   role: string;
-  nip?: string;
-  jabatan?: string;
-  phone?: string;
-  avatar_color?: string;
-}) {
+  nip?: string | null;
+  jabatan?: string | null;
+  phone?: string | null;
+  avatar_color?: string | null;
+}, audit?: { actor?: AuditActor }) {
   const result = db()
     .prepare(
       `
@@ -1168,7 +1288,98 @@ export function createUser(payload: {
       payload.phone ?? null,
       payload.avatar_color ?? "#0A8090",
     );
-  return result.lastInsertRowid;
+  const id = Number(result.lastInsertRowid);
+  const created = getUser(id);
+  if (created && audit) {
+    createAuditLog({
+      actor: audit.actor,
+      action: "create",
+      entity_type: "user",
+      entity_id: id,
+      entity_name: created.nama,
+      after: created,
+    });
+  }
+  return id;
+}
+
+export function updateUser(
+  id: number,
+  payload: Partial<{
+    nama: string;
+    email: string;
+    password_hash: string;
+    role: string;
+    nip?: string | null;
+    jabatan?: string | null;
+    phone?: string | null;
+    avatar_color?: string | null;
+    status?: string;
+  }>,
+  audit?: { actor?: AuditActor },
+) {
+  const current = getUser(id);
+  if (!current) return undefined;
+
+  db()
+    .prepare(
+      `
+      UPDATE users SET
+        nama = ?,
+        email = ?,
+        password_hash = COALESCE(?, password_hash),
+        nip = ?,
+        jabatan = ?,
+        role = ?,
+        phone = ?,
+        avatar_color = ?,
+        status = ?
+      WHERE id = ?
+    `,
+    )
+    .run(
+      payload.nama ?? current.nama,
+      payload.email ?? current.email,
+      payload.password_hash ?? null,
+      payload.nip ?? current.nip,
+      payload.jabatan ?? current.jabatan,
+      payload.role ?? current.role,
+      payload.phone ?? current.phone,
+      payload.avatar_color ?? current.avatar_color,
+      payload.status ?? current.status,
+      id,
+    );
+
+  const updated = getUser(id);
+  if (updated && audit) {
+    createAuditLog({
+      actor: audit.actor,
+      action: "update",
+      entity_type: "user",
+      entity_id: id,
+      entity_name: updated.nama,
+      before: current,
+      after: updated,
+    });
+  }
+  return updated;
+}
+
+export function deleteUser(id: number, audit?: { actor?: AuditActor }) {
+  const current = getUser(id);
+  if (!current) return false;
+  const result = db().prepare("UPDATE users SET status = 'nonaktif' WHERE id = ?").run(id);
+  if (result.changes > 0 && audit) {
+    createAuditLog({
+      actor: audit.actor,
+      action: "delete",
+      entity_type: "user",
+      entity_id: id,
+      entity_name: current.nama,
+      before: current,
+    });
+  }
+  return result.changes > 0;
 }
 
 export function getActionLog(limit = 20, params: { userId?: string; ar?: string } = {}) {
@@ -1250,6 +1461,22 @@ export function getNotifications(limit = 20) {
     `,
     )
     .all(limit) as Notification[];
+}
+
+export function getNotification(id: number) {
+  return db()
+    .prepare(
+      `
+      SELECT id, title, body, type, is_read, created_at
+      FROM notifications
+      WHERE id = ?
+    `,
+    )
+    .get(id) as Notification | undefined;
+}
+
+export function markNotificationRead(id: number) {
+  return db().prepare("UPDATE notifications SET is_read = 1 WHERE id = ? AND is_read = 0").run(id).changes;
 }
 
 export function markNotificationsRead() {

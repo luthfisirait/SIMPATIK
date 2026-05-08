@@ -25,6 +25,9 @@ const pageRules: Array<{ prefix: string; roles: Role[] }> = [
   { prefix: "/direktori-opd", roles: ALL_ROLES },
   { prefix: "/direktori-bendahara", roles: OPERATIONAL_ROLES },
   { prefix: "/analitik", roles: ALL_ROLES },
+  { prefix: "/notifikasi", roles: ALL_ROLES },
+  { prefix: "/audit-trail", roles: ["kasiwas", "teknisi"] },
+  { prefix: "/import-data", roles: DATA_WRITER_ROLES },
   { prefix: "/pengguna", roles: ["kasiwas"] },
   { prefix: "/pengaturan", roles: ["kasiwas", "teknisi"] },
 ];
@@ -51,6 +54,8 @@ const apiRules: ApiRule[] = [
   { prefix: "/api/ar", methods: ["POST"], roles: ["kasiwas"] },
   { prefix: "/api/users", roles: ["kasiwas"] },
   { prefix: "/api/notifications", roles: ALL_ROLES },
+  { prefix: "/api/audit", roles: ["kasiwas", "teknisi"] },
+  { prefix: "/api/import", roles: DATA_WRITER_ROLES },
   { prefix: "/api/export/pegawai", roles: OPERATIONAL_ROLES },
   { prefix: "/api/export/users", roles: ["kasiwas"] },
   { prefix: "/api/export", roles: ALL_ROLES },
@@ -58,8 +63,9 @@ const apiRules: ApiRule[] = [
 ];
 
 export function getAllowedPageRoles(pathname: string) {
+  if (pathname === "/") return ALL_ROLES;
   const rule = pageRules.find((item) => pathname === item.prefix || pathname.startsWith(`${item.prefix}/`));
-  return rule?.roles ?? ALL_ROLES;
+  return rule?.roles ?? [];
 }
 
 export function canAccessPage(role: Role | undefined, pathname: string) {
@@ -74,7 +80,7 @@ export function getAllowedApiRoles(pathname: string, method: string) {
     return methodMatches && (pathname === item.prefix || pathname.startsWith(item.prefix));
   });
 
-  return rule?.roles ?? ALL_ROLES;
+  return rule?.roles ?? [];
 }
 
 export function canAccessApi(role: Role | undefined, pathname: string, method: string) {

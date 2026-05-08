@@ -13,6 +13,7 @@ import { createOpd, deleteOpd, getOpd, getWilayah, listAr, listOpd, updateOpd } 
 import { canCreateOpd, canDeleteOpd, canEditOpd } from "@/lib/rbac";
 import { firstParam, keepQuery, numericParam, type PageSearchParams } from "@/lib/search";
 import { formatNumber, toWaLink } from "@/lib/utils";
+import { validateOpdPayload } from "@/lib/validation";
 import type { Opd, Role } from "@/types";
 
 async function addOpdAction(formData: FormData) {
@@ -20,7 +21,7 @@ async function addOpdAction(formData: FormData) {
   const session = await getServerSession(authOptions);
   if (!canCreateOpd(session?.user.role)) throw new Error("Role Anda tidak dapat menambah OPD.");
 
-  createOpd({
+  const payload = {
     nama: String(formData.get("nama") ?? ""),
     wilayah_id: Number(formData.get("wilayah_id")),
     jenis_instansi: String(formData.get("jenis_instansi") ?? "") || null,
@@ -38,7 +39,11 @@ async function addOpdAction(formData: FormData) {
     hp_pic_kepeg: String(formData.get("hp_pic_kepeg") ?? ""),
     ar_id: Number(formData.get("ar_id")) || null,
     status: String(formData.get("status") ?? "aktif"),
-  });
+  };
+  const parsed = validateOpdPayload(payload);
+  if (!parsed.ok) throw new Error(parsed.errors.join(" "));
+
+  createOpd(parsed.data, { actor: { id: session?.user.id, name: session?.user.name } });
 
   revalidatePath("/data-opd");
   redirect("/data-opd");
@@ -54,7 +59,7 @@ async function updateOpdAction(formData: FormData) {
     throw new Error("Role Anda tidak dapat mengedit OPD ini.");
   }
 
-  updateOpd(id, {
+  const payload = {
     nama: String(formData.get("nama") ?? ""),
     wilayah_id: Number(formData.get("wilayah_id")),
     jenis_instansi: String(formData.get("jenis_instansi") ?? "") || null,
@@ -72,7 +77,11 @@ async function updateOpdAction(formData: FormData) {
     hp_pic_kepeg: String(formData.get("hp_pic_kepeg") ?? ""),
     ar_id: Number(formData.get("ar_id")) || null,
     status: String(formData.get("status") ?? "aktif"),
-  });
+  };
+  const parsed = validateOpdPayload(payload);
+  if (!parsed.ok) throw new Error(parsed.errors.join(" "));
+
+  updateOpd(id, parsed.data, { actor: { id: session?.user.id, name: session?.user.name } });
 
   revalidatePath("/data-opd");
   redirect("/data-opd");
@@ -83,7 +92,7 @@ async function deleteOpdAction(formData: FormData) {
   const session = await getServerSession(authOptions);
   if (!canDeleteOpd(session?.user.role)) throw new Error("Role Anda tidak dapat menghapus OPD.");
 
-  deleteOpd(Number(formData.get("id")));
+  deleteOpd(Number(formData.get("id")), { actor: { id: session?.user.id, name: session?.user.name } });
   revalidatePath("/data-opd");
   redirect("/data-opd");
 }
@@ -248,7 +257,11 @@ export default async function DataOpdPage({ searchParams }: { searchParams?: Pag
   const result = listOpd({ q, wilayah, status, ar: arFilter, page, pageSize: 12 });
   const wilayahOptions = getWilayah();
   const arOptions = listAr();
-  const selectedOpd = detailId || editId ? getOpd(detailId || editId) : undefined;
+  const rawSelectedOpd = detailId || editId ? getOpd(detailId || editId) : undefined;
+  const selectedOpd =
+    rawSelectedOpd && (role !== "ar" || String(rawSelectedOpd.ar_id ?? "") === String(userId ?? ""))
+      ? rawSelectedOpd
+      : undefined;
   const baseParams = keepQuery({ q, wilayah, status, page });
   const baseHref = hrefWith("/data-opd", baseParams);
   const exportHref = hrefWith("/api/export/opd", keepQuery({ q, wilayah, status }));

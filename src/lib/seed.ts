@@ -214,6 +214,7 @@ function nip(index: number) {
 function reset(database: Database.Database) {
   database.exec(`
     DELETE FROM settings;
+    DELETE FROM audit_log;
     DELETE FROM notifications;
     DELETE FROM action_log;
     DELETE FROM pegawai;
@@ -229,7 +230,7 @@ function reset(database: Database.Database) {
     DELETE FROM sqlite_sequence WHERE name IN (
       'wilayah','users','opd','spt_monitoring','pph21_monitoring',
       'spt_masa_monitoring','deposit_monitoring','scoring_opd',
-      'sosialisasi','pegawai','action_log','notifications'
+      'sosialisasi','pegawai','action_log','notifications','audit_log'
     );
   `);
 }

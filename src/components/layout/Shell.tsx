@@ -23,6 +23,7 @@ import {
   UsersRound,
 } from "lucide-react";
 import { signOut } from "next-auth/react";
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useMemo, useState } from "react";
@@ -68,6 +69,9 @@ const navGroups = [
     label: "Sistem",
     items: [
       { href: "/analitik", label: "Analitik", icon: BarChart3 },
+      { href: "/notifikasi", label: "Notifikasi", icon: Bell },
+      { href: "/audit-trail", label: "Audit Trail", icon: ClipboardList },
+      { href: "/import-data", label: "Import Data", icon: Database },
       { href: "/pengguna", label: "Pengguna", icon: ShieldCheck },
       { href: "/pengaturan", label: "Pengaturan", icon: Settings },
     ],
@@ -88,6 +92,9 @@ const meta: Record<string, { title: string; bc: string }> = {
   "/direktori-ar": { title: "Direktori AR", bc: "/ Contact Person" },
   "/direktori-bendahara": { title: "Direktori Bendahara", bc: "/ Kontak Bendahara Pengeluaran" },
   "/analitik": { title: "Analitik", bc: "/ Visualisasi dan Tren" },
+  "/notifikasi": { title: "Notifikasi", bc: "/ Inbox Sistem" },
+  "/audit-trail": { title: "Audit Trail", bc: "/ Riwayat Perubahan" },
+  "/import-data": { title: "Import Data", bc: "/ Upload CSV atau Excel" },
   "/pengguna": { title: "Pengguna", bc: "/ Manajemen Akses" },
   "/pengaturan": { title: "Pengaturan", bc: "/ Konfigurasi Sistem" },
 };
@@ -103,18 +110,24 @@ export function Shell({ children, user }: ShellProps) {
     <div className={collapsed ? "shell collapsed" : "shell"}>
       <aside className="sidebar">
         <div className="sidebar-logo">
-          <span className="logo-icon">SP</span>
-          <div className="logo-text">
-            <div className="app-name">SIMPATIK</div>
-            <div className="app-sub">KPP Pratama Padang Satu</div>
+          <div className="sidebar-brand-card">
+            <Image
+              src="/logos/simpatik-brand.svg"
+              alt="Logo Kementerian Keuangan dan DJP"
+              width={184}
+              height={72}
+              priority
+              className="sidebar-brand-logo"
+            />
           </div>
           <button
             className="sidebar-collapse-btn"
             type="button"
             title={collapsed ? "Lebarkan sidebar" : "Ciutkan sidebar"}
+            aria-label={collapsed ? "Lebarkan sidebar" : "Ciutkan sidebar"}
             onClick={() => setCollapsed((value) => !value)}
           >
-            {collapsed ? <ChevronRight size={12} /> : <ChevronLeft size={12} />}
+            {collapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
           </button>
         </div>
 
@@ -164,10 +177,10 @@ export function Shell({ children, user }: ShellProps) {
           <Search size={15} />
           <input name="q" placeholder="Cari OPD, AR, pegawai" />
         </form>
-        <button className="icon-btn" type="button" title="Notifikasi">
+        <Link className="icon-btn" href="/notifikasi" title="Notifikasi">
           <Bell size={18} />
           <span className="notif-dot" />
-        </button>
+        </Link>
         <div className="user-pill">
           <span className="user-avatar" style={user.avatarColor ? { background: user.avatarColor } : undefined}>
             {initials(name)}

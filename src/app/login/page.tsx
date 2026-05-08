@@ -1,9 +1,24 @@
 "use client";
 
 import { Eye, LockKeyhole, Mail } from "lucide-react";
+import Image from "next/image";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
+
+function safeCallbackUrl(value: string | null) {
+  if (!value) return "/dashboard";
+
+  try {
+    const parsed = new URL(value, window.location.origin);
+    if (parsed.origin !== window.location.origin) return "/dashboard";
+    const path = `${parsed.pathname}${parsed.search}${parsed.hash}`;
+    if (!path.startsWith("/") || path.startsWith("//") || path.startsWith("/login")) return "/dashboard";
+    return path;
+  } catch {
+    return "/dashboard";
+  }
+}
 
 export default function LoginPage() {
   const router = useRouter();
@@ -16,7 +31,7 @@ export default function LoginPage() {
     event.preventDefault();
     setLoading(true);
     setError("");
-    const callbackUrl = new URLSearchParams(window.location.search).get("callbackUrl") ?? "/dashboard";
+    const callbackUrl = safeCallbackUrl(new URLSearchParams(window.location.search).get("callbackUrl"));
 
     const result = await signIn("credentials", {
       email,
@@ -31,22 +46,25 @@ export default function LoginPage() {
       return;
     }
 
-    router.push(callbackUrl.startsWith("http") ? new URL(callbackUrl).pathname + new URL(callbackUrl).search : callbackUrl);
+    router.push(callbackUrl);
     router.refresh();
   }
 
   return (
     <main className="login-page">
       <section className="login-panel">
-        <div className="brand-row">
-          <span className="brand-mark">SP</span>
-          <div>
-            <div className="brand-title">SIMPATIK</div>
-            <div className="brand-subtitle">KPP Pratama Padang Satu</div>
-          </div>
+        <div className="brand-row login-brand">
+          <Image
+            src="/logos/simpatik-brand.svg"
+            alt="Logo Kementerian Keuangan dan DJP"
+            width={260}
+            height={101}
+            priority
+            className="login-brand-logo"
+          />
         </div>
-        <h1>Masuk ke ruang monitoring kepatuhan perpajakan.</h1>
-        <p>Gunakan akun dummy role untuk melihat dashboard, modul monitoring, direktori, dan pengaturan.</p>
+        <h1>SIMPATIK</h1>
+        <p>Sistem Monitoring Terintegrasi Kepatuhan Perpajakan untuk memantau kepatuhan dan tindak lanjut secara terpadu.</p>
 
         <form className="login-form" onSubmit={onSubmit}>
           <label className="field">
@@ -79,10 +97,6 @@ export default function LoginPage() {
           Default: <strong>kasiwas@simpatik.local</strong> / <strong>simpatik123</strong>. Akun lain:{" "}
           <strong>kepala@simpatik.local</strong>, <strong>ar1@simpatik.local</strong>, <strong>teknisi1@simpatik.local</strong>.
         </div>
-      </section>
-      <section className="login-visual">
-        <h2>Sistem Monitoring Terintegrasi Kepatuhan Perpajakan</h2>
-        <p>Dashboard operasional untuk kepatuhan SPT PPh OP, PPh Pasal 21 bendahara, dan sosialisasi Coretax seluruh OPD.</p>
       </section>
     </main>
   );

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { requireApiPermission } from "@/lib/api-auth";
 import { createOpd, listOpd } from "@/lib/queries";
+import { validateOpdPayload, validationError } from "@/lib/validation";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -29,6 +30,20 @@ export async function POST(request: Request) {
   if (auth.response) return auth.response;
 
   const body = await request.json();
-  const data = createOpd(body);
-  return NextResponse.json(data, { status: 201 });
+  const parsed = validateOpdPayload(body);
+  if (!parsed.ok) {
+    return NextResponse.json(validationError(parsed.errors), { status: 400 });
+  }
+
+  try {
+    const data = createOpd(parsed.data, {
+      actor: { id: auth.session?.user.id, name: auth.session?.user.name },
+    });
+    return NextResponse.json(data, { status: 201 });
+  } catch (error) {
+    return NextResponse.json(
+      { message: error instanceof Error ? error.message : "Gagal menambah OPD." },
+      { status: 409 },
+    );
+  }
 }

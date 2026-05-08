@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { requireApiPermission } from "@/lib/api-auth";
 import { deleteOpd, getOpd, updateOpd } from "@/lib/queries";
 import { canEditOpd } from "@/lib/rbac";
+import { validateOpdPayload, validationError } from "@/lib/validation";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -34,15 +35,31 @@ export async function PUT(request: Request, context: RouteContext) {
   }
 
   const body = await request.json();
-  const data = updateOpd(Number(context.params.id), body);
-  return NextResponse.json(data);
+  const parsed = validateOpdPayload({ ...current, ...body });
+  if (!parsed.ok) {
+    return NextResponse.json(validationError(parsed.errors), { status: 400 });
+  }
+
+  try {
+    const data = updateOpd(Number(context.params.id), parsed.data, {
+      actor: { id: auth.session?.user.id, name: auth.session?.user.name },
+    });
+    return NextResponse.json(data);
+  } catch (error) {
+    return NextResponse.json(
+      { message: error instanceof Error ? error.message : "Gagal memperbarui OPD." },
+      { status: 409 },
+    );
+  }
 }
 
 export async function DELETE(request: Request, context: RouteContext) {
   const auth = await requireApiPermission(request);
   if (auth.response) return auth.response;
 
-  const deleted = deleteOpd(Number(context.params.id));
+  const deleted = deleteOpd(Number(context.params.id), {
+    actor: { id: auth.session?.user.id, name: auth.session?.user.name },
+  });
   if (!deleted) return NextResponse.json({ message: "OPD tidak ditemukan" }, { status: 404 });
   return NextResponse.json({ deleted: true });
 }
