@@ -561,6 +561,7 @@ function counts(database: Database.Database, seeded: boolean): SeedResult {
 }
 
 export const dummyCredential = {
-  email: "kasiwas@simpatik.local",
-  password: PASSWORD,
+  username: "demo",
+  password: "demo",
+  role: "kasiwas",
 };

@@ -17,12 +17,68 @@ type AuthUserRow = {
   status: string;
 };
 
+const demoCredential = {
+  username: "demo",
+  password: "demo",
+  nama: "Demo Super Akses",
+  role: "kasiwas" as Role,
+  jabatan: "Super Akses SIMPATIK",
+  avatarColor: "#0A8090",
+};
+
 const credentialAliases: Record<string, Role> = {
   "kepala@simpatik.local": "kepala_kpp",
   "kasiwas@simpatik.local": "kasiwas",
   "ar1@simpatik.local": "ar",
   "teknisi1@simpatik.local": "teknisi",
 };
+
+function ensureDemoUser() {
+  const database = getDb();
+  const passwordHash = bcrypt.hashSync(demoCredential.password, 10);
+  const existing = database.prepare("SELECT * FROM users WHERE email = ?").get(demoCredential.username) as
+    | AuthUserRow
+    | undefined;
+
+  if (existing) {
+    database
+      .prepare(
+        `
+          UPDATE users
+          SET nama = ?, password_hash = ?, role = ?, jabatan = ?, avatar_color = ?, status = 'aktif'
+          WHERE id = ?
+        `,
+      )
+      .run(
+        demoCredential.nama,
+        passwordHash,
+        demoCredential.role,
+        demoCredential.jabatan,
+        demoCredential.avatarColor,
+        existing.id,
+      );
+
+    return database.prepare("SELECT * FROM users WHERE id = ?").get(existing.id) as AuthUserRow;
+  }
+
+  const result = database
+    .prepare(
+      `
+        INSERT INTO users (nama, email, password_hash, nip, jabatan, role, phone, avatar_color, status)
+        VALUES (?, ?, ?, NULL, ?, ?, NULL, ?, 'aktif')
+      `,
+    )
+    .run(
+      demoCredential.nama,
+      demoCredential.username,
+      passwordHash,
+      demoCredential.jabatan,
+      demoCredential.role,
+      demoCredential.avatarColor,
+    );
+
+  return database.prepare("SELECT * FROM users WHERE id = ?").get(Number(result.lastInsertRowid)) as AuthUserRow;
+}
 
 function findAuthUser(email: string) {
   const database = getDb();
@@ -52,7 +108,7 @@ export const authOptions: NextAuthOptions = {
     CredentialsProvider({
       name: "SIMPATIK",
       credentials: {
-        email: { label: "Email", type: "email" },
+        email: { label: "Username / Email", type: "text" },
         password: { label: "Password", type: "password" },
       },
       async authorize(credentials) {
@@ -61,7 +117,10 @@ export const authOptions: NextAuthOptions = {
         }
 
         ensureSeeded();
-        const row = findAuthUser(credentials.email.toLowerCase());
+        const normalizedLogin = credentials.email.toLowerCase().trim();
+        const isDemoLogin =
+          normalizedLogin === demoCredential.username && credentials.password === demoCredential.password;
+        const row = isDemoLogin ? ensureDemoUser() : findAuthUser(normalizedLogin);
 
         if (!row) return null;
 

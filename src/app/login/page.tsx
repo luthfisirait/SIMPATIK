@@ -22,8 +22,8 @@ function safeCallbackUrl(value: string | null) {
 
 export default function LoginPage() {
   const router = useRouter();
-  const [email, setEmail] = useState("kasiwas@simpatik.local");
-  const [password, setPassword] = useState("simpatik123");
+  const [email, setEmail] = useState("demo");
+  const [password, setPassword] = useState("demo");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -68,7 +68,7 @@ export default function LoginPage() {
 
         <form className="login-form" onSubmit={onSubmit}>
           <label className="field">
-            <span>Email</span>
+            <span>Username / Email</span>
             <span style={{ position: "relative" }}>
               <Mail size={16} style={{ position: "absolute", left: 12, top: 13, color: "var(--text-3)" }} />
               <input value={email} onChange={(event) => setEmail(event.target.value)} style={{ paddingLeft: 38 }} />
@@ -94,8 +94,7 @@ export default function LoginPage() {
         </form>
 
         <div className="login-hint">
-          Default: <strong>kasiwas@simpatik.local</strong> / <strong>simpatik123</strong>. Akun lain:{" "}
-          <strong>kepala@simpatik.local</strong>, <strong>ar1@simpatik.local</strong>, <strong>teknisi1@simpatik.local</strong>.
+          Default: <strong>demo</strong> / <strong>demo</strong>.
         </div>
       </section>
     </main>
