@@ -1006,7 +1006,8 @@ export function listSosialisasi(params: ListParams = {}) {
     .prepare(
       `
       SELECT s.id, o.id AS opd_id, o.nama AS opd_nama, w.nama AS wilayah_nama,
-        s.tanggal, s.jumlah_peserta, s.penyuluh_id, u.nama AS penyuluh_nama, s.status
+        s.tanggal, s.jumlah_peserta, s.penyuluh_id, u.nama AS penyuluh_nama, s.status,
+        s.tempat, s.tema
       FROM sosialisasi s
       JOIN opd o ON o.id = s.opd_id
       JOIN wilayah w ON w.id = o.wilayah_id
@@ -1128,7 +1129,8 @@ export function listPegawai(params: ListParams = {}) {
     .prepare(
       `
       SELECT p.id, p.nama, p.nip, p.opd_id, o.nama AS opd_nama, w.nama AS wilayah_nama,
-        p.jabatan, p.status_coretax, u.nama AS ar_nama, p.phone
+        p.jabatan, p.status_coretax, u.nama AS ar_nama, p.phone,
+        p.npwp, p.nik, p.email, p.jenis_kepegawaian
       FROM pegawai p
       JOIN opd o ON o.id = p.opd_id
       JOIN wilayah w ON w.id = o.wilayah_id

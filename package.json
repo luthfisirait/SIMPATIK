@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "next lint",
     "import:excel": "node scripts/import-excel-to-sqlite.mjs",
+    "import:contoh": "node scripts/import-contoh-to-sqlite.mjs",
     "seed": "node -e \"fetch('http://localhost:3000/api/seed',{method:'POST'}).then(r=>r.json()).then(console.log)\""
   },
   "dependencies": {

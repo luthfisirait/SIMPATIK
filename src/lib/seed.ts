@@ -542,7 +542,9 @@ export function seedDatabase(options: { force?: boolean } = {}): SeedResult {
 }
 
 export function ensureSeeded() {
-  return seedDatabase({ force: false });
+  // Seed hanya dilakukan eksplisit via POST /api/seed { force: true }.
+  // Jika DB kosong, aplikasi tetap berjalan — data diisi lewat import:contoh / import:excel.
+  return;
 }
 
 function counts(database: Database.Database, seeded: boolean): SeedResult {

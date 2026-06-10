@@ -97,8 +97,10 @@ export default async function PegawaiBelumLaporPage({ searchParams }: { searchPa
               <tr>
                 <th>Nama</th>
                 <th>NIP</th>
+                <th>NIK</th>
                 <th>OPD</th>
                 <th>Jabatan</th>
+                <th>Jenis</th>
                 <th>Wilayah</th>
                 <th>Status</th>
                 <th>AR</th>
@@ -112,8 +114,10 @@ export default async function PegawaiBelumLaporPage({ searchParams }: { searchPa
                     <strong>{item.nama}</strong>
                   </td>
                   <td className="td-mono">{item.nip}</td>
+                  <td className="td-mono">{item.nik ?? "-"}</td>
                   <td>{item.opd_nama}</td>
                   <td>{item.jabatan}</td>
+                  <td>{item.jenis_kepegawaian ?? "-"}</td>
                   <td>{item.wilayah_nama}</td>
                   <td>
                     <Badge tone={statusTone[item.status_coretax]}>{statusLabel[item.status_coretax]}</Badge>
@@ -123,6 +127,7 @@ export default async function PegawaiBelumLaporPage({ searchParams }: { searchPa
                     <a className="wa-link" href={toWaLink(item.phone)} target="_blank">
                       {item.phone}
                     </a>
+                    {item.email ? <div className="muted">{item.email}</div> : null}
                   </td>
                 </tr>
               ))}

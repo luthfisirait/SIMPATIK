@@ -97,7 +97,9 @@ export default async function ModulSosialisasiPage({ searchParams }: { searchPar
                 <tr>
                   <th>OPD</th>
                   <th>Wilayah</th>
+                  <th>Tema</th>
                   <th>Tanggal</th>
+                  <th>Tempat</th>
                   <th>Peserta</th>
                   <th>Penyuluh</th>
                   <th>Status</th>
@@ -110,7 +112,9 @@ export default async function ModulSosialisasiPage({ searchParams }: { searchPar
                       <strong>{item.opd_nama}</strong>
                     </td>
                     <td>{item.wilayah_nama}</td>
+                    <td>{item.tema ?? "-"}</td>
                     <td className="td-mono">{new Date(item.tanggal).toLocaleDateString("id-ID")}</td>
+                    <td>{item.tempat ?? "-"}</td>
                     <td className="td-mono">{formatNumber(item.jumlah_peserta)}</td>
                     <td>{item.penyuluh_nama}</td>
                     <td>

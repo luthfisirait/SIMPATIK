@@ -241,6 +241,16 @@ function ensureExistingSchema(database: Database.Database) {
       "next_follow_up_at TEXT",
       "attachment_url TEXT",
     ],
+    pegawai: [
+      "npwp TEXT",
+      "nik TEXT",
+      "email TEXT",
+      "jenis_kepegawaian TEXT",
+    ],
+    sosialisasi: [
+      "tempat TEXT",
+      "tema TEXT",
+    ],
   };
 
   Object.entries(columns).forEach(([table, definitions]) => {
@@ -257,6 +267,9 @@ function ensureExistingSchema(database: Database.Database) {
       }
     });
   });
+
+  // NIK adalah nomor unik pegawai (Contoh.xlsx). NULL diperbolehkan ganda di SQLite.
+  database.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_pegawai_nik ON pegawai(nik)");
 }
 
 function quoteIdentifier(value: string) {

@@ -141,6 +141,8 @@ export type SosialisasiRecord = {
   penyuluh_id: number | null;
   penyuluh_nama: string | null;
   status: "sudah" | "belum" | "perlu_ulang";
+  tempat: string | null;
+  tema: string | null;
 };
 
 export type PegawaiRecord = {
@@ -154,6 +156,10 @@ export type PegawaiRecord = {
   status_coretax: "aktif_belum_lapor" | "belum_aktivasi" | "sudah_lapor";
   ar_nama: string | null;
   phone: string | null;
+  npwp: string | null;
+  nik: string | null;
+  email: string | null;
+  jenis_kepegawaian: string | null;
 };
 
 export type ActionLog = {
