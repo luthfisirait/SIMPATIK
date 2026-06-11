@@ -81,6 +81,7 @@ export type SptMasaRecord = {
   wilayah_nama: string;
   ar_nama: string | null;
   masa_pajak: string;
+  pph21_status: string | null;
   pph22_nominal: number;
   pph22_status: string | null;
   pph23_nominal: number;
@@ -286,6 +287,7 @@ export type ImportSkipReason = {
 };
 
 export type ImportCommitResult = {
+  deleted: number;
   opd_created: number;
   opd_updated: number;
   pph21: number;

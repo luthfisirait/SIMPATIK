@@ -6,6 +6,7 @@ import type {
   DepositRecord,
   ImportCommitResult,
   ImportPayload,
+  ImportTemplateKey,
   Notification,
   Opd,
   PegawaiRecord,
@@ -781,7 +782,7 @@ export function listSptMasa(params: ListParams & { masa?: string; overallStatus?
     .prepare(
       `
       SELECT m.id, o.id AS opd_id, o.nama AS opd_nama, w.nama AS wilayah_nama, u.nama AS ar_nama,
-        m.masa_pajak, m.pph22_nominal, m.pph22_status, m.pph23_nominal, m.pph23_status,
+        m.masa_pajak, m.pph21_status, m.pph22_nominal, m.pph22_status, m.pph23_nominal, m.pph23_status,
         m.ppn_put_nominal, m.ppn_put_status, m.status_opd_pemungut,
         LOWER(COALESCE(m.status_keseluruhan, 'merah')) AS status_keseluruhan,
         m.catatan_ar
@@ -1629,12 +1630,97 @@ function importLookup(value: string | null | undefined) {
   return String(value ?? "").trim().toLowerCase().replace(/\s+/g, " ");
 }
 
-export function commitImportData(payload: ImportPayload, actor?: AuditActor): ImportCommitResult {
+function sptStatusLevel(status: string | null | undefined): "hijau" | "kuning" | "merah" | null {
+  const value = importLookup(status);
+  if (!value || value === "bukan pemungut") return null;
+  if (value.includes("nihil") || value.includes("belum") || value.includes("tidak lapor") || value.includes("gagal")) return "merah";
+  if (value.includes("terlambat") || value.includes("telat")) return "kuning";
+  if (value.includes("tepat") || value.includes("submitted") || value.includes("normal") || value.includes("lapor")) return "hijau";
+  return "hijau";
+}
+
+function sptOverallStatus(statuses: Array<string | null | undefined>): "hijau" | "kuning" | "merah" | null {
+  const levels = statuses.map(sptStatusLevel).filter((level): level is "hijau" | "kuning" | "merah" => Boolean(level));
+  if (levels.length === 0) return null;
+  if (levels.includes("merah")) return "merah";
+  if (levels.includes("kuning")) return "kuning";
+  return "hijau";
+}
+
+function refreshSptMasaOverall(database: ReturnType<typeof getDb>) {
+  const rows = database
+    .prepare(
+      "SELECT id, pph21_status, pph22_status, pph23_status, ppn_put_status FROM spt_masa_monitoring",
+    )
+    .all() as Array<{
+      id: number;
+      pph21_status: string | null;
+      pph22_status: string | null;
+      pph23_status: string | null;
+      ppn_put_status: string | null;
+    }>;
+  const update = database.prepare("UPDATE spt_masa_monitoring SET status_keseluruhan = ? WHERE id = ?");
+  rows.forEach((row) => {
+    update.run(sptOverallStatus([row.pph21_status, row.pph22_status, row.pph23_status, row.ppn_put_status]), row.id);
+  });
+}
+
+function deleteEmptySptMasaRows(database: ReturnType<typeof getDb>) {
+  return database
+    .prepare(
+      `
+      DELETE FROM spt_masa_monitoring
+      WHERE pph21_status IS NULL
+        AND pph22_status IS NULL
+        AND pph23_status IS NULL
+        AND ppn_put_status IS NULL
+        AND COALESCE(pph22_nominal, 0) = 0
+        AND COALESCE(pph23_nominal, 0) = 0
+        AND COALESCE(ppn_put_nominal, 0) = 0
+        AND status_opd_pemungut IS NULL
+        AND catatan_ar IS NULL
+    `,
+    )
+    .run().changes;
+}
+
+function clearImportDataForTemplate(database: ReturnType<typeof getDb>, template: ImportTemplateKey): number {
+  switch (template) {
+    case "masterfile":
+      return database.prepare("DELETE FROM opd").run().changes;
+    case "penerimaan":
+      return (
+        database.prepare("DELETE FROM pph21_monitoring").run().changes +
+        database.prepare("DELETE FROM deposit_monitoring").run().changes
+      );
+    case "pelaporan_pph21": {
+      const cleared = database.prepare("UPDATE spt_masa_monitoring SET pph21_status = NULL WHERE pph21_status IS NOT NULL").run().changes;
+      deleteEmptySptMasaRows(database);
+      refreshSptMasaOverall(database);
+      return cleared;
+    }
+    case "pelaporan_unifikasi": {
+      const cleared = database
+        .prepare("UPDATE spt_masa_monitoring SET pph23_status = NULL, pph23_nominal = 0 WHERE pph23_status IS NOT NULL OR pph23_nominal <> 0")
+        .run().changes;
+      deleteEmptySptMasaRows(database);
+      refreshSptMasaOverall(database);
+      return cleared;
+    }
+    case "pegawai":
+      return database.prepare("DELETE FROM pegawai").run().changes;
+    case "sosialisasi":
+      return database.prepare("DELETE FROM sosialisasi").run().changes;
+  }
+}
+
+export function commitImportData(template: ImportTemplateKey, payload: ImportPayload, actor?: AuditActor): ImportCommitResult {
   const database = db();
   const today = new Date().toISOString().slice(0, 10);
 
   const run = database.transaction((): ImportCommitResult => {
     const result: ImportCommitResult = {
+      deleted: 0,
       opd_created: 0,
       opd_updated: 0,
       pph21: 0,
@@ -1651,6 +1737,8 @@ export function commitImportData(payload: ImportPayload, actor?: AuditActor): Im
       if (existing) existing.count += 1;
       else result.skipped_reasons.push({ reason, count: 1 });
     };
+
+    result.deleted = clearImportDataForTemplate(database, template);
 
     // --- Registry wilayah -------------------------------------------------
     const wilayahByName = new Map<string, number>();
@@ -1795,12 +1883,12 @@ export function commitImportData(payload: ImportPayload, actor?: AuditActor): Im
 
     // --- 4. SPT Masa (pelaporan) -----------------------------------------
     const upsertSptMasa = database.prepare(
-      `INSERT INTO spt_masa_monitoring (opd_id, masa_pajak, pph23_status, ppn_put_status, status_keseluruhan)
-       VALUES (?, ?, ?, ?, ?)
+      `INSERT INTO spt_masa_monitoring (opd_id, masa_pajak, pph21_status, pph23_status, ppn_put_status, status_keseluruhan)
+       VALUES (?, ?, ?, ?, ?, NULL)
        ON CONFLICT(opd_id, masa_pajak) DO UPDATE SET
+         pph21_status = COALESCE(excluded.pph21_status, pph21_status),
          pph23_status = COALESCE(excluded.pph23_status, pph23_status),
-         ppn_put_status = COALESCE(excluded.ppn_put_status, ppn_put_status),
-         status_keseluruhan = COALESCE(excluded.status_keseluruhan, status_keseluruhan)`,
+         ppn_put_status = COALESCE(excluded.ppn_put_status, ppn_put_status)`,
     );
     payload.sptMasa.forEach((row) => {
       const opdId = resolveOpd(row.npwp, row.nama_opd);
@@ -1808,10 +1896,10 @@ export function commitImportData(payload: ImportPayload, actor?: AuditActor): Im
         addSkip("SPT Masa: OPD tidak ditemukan.");
         return;
       }
-      const overall = [row.pph21_status, row.ppn_put_status, row.pph23_status].find((s) => s) ?? null;
-      upsertSptMasa.run(opdId, row.masa_pajak, row.pph23_status, row.ppn_put_status, overall);
+      upsertSptMasa.run(opdId, row.masa_pajak, row.pph21_status, row.pph23_status, row.ppn_put_status);
       result.spt_masa += 1;
     });
+    if (payload.sptMasa.length > 0) refreshSptMasaOverall(database);
 
     // --- 5. Pegawai -------------------------------------------------------
     const upsertPegawai = database.prepare(

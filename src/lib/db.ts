@@ -98,6 +98,7 @@ function initSchema(database: Database.Database) {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       opd_id INTEGER NOT NULL REFERENCES opd(id) ON DELETE CASCADE,
       masa_pajak TEXT NOT NULL,
+      pph21_status TEXT,
       pph22_nominal INTEGER NOT NULL DEFAULT 0,
       pph22_status TEXT,
       pph23_nominal INTEGER NOT NULL DEFAULT 0,
@@ -246,6 +247,9 @@ function ensureExistingSchema(database: Database.Database) {
       "nik TEXT",
       "email TEXT",
       "jenis_kepegawaian TEXT",
+    ],
+    spt_masa_monitoring: [
+      "pph21_status TEXT",
     ],
     sosialisasi: [
       "tempat TEXT",

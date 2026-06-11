@@ -21,6 +21,7 @@ const TEMPLATE_OPTIONS: Array<{ key: ImportTemplateKey; label: string }> = [
 ];
 
 const RESULT_LABELS: Array<{ key: NumericResultKey; label: string }> = [
+  { key: "deleted", label: "Data lama dihapus" },
   { key: "opd_created", label: "OPD baru" },
   { key: "opd_updated", label: "OPD diperbarui" },
   { key: "pph21", label: "Setoran PPh 21" },

@@ -137,7 +137,7 @@ export function exportDataset(dataset: string, params: URLSearchParams) {
       .prepare(
         `
         SELECT o.nama AS opd, w.nama AS wilayah, u.nama AS ar_pengampu, m.masa_pajak,
-          m.pph22_nominal, m.pph22_status, m.pph23_nominal, m.pph23_status,
+          m.pph21_status, m.pph22_nominal, m.pph22_status, m.pph23_nominal, m.pph23_status,
           m.ppn_put_nominal, m.ppn_put_status, m.status_opd_pemungut,
           m.status_keseluruhan, m.catatan_ar
         FROM spt_masa_monitoring m

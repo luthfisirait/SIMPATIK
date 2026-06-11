@@ -13,9 +13,9 @@ import { formatCompactRupiah, formatNumber, monthLabel, trafficLabel } from "@/l
 
 function statusTone(value: string | null | undefined): "green" | "amber" | "red" | "teal" {
   const normalized = String(value ?? "").toLowerCase();
-  if (normalized.includes("tepat") || normalized.includes("bukan")) return "green";
+  if (normalized.includes("tepat") || normalized.includes("bukan") || normalized.includes("submitted") || normalized.includes("normal")) return "green";
   if (normalized.includes("terlambat")) return "amber";
-  if (normalized.includes("nihil")) return "red";
+  if (normalized.includes("nihil") || normalized.includes("belum") || normalized.includes("gagal")) return "red";
   return "teal";
 }
 
@@ -98,6 +98,7 @@ export default async function ModulSptMasaPage({ searchParams }: { searchParams?
               <tr>
                 <th>OPD</th>
                 <th>AR</th>
+                <th>PPh 21</th>
                 <th>PPh 22</th>
                 <th>PPh 23</th>
                 <th>PPN PUT</th>
@@ -113,6 +114,9 @@ export default async function ModulSptMasaPage({ searchParams }: { searchParams?
                     <div className="muted">{item.wilayah_nama}</div>
                   </td>
                   <td>{item.ar_nama ?? "-"}</td>
+                  <td>
+                    <Badge tone={statusTone(item.pph21_status)}>{item.pph21_status ?? "-"}</Badge>
+                  </td>
                   <td>
                     <div className="td-mono">{formatCompactRupiah(item.pph22_nominal)}</div>
                     <Badge tone={statusTone(item.pph22_status)}>{item.pph22_status ?? "-"}</Badge>
