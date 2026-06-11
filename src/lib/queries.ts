@@ -124,9 +124,11 @@ function jsonForAudit(value: unknown) {
   return JSON.stringify(value);
 }
 
-function auditActorId(actor: AuditActor | undefined) {
+function auditActorId(actor: AuditActor | undefined, database: ReturnType<typeof getDb>) {
   const id = Number(actor?.id ?? 0);
-  return Number.isFinite(id) && id > 0 ? id : null;
+  if (!Number.isFinite(id) || id <= 0) return null;
+  const exists = database.prepare("SELECT 1 FROM users WHERE id = ?").get(id);
+  return exists ? id : null;
 }
 
 type CountTable =
@@ -161,7 +163,8 @@ export function getDataStatus() {
 }
 
 export function createAuditLog(payload: AuditLogPayload) {
-  const result = db()
+  const database = db();
+  const result = database
     .prepare(
       `
       INSERT INTO audit_log (
@@ -171,7 +174,7 @@ export function createAuditLog(payload: AuditLogPayload) {
     `,
     )
     .run(
-      auditActorId(payload.actor),
+      auditActorId(payload.actor, database),
       payload.actor?.name ?? null,
       payload.action,
       payload.entity_type,
