@@ -186,3 +186,106 @@ export type Notification = {
   is_read: number;
   created_at: string;
 };
+
+// ---------------------------------------------------------------------------
+// Import data (template Excel resmi -> modul SIMPATIK)
+// ---------------------------------------------------------------------------
+
+export type ImportTemplateKey =
+  | "masterfile"
+  | "penerimaan"
+  | "pelaporan"
+  | "pegawai"
+  | "sosialisasi";
+
+export type ImportOpdRow = {
+  npwp: string | null;
+  nama: string;
+  wilayah: string | null;
+  jenis_instansi: string | null;
+  ar_nama: string | null;
+  ar_nip: string | null;
+  tanggal_input: string | null;
+};
+
+export type ImportPph21Row = {
+  npwp: string | null;
+  nama_opd: string | null;
+  bulan: string; // YYYY-MM
+  nominal_setor: number;
+  ketepatan: "tepat_waktu" | "terlambat" | "belum_setor";
+};
+
+export type ImportDepositRow = {
+  npwp: string | null;
+  nama_opd: string | null;
+  masa_pajak: string; // YYYY-MM
+  deposit_pph21: number;
+  deposit_pph_unifikasi: number;
+  deposit_ppn_put: number;
+};
+
+export type ImportSptMasaRow = {
+  npwp: string | null;
+  nama_opd: string | null;
+  masa_pajak: string; // YYYY-MM
+  pph23_status: string | null; // dari SPT Unifikasi
+  ppn_put_status: string | null; // dari SPT PPN
+  pph21_status: string | null; // dari SPT PPh 21
+};
+
+export type ImportPegawaiRow = {
+  npwp: string | null;
+  nik: string | null;
+  nama: string;
+  nip: string | null;
+  jabatan: string | null;
+  email: string | null;
+  phone: string | null;
+  jenis_kepegawaian: string | null;
+  opd_nama: string | null;
+};
+
+export type ImportSosialisasiRow = {
+  npwp: string | null;
+  nama_opd: string | null;
+  wilayah: string | null;
+  tanggal: string | null; // YYYY-MM-DD
+  tempat: string | null;
+  tema: string | null;
+  jumlah_peserta: number;
+};
+
+export type ImportPayload = {
+  opd: ImportOpdRow[];
+  pph21: ImportPph21Row[];
+  deposit: ImportDepositRow[];
+  sptMasa: ImportSptMasaRow[];
+  pegawai: ImportPegawaiRow[];
+  sosialisasi: ImportSosialisasiRow[];
+};
+
+export type ImportDatasetSummary = {
+  key: keyof ImportPayload;
+  label: string;
+  modul: string;
+  rows: number;
+};
+
+export type ImportAnalysis = {
+  detected: ImportTemplateKey[];
+  datasets: ImportDatasetSummary[];
+  warnings: string[];
+  totalRows: number;
+};
+
+export type ImportCommitResult = {
+  opd_created: number;
+  opd_updated: number;
+  pph21: number;
+  deposit: number;
+  spt_masa: number;
+  pegawai: number;
+  sosialisasi: number;
+  skipped: number;
+};

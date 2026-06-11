@@ -3,8 +3,7 @@
 import { Eye, LockKeyhole, Mail } from "lucide-react";
 import Image from "next/image";
 import { signIn } from "next-auth/react";
-import { useRouter } from "next/navigation";
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 
 function safeCallbackUrl(value: string | null) {
   if (!value) return "/dashboard";
@@ -21,11 +20,18 @@ function safeCallbackUrl(value: string | null) {
 }
 
 export default function LoginPage() {
-  const router = useRouter();
   const [email, setEmail] = useState("demo");
   const [password, setPassword] = useState("demo");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+
+  // Tampilkan pesan bila NextAuth mengembalikan error lewat query (?error=).
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("error")) {
+      setError("Email atau password tidak sesuai.");
+    }
+  }, []);
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -33,21 +39,17 @@ export default function LoginPage() {
     setError("");
     const callbackUrl = safeCallbackUrl(new URLSearchParams(window.location.search).get("callbackUrl"));
 
-    const result = await signIn("credentials", {
+    // redirect: true membiarkan NextAuth melakukan navigasi penuh SETELAH cookie
+    // sesi benar-benar tertulis di server. Ini memastikan middleware membaca token
+    // pada percobaan pertama (memperbaiki bug harus klik 2 kali).
+    await signIn("credentials", {
       email,
       password,
-      redirect: false,
+      redirect: true,
       callbackUrl,
     });
-
+    // Jika kredensial salah, NextAuth mengembalikan ke /login?error=... (ditangani di useEffect).
     setLoading(false);
-    if (result?.error) {
-      setError("Email atau password tidak sesuai.");
-      return;
-    }
-
-    router.push(callbackUrl);
-    router.refresh();
   }
 
   return (

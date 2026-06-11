@@ -18,18 +18,11 @@ const pageRules: Array<{ prefix: string; roles: Role[] }> = [
   { prefix: "/modul4-spt-masa", roles: ALL_ROLES },
   { prefix: "/modul5-deposit", roles: ALL_ROLES },
   { prefix: "/scoring-opd", roles: ALL_ROLES },
+  { prefix: "/reward-punishment", roles: ALL_ROLES },
   { prefix: "/action-log/input", roles: OPERATIONAL_ROLES },
-  { prefix: "/data-opd", roles: ALL_ROLES },
-  { prefix: "/pegawai-belum-lapor", roles: OPERATIONAL_ROLES },
   { prefix: "/direktori-ar", roles: ALL_ROLES },
-  { prefix: "/direktori-opd", roles: ALL_ROLES },
   { prefix: "/direktori-bendahara", roles: OPERATIONAL_ROLES },
-  { prefix: "/analitik", roles: ALL_ROLES },
-  { prefix: "/notifikasi", roles: ALL_ROLES },
-  { prefix: "/audit-trail", roles: ["kasiwas", "teknisi"] },
-  { prefix: "/import-data", roles: DATA_WRITER_ROLES },
-  { prefix: "/pengguna", roles: ["kasiwas"] },
-  { prefix: "/pengaturan", roles: ["kasiwas", "teknisi"] },
+  { prefix: "/import", roles: DATA_WRITER_ROLES },
 ];
 
 const apiRules: ApiRule[] = [
@@ -52,13 +45,10 @@ const apiRules: ApiRule[] = [
   { prefix: "/api/action-log", methods: ["POST"], roles: ["kasiwas", "ar", "teknisi"] },
   { prefix: "/api/ar", methods: ["GET"], roles: ALL_ROLES },
   { prefix: "/api/ar", methods: ["POST"], roles: ["kasiwas"] },
-  { prefix: "/api/users", roles: ["kasiwas"] },
-  { prefix: "/api/notifications", roles: ALL_ROLES },
-  { prefix: "/api/audit", roles: ["kasiwas", "teknisi"] },
-  { prefix: "/api/import", roles: DATA_WRITER_ROLES },
   { prefix: "/api/export/pegawai", roles: OPERATIONAL_ROLES },
-  { prefix: "/api/export/users", roles: ["kasiwas"] },
   { prefix: "/api/export", roles: ALL_ROLES },
+  { prefix: "/api/import", methods: ["GET"], roles: DATA_WRITER_ROLES },
+  { prefix: "/api/import", methods: ["POST"], roles: DATA_WRITER_ROLES },
   { prefix: "/api/seed", roles: ["kasiwas", "teknisi"] },
 ];
 

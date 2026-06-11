@@ -1,15 +1,13 @@
 "use client";
 
 import {
-  BarChart3,
-  Bell,
+  Award,
   BookUser,
   ChevronLeft,
   ChevronRight,
   ClipboardCheck,
   ClipboardList,
   ContactRound,
-  Database,
   FileCheck2,
   Landmark,
   LayoutDashboard,
@@ -17,10 +15,8 @@ import {
   Presentation,
   ReceiptText,
   Search,
-  Settings,
-  ShieldCheck,
   Trophy,
-  UsersRound,
+  Upload,
 } from "lucide-react";
 import { signOut } from "next-auth/react";
 import Image from "next/image";
@@ -44,37 +40,40 @@ type ShellProps = {
 
 const navGroups = [
   {
-    label: "Monitoring",
+    label: "Overview",
+    items: [{ href: "/dashboard", label: "Dashboard", icon: LayoutDashboard }],
+  },
+  {
+    label: "Modul Monitoring",
     items: [
-      { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-      { href: "/modul1-spt", label: "Modul 1 SPT", icon: FileCheck2 },
+      { href: "/modul1-spt", label: "Modul 1 SPT PPh OP", icon: FileCheck2 },
       { href: "/modul2-pph21", label: "Modul 2 PPh 21", icon: ReceiptText },
-      { href: "/modul3-sosialisasi", label: "Modul 3 Sosialisasi", icon: Presentation },
+      { href: "/modul3-sosialisasi", label: "Modul 3 Jejak Coretax", icon: Presentation },
       { href: "/modul4-spt-masa", label: "Modul 4 SPT Masa", icon: ClipboardCheck },
       { href: "/modul5-deposit", label: "Modul 5 Deposit", icon: Landmark },
-      { href: "/scoring-opd", label: "Scoring OPD", icon: Trophy },
-      { href: "/action-log/input", label: "Input Action Log", icon: ClipboardList },
     ],
   },
   {
-    label: "Data",
+    label: "Analitik",
     items: [
-      { href: "/data-opd", label: "Data OPD", icon: Database },
-      { href: "/pegawai-belum-lapor", label: "Pegawai Belum Lapor", icon: UsersRound, badge: "!" },
+      { href: "/scoring-opd", label: "Scoring OPD", icon: Trophy },
+      { href: "/reward-punishment", label: "Reward & Punishment", icon: Award },
+    ],
+  },
+  {
+    label: "Direktori",
+    items: [
       { href: "/direktori-ar", label: "Direktori AR", icon: ContactRound },
       { href: "/direktori-bendahara", label: "Direktori Bendahara", icon: BookUser },
     ],
   },
   {
-    label: "Sistem",
-    items: [
-      { href: "/analitik", label: "Analitik", icon: BarChart3 },
-      { href: "/notifikasi", label: "Notifikasi", icon: Bell },
-      { href: "/audit-trail", label: "Audit Trail", icon: ClipboardList },
-      { href: "/import-data", label: "Import Data", icon: Database },
-      { href: "/pengguna", label: "Pengguna", icon: ShieldCheck },
-      { href: "/pengaturan", label: "Pengaturan", icon: Settings },
-    ],
+    label: "Log",
+    items: [{ href: "/action-log/input", label: "Action Log AR", icon: ClipboardList }],
+  },
+  {
+    label: "Administrasi",
+    items: [{ href: "/import", label: "Import Data", icon: Upload }],
   },
 ];
 
@@ -82,21 +81,14 @@ const meta: Record<string, { title: string; bc: string }> = {
   "/dashboard": { title: "Dashboard", bc: "/ Ringkasan Kepatuhan" },
   "/modul1-spt": { title: "Modul 1 - SPT PPh OP", bc: "/ Monitoring Kepatuhan SPT" },
   "/modul2-pph21": { title: "Modul 2 - PPh Pasal 21", bc: "/ Monitoring Kewajiban Bendahara" },
-  "/modul3-sosialisasi": { title: "Modul 3 - Sosialisasi Coretax", bc: "/ Rekam Jejak Sosialisasi" },
+  "/modul3-sosialisasi": { title: "Modul 3 - Jejak Coretax", bc: "/ Rekam Jejak Sosialisasi" },
   "/modul4-spt-masa": { title: "Modul 4 - SPT Masa", bc: "/ PPh Unifikasi dan PPN PUT" },
   "/modul5-deposit": { title: "Modul 5 - Deposit", bc: "/ Realisasi Setoran Pajak" },
-  "/scoring-opd": { title: "Scoring OPD", bc: "/ Reward dan Punishment" },
-  "/action-log/input": { title: "Input Action Log", bc: "/ Form Tindak Lanjut AR" },
-  "/data-opd": { title: "Data OPD", bc: "/ Manajemen Data" },
-  "/pegawai-belum-lapor": { title: "Pegawai Belum Lapor SPT", bc: "/ Daftar Individu Belum Melapor" },
+  "/scoring-opd": { title: "Scoring OPD", bc: "/ Skor Komposit Kepatuhan" },
+  "/reward-punishment": { title: "Reward & Punishment", bc: "/ Tindak Lanjut Berbasis Scoring" },
   "/direktori-ar": { title: "Direktori AR", bc: "/ Contact Person" },
   "/direktori-bendahara": { title: "Direktori Bendahara", bc: "/ Kontak Bendahara Pengeluaran" },
-  "/analitik": { title: "Analitik", bc: "/ Visualisasi dan Tren" },
-  "/notifikasi": { title: "Notifikasi", bc: "/ Inbox Sistem" },
-  "/audit-trail": { title: "Audit Trail", bc: "/ Riwayat Perubahan" },
-  "/import-data": { title: "Import Data", bc: "/ Upload CSV atau Excel" },
-  "/pengguna": { title: "Pengguna", bc: "/ Manajemen Akses" },
-  "/pengaturan": { title: "Pengaturan", bc: "/ Konfigurasi Sistem" },
+  "/action-log/input": { title: "Action Log AR", bc: "/ Rekam Jejak Tindak Lanjut" },
 };
 
 export function Shell({ children, user }: ShellProps) {
@@ -148,7 +140,6 @@ export function Shell({ children, user }: ShellProps) {
                       <Icon size={18} />
                     </span>
                     <span className="nav-label">{item.label}</span>
-                    {item.badge ? <span className="nav-badge">{item.badge}</span> : null}
                   </Link>
                 );
               })}
@@ -173,14 +164,10 @@ export function Shell({ children, user }: ShellProps) {
           <div className="topbar-breadcrumb">{current.bc}</div>
         </div>
         <div className="topbar-spacer" />
-        <form className="topbar-search" action="/data-opd">
+        <form className="topbar-search" action="/modul1-spt">
           <Search size={15} />
           <input name="q" placeholder="Cari OPD, AR, pegawai" />
         </form>
-        <Link className="icon-btn" href="/notifikasi" title="Notifikasi">
-          <Bell size={18} />
-          <span className="notif-dot" />
-        </Link>
         <div className="user-pill">
           <span className="user-avatar" style={user.avatarColor ? { background: user.avatarColor } : undefined}>
             {initials(name)}

@@ -1292,6 +1292,25 @@ textarea {
   margin-bottom: 16px;
 }
 
+.data-status-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.data-status-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  flex: 0 0 auto;
+}
+
+.data-status-actions-center {
+  justify-content: center;
+}
+
 .skeleton {
   min-height: 96px;
   border-radius: var(--radius);
@@ -1411,9 +1430,14 @@ textarea {
   }
 
   .page-header,
-  .card-footer {
+  .card-footer,
+  .data-status-banner {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .data-status-actions {
+    width: 100%;
   }
 
   .quick-strip,
@@ -1425,5 +1449,19 @@ textarea {
 
   .form-grid .span-2 {
     grid-column: auto;
+  }
+}
+
+/* Animasi loading untuk tombol import */
+.spin {
+  animation: spin 0.9s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
   }
 }

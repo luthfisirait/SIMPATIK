@@ -4,6 +4,8 @@ import type {
   ActionLog,
   BendaharaRecord,
   DepositRecord,
+  ImportCommitResult,
+  ImportPayload,
   Notification,
   Opd,
   PegawaiRecord,
@@ -12,6 +14,7 @@ import type {
   SosialisasiRecord,
   SptMasaRecord,
   SptRecord,
+  TrafficLight,
   User,
   Wilayah,
 } from "@/types";
@@ -126,6 +129,37 @@ function auditActorId(actor: AuditActor | undefined) {
   return Number.isFinite(id) && id > 0 ? id : null;
 }
 
+type CountTable =
+  | "users"
+  | "opd"
+  | "spt_monitoring"
+  | "pph21_monitoring"
+  | "spt_masa_monitoring"
+  | "deposit_monitoring"
+  | "scoring_opd"
+  | "sosialisasi"
+  | "pegawai";
+
+function tableCount(database: ReturnType<typeof getDb>, table: CountTable) {
+  return (database.prepare(`SELECT COUNT(*) AS total FROM ${table}`).get() as { total: number }).total;
+}
+
+export function getDataStatus() {
+  const database = db();
+
+  return {
+    users: tableCount(database, "users"),
+    opd: tableCount(database, "opd"),
+    spt: tableCount(database, "spt_monitoring"),
+    pph21: tableCount(database, "pph21_monitoring"),
+    sptMasa: tableCount(database, "spt_masa_monitoring"),
+    deposit: tableCount(database, "deposit_monitoring"),
+    scoring: tableCount(database, "scoring_opd"),
+    sosialisasi: tableCount(database, "sosialisasi"),
+    pegawai: tableCount(database, "pegawai"),
+  };
+}
+
 export function createAuditLog(payload: AuditLogPayload) {
   const result = db()
     .prepare(
@@ -175,9 +209,12 @@ export function getDashboardData() {
     .prepare(
       `
       SELECT
-        SUM(jumlah_wajib_lapor) AS wajib,
-        SUM(jumlah_sudah_lapor) AS sudah,
-        ROUND(SUM(jumlah_sudah_lapor) * 100.0 / SUM(jumlah_wajib_lapor), 1) AS persen
+        COALESCE(SUM(jumlah_wajib_lapor), 0) AS wajib,
+        COALESCE(SUM(jumlah_sudah_lapor), 0) AS sudah,
+        CASE
+          WHEN COALESCE(SUM(jumlah_wajib_lapor), 0) = 0 THEN 0
+          ELSE ROUND(SUM(jumlah_sudah_lapor) * 100.0 / SUM(jumlah_wajib_lapor), 1)
+        END AS persen
       FROM spt_monitoring
       WHERE tahun_pajak = 2025 AND periode = ?
     `,
@@ -188,10 +225,10 @@ export function getDashboardData() {
     .prepare(
       `
       SELECT
-        SUM(CASE WHEN ketepatan = 'tepat_waktu' THEN 1 ELSE 0 END) AS tepat,
-        SUM(CASE WHEN ketepatan != 'tepat_waktu' THEN 1 ELSE 0 END) AS belum,
-        SUM(CASE WHEN status = 'under_reporting' THEN 1 ELSE 0 END) AS under_reporting,
-        SUM(nominal_setor) AS total_setor
+        COALESCE(SUM(CASE WHEN ketepatan = 'tepat_waktu' THEN 1 ELSE 0 END), 0) AS tepat,
+        COALESCE(SUM(CASE WHEN ketepatan != 'tepat_waktu' THEN 1 ELSE 0 END), 0) AS belum,
+        COALESCE(SUM(CASE WHEN status = 'under_reporting' THEN 1 ELSE 0 END), 0) AS under_reporting,
+        COALESCE(SUM(nominal_setor), 0) AS total_setor
       FROM pph21_monitoring
       WHERE bulan = ?
     `,
@@ -214,8 +251,11 @@ export function getDashboardData() {
     .prepare(
       `
       SELECT periode, tahun_pajak,
-        ROUND(SUM(jumlah_sudah_lapor) * 100.0 / SUM(jumlah_wajib_lapor), 1) AS persen,
-        SUM(jumlah_sudah_lapor) AS sudah
+        CASE
+          WHEN COALESCE(SUM(jumlah_wajib_lapor), 0) = 0 THEN 0
+          ELSE ROUND(SUM(jumlah_sudah_lapor) * 100.0 / SUM(jumlah_wajib_lapor), 1)
+        END AS persen,
+        COALESCE(SUM(jumlah_sudah_lapor), 0) AS sudah
       FROM spt_monitoring
       WHERE tahun_pajak IN (2024, 2025)
       GROUP BY tahun_pajak, periode
@@ -228,9 +268,12 @@ export function getDashboardData() {
     .prepare(
       `
       SELECT w.nama,
-        ROUND(SUM(s.jumlah_sudah_lapor) * 100.0 / SUM(s.jumlah_wajib_lapor), 1) AS persen,
-        SUM(s.jumlah_sudah_lapor) AS sudah,
-        SUM(s.jumlah_wajib_lapor) AS wajib,
+        CASE
+          WHEN COALESCE(SUM(s.jumlah_wajib_lapor), 0) = 0 THEN 0
+          ELSE ROUND(SUM(s.jumlah_sudah_lapor) * 100.0 / SUM(s.jumlah_wajib_lapor), 1)
+        END AS persen,
+        COALESCE(SUM(s.jumlah_sudah_lapor), 0) AS sudah,
+        COALESCE(SUM(s.jumlah_wajib_lapor), 0) AS wajib,
         COUNT(o.id) AS opd
       FROM spt_monitoring s
       JOIN opd o ON o.id = s.opd_id
@@ -673,10 +716,10 @@ export function listPph21(params: ListParams & { bulan?: string; pphStatus?: str
     .prepare(
       `
       SELECT
-        SUM(CASE WHEN p.ketepatan = 'tepat_waktu' THEN 1 ELSE 0 END) AS tepat,
-        SUM(CASE WHEN p.ketepatan != 'tepat_waktu' THEN 1 ELSE 0 END) AS belum,
-        SUM(CASE WHEN p.status = 'under_reporting' THEN 1 ELSE 0 END) AS under_reporting,
-        SUM(p.nominal_setor) AS total_setor
+        COALESCE(SUM(CASE WHEN p.ketepatan = 'tepat_waktu' THEN 1 ELSE 0 END), 0) AS tepat,
+        COALESCE(SUM(CASE WHEN p.ketepatan != 'tepat_waktu' THEN 1 ELSE 0 END), 0) AS belum,
+        COALESCE(SUM(CASE WHEN p.status = 'under_reporting' THEN 1 ELSE 0 END), 0) AS under_reporting,
+        COALESCE(SUM(p.nominal_setor), 0) AS total_setor
       FROM pph21_monitoring p
       JOIN opd o ON o.id = p.opd_id
       WHERE p.bulan = ? AND (? IS NULL OR o.ar_id = ?)
@@ -959,6 +1002,51 @@ export function listScoring(params: ListParams & { bulan?: string; kategori?: st
     .all(bulan, arFilter, arFilter) as ScoringRecord[];
 
   return { data, summary, topReward, topPunishment, total, page, pageSize, pages: Math.ceil(total / pageSize) || 1, bulan };
+}
+
+export type RewardPunishmentRow = {
+  opd_id: number;
+  opd_nama: string;
+  wilayah_nama: string;
+  ar_nama: string | null;
+  skor_total: number;
+  kategori: TrafficLight;
+  status_rp: "reward" | "monitor" | "punishment";
+};
+
+export function getRewardPunishment() {
+  const database = db();
+  const bulan = latestScoringPeriod();
+  const base = `
+    SELECT s.opd_id, o.nama AS opd_nama, w.nama AS wilayah_nama, u.nama AS ar_nama,
+      s.skor_total, s.kategori, s.status_rp
+    FROM scoring_opd s
+    JOIN opd o ON o.id = s.opd_id
+    JOIN wilayah w ON w.id = o.wilayah_id
+    LEFT JOIN users u ON u.id = o.ar_id
+    WHERE s.bulan_scoring = ?
+  `;
+  const reward = database
+    .prepare(`${base} AND s.skor_total >= 90 ORDER BY s.skor_total DESC`)
+    .all(bulan) as RewardPunishmentRow[];
+  const punishment = database
+    .prepare(`${base} AND s.skor_total < 70 ORDER BY s.skor_total ASC`)
+    .all(bulan) as RewardPunishmentRow[];
+  const summary = database
+    .prepare(
+      `
+      SELECT
+        COALESCE(SUM(CASE WHEN skor_total >= 90 THEN 1 ELSE 0 END), 0) AS reward,
+        COALESCE(SUM(CASE WHEN skor_total >= 70 AND skor_total < 90 THEN 1 ELSE 0 END), 0) AS monitor,
+        COALESCE(SUM(CASE WHEN skor_total < 70 THEN 1 ELSE 0 END), 0) AS punishment,
+        COALESCE(AVG(skor_total), 0) AS rata
+      FROM scoring_opd
+      WHERE bulan_scoring = ?
+    `,
+    )
+    .get(bulan) as { reward: number; monitor: number; punishment: number; rata: number };
+
+  return { bulan, reward, punishment, summary };
 }
 
 export function listSosialisasi(params: ListParams = {}) {
@@ -1520,4 +1608,258 @@ export function getAnalyticsData() {
     .all() as Array<{ sosialisasi: number; kepatuhan: number; asn: number; nama: string }>;
 
   return { dashboard, pphTrend, scatter };
+}
+
+// ---------------------------------------------------------------------------
+// Import data dari template Excel resmi (commit transaksional + audit)
+// ---------------------------------------------------------------------------
+
+function importSlug(value: string) {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "") || "wilayah";
+}
+
+function importLookup(value: string | null | undefined) {
+  return String(value ?? "").trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+export function commitImportData(payload: ImportPayload, actor?: AuditActor): ImportCommitResult {
+  const database = db();
+  const today = new Date().toISOString().slice(0, 10);
+
+  const run = database.transaction((): ImportCommitResult => {
+    const result: ImportCommitResult = {
+      opd_created: 0,
+      opd_updated: 0,
+      pph21: 0,
+      deposit: 0,
+      spt_masa: 0,
+      pegawai: 0,
+      sosialisasi: 0,
+      skipped: 0,
+    };
+
+    // --- Registry wilayah -------------------------------------------------
+    const wilayahByName = new Map<string, number>();
+    (database.prepare("SELECT id, nama FROM wilayah").all() as Array<{ id: number; nama: string }>).forEach((w) =>
+      wilayahByName.set(importLookup(w.nama), w.id),
+    );
+    const insertWilayah = database.prepare("INSERT INTO wilayah (nama, kode) VALUES (?, ?)");
+    const ensureWilayah = (nama: string | null): number => {
+      const clean = (nama ?? "").trim() || "Tidak Diketahui";
+      const key = importLookup(clean);
+      const existing = wilayahByName.get(key);
+      if (existing) return existing;
+      let kode = importSlug(clean);
+      while (database.prepare("SELECT 1 FROM wilayah WHERE kode = ?").get(kode)) {
+        kode = `${kode}-${wilayahByName.size + 1}`;
+      }
+      const id = Number(insertWilayah.run(clean, kode).lastInsertRowid);
+      wilayahByName.set(key, id);
+      return id;
+    };
+
+    // --- Registry AR (users) ---------------------------------------------
+    const userByName = new Map<string, number>();
+    (database.prepare("SELECT id, nama FROM users").all() as Array<{ id: number; nama: string }>).forEach((u) =>
+      userByName.set(importLookup(u.nama), u.id),
+    );
+    const insertUser = database.prepare(
+      "INSERT INTO users (nama, email, password_hash, nip, jabatan, role, status) VALUES (?, ?, ?, ?, 'Account Representative', 'ar', 'aktif')",
+    );
+    const ensureAr = (nama: string | null, nip: string | null): number | null => {
+      const clean = (nama ?? "").trim();
+      if (!clean) return null;
+      const key = importLookup(clean);
+      const existing = userByName.get(key);
+      if (existing) return existing;
+      let email = `${importSlug(clean)}@simpatik.local`;
+      let attempt = 2;
+      while (database.prepare("SELECT 1 FROM users WHERE email = ?").get(email)) {
+        email = `${importSlug(clean)}-${attempt}@simpatik.local`;
+        attempt += 1;
+      }
+      const id = Number(insertUser.run(clean, email, "!imported-no-login", nip || null).lastInsertRowid);
+      userByName.set(key, id);
+      return id;
+    };
+
+    // --- Registry OPD -----------------------------------------------------
+    const opdByNpwp = new Map<string, number>();
+    const opdByName = new Map<string, number>();
+    (database.prepare("SELECT id, nama, npwp_opd FROM opd").all() as Array<{ id: number; nama: string; npwp_opd: string | null }>).forEach((o) => {
+      opdByName.set(importLookup(o.nama), o.id);
+      if (o.npwp_opd) opdByNpwp.set(o.npwp_opd.replace(/\D/g, ""), o.id);
+    });
+    const resolveOpd = (npwp: string | null, nama: string | null): number | null => {
+      if (npwp) {
+        const hit = opdByNpwp.get(npwp.replace(/\D/g, ""));
+        if (hit) return hit;
+      }
+      if (nama) {
+        const hit = opdByName.get(importLookup(nama));
+        if (hit) return hit;
+      }
+      return null;
+    };
+
+    // --- 1. OPD masterfile -----------------------------------------------
+    const insertOpd = database.prepare(
+      `INSERT INTO opd (nama, wilayah_id, jenis_instansi, npwp_opd, nama_bendahara, hp_bendahara, nama_pic_kepeg, hp_pic_kepeg, ar_id, tanggal_input, tanggal_update_kontak)
+       VALUES (?, ?, ?, ?, 'Belum diisi', '-', 'Belum diisi', '-', ?, ?, ?)`,
+    );
+    const updateOpdMaster = database.prepare(
+      `UPDATE opd SET wilayah_id = ?, jenis_instansi = COALESCE(?, jenis_instansi), ar_id = COALESCE(?, ar_id),
+        tanggal_input = COALESCE(tanggal_input, ?) WHERE id = ?`,
+    );
+    payload.opd.forEach((row) => {
+      const npwpDigits = row.npwp ? row.npwp.replace(/\D/g, "") : null;
+      const wilayahId = ensureWilayah(row.wilayah);
+      const arId = ensureAr(row.ar_nama, row.ar_nip);
+      const existing = resolveOpd(row.npwp, row.nama);
+      if (existing) {
+        updateOpdMaster.run(wilayahId, row.jenis_instansi, arId, row.tanggal_input ?? today, existing);
+        result.opd_updated += 1;
+      } else {
+        const id = Number(
+          insertOpd.run(row.nama, wilayahId, row.jenis_instansi, row.npwp, arId, row.tanggal_input ?? today, today).lastInsertRowid,
+        );
+        opdByName.set(importLookup(row.nama), id);
+        if (npwpDigits) opdByNpwp.set(npwpDigits, id);
+        result.opd_created += 1;
+      }
+    });
+
+    // --- 2. PPh 21 (setoran) ---------------------------------------------
+    const upsertPph21 = database.prepare(
+      `INSERT INTO pph21_monitoring (opd_id, bulan, jumlah_dipotong, nominal_setor, estimasi_wajar, ketepatan, status)
+       VALUES (?, ?, 0, ?, 0, ?, 'normal')
+       ON CONFLICT(opd_id, bulan) DO UPDATE SET nominal_setor = excluded.nominal_setor, ketepatan = excluded.ketepatan`,
+    );
+    payload.pph21.forEach((row) => {
+      const opdId = resolveOpd(row.npwp, row.nama_opd);
+      if (!opdId) {
+        result.skipped += 1;
+        return;
+      }
+      upsertPph21.run(opdId, row.bulan, Math.round(row.nominal_setor), row.ketepatan);
+      result.pph21 += 1;
+    });
+
+    // --- 3. Deposit -------------------------------------------------------
+    const upsertDeposit = database.prepare(
+      `INSERT INTO deposit_monitoring (opd_id, masa_pajak, deposit_pph21, deposit_pph_unifikasi, deposit_ppn_put, total_deposit)
+       VALUES (?, ?, ?, ?, ?, ?)
+       ON CONFLICT(opd_id, masa_pajak) DO UPDATE SET
+         deposit_pph21 = excluded.deposit_pph21,
+         deposit_pph_unifikasi = excluded.deposit_pph_unifikasi,
+         deposit_ppn_put = excluded.deposit_ppn_put,
+         total_deposit = excluded.total_deposit`,
+    );
+    payload.deposit.forEach((row) => {
+      const opdId = resolveOpd(row.npwp, row.nama_opd);
+      if (!opdId) {
+        result.skipped += 1;
+        return;
+      }
+      const pph21 = Math.round(row.deposit_pph21);
+      const unifikasi = Math.round(row.deposit_pph_unifikasi);
+      const ppn = Math.round(row.deposit_ppn_put);
+      upsertDeposit.run(opdId, row.masa_pajak, pph21, unifikasi, ppn, pph21 + unifikasi + ppn);
+      result.deposit += 1;
+    });
+
+    // --- 4. SPT Masa (pelaporan) -----------------------------------------
+    const upsertSptMasa = database.prepare(
+      `INSERT INTO spt_masa_monitoring (opd_id, masa_pajak, pph23_status, ppn_put_status, status_keseluruhan)
+       VALUES (?, ?, ?, ?, ?)
+       ON CONFLICT(opd_id, masa_pajak) DO UPDATE SET
+         pph23_status = COALESCE(excluded.pph23_status, pph23_status),
+         ppn_put_status = COALESCE(excluded.ppn_put_status, ppn_put_status),
+         status_keseluruhan = COALESCE(excluded.status_keseluruhan, status_keseluruhan)`,
+    );
+    payload.sptMasa.forEach((row) => {
+      const opdId = resolveOpd(row.npwp, row.nama_opd);
+      if (!opdId) {
+        result.skipped += 1;
+        return;
+      }
+      const overall = [row.pph21_status, row.ppn_put_status, row.pph23_status].find((s) => s) ?? null;
+      upsertSptMasa.run(opdId, row.masa_pajak, row.pph23_status, row.ppn_put_status, overall);
+      result.spt_masa += 1;
+    });
+
+    // --- 5. Pegawai -------------------------------------------------------
+    const upsertPegawai = database.prepare(
+      `INSERT INTO pegawai (nama, nip, opd_id, jabatan, status_coretax, phone, npwp, nik, email, jenis_kepegawaian)
+       VALUES (?, ?, ?, ?, 'belum_aktivasi', ?, ?, ?, ?, ?)
+       ON CONFLICT(nip) DO UPDATE SET
+         nama = excluded.nama, opd_id = excluded.opd_id, jabatan = excluded.jabatan,
+         phone = excluded.phone, npwp = excluded.npwp, nik = excluded.nik,
+         email = excluded.email, jenis_kepegawaian = excluded.jenis_kepegawaian`,
+    );
+    payload.pegawai.forEach((row) => {
+      const opdId = resolveOpd(null, row.opd_nama);
+      if (!opdId || !row.nip) {
+        result.skipped += 1;
+        return;
+      }
+      try {
+        upsertPegawai.run(
+          row.nama,
+          row.nip,
+          opdId,
+          row.jabatan || "Pegawai",
+          row.phone,
+          row.npwp,
+          row.nik,
+          row.email,
+          row.jenis_kepegawaian,
+        );
+        result.pegawai += 1;
+      } catch {
+        result.skipped += 1;
+      }
+    });
+
+    // --- 6. Sosialisasi ---------------------------------------------------
+    const findSosialisasi = database.prepare(
+      "SELECT id FROM sosialisasi WHERE opd_id = ? AND tanggal = ? AND COALESCE(tema, '') = COALESCE(?, '')",
+    );
+    const insertSosialisasi = database.prepare(
+      "INSERT INTO sosialisasi (opd_id, tanggal, jumlah_peserta, status, tempat, tema) VALUES (?, ?, ?, ?, ?, ?)",
+    );
+    payload.sosialisasi.forEach((row) => {
+      const opdId = resolveOpd(row.npwp, row.nama_opd);
+      if (!opdId) {
+        result.skipped += 1;
+        return;
+      }
+      const tanggal = row.tanggal ?? today;
+      const status = row.tanggal ? "sudah" : "belum";
+      if (findSosialisasi.get(opdId, tanggal, row.tema)) {
+        result.skipped += 1;
+        return;
+      }
+      insertSosialisasi.run(opdId, tanggal, Math.max(0, Math.round(row.jumlah_peserta)), status, row.tempat, row.tema);
+      result.sosialisasi += 1;
+    });
+
+    return result;
+  });
+
+  const summary = run();
+
+  createAuditLog({
+    actor,
+    action: "import",
+    entity_type: "opd",
+    entity_name: "Import data Excel",
+    after: summary,
+  });
+
+  return summary;
 }

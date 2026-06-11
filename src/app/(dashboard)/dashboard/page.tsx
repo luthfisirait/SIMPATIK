@@ -7,9 +7,7 @@ import {
   ReceiptText,
   Send,
   TrendingUp,
-  UsersRound,
 } from "lucide-react";
-import { getServerSession } from "next-auth";
 import Link from "next/link";
 
 import { DoughnutPanel, SptTrendChart } from "@/components/charts/ChartPanels";
@@ -17,23 +15,50 @@ import { Badge, toneForTraffic } from "@/components/ui/Badge";
 import { KpiCard } from "@/components/ui/KpiCard";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { ProgressBar } from "@/components/ui/ProgressBar";
-import { authOptions } from "@/lib/auth";
 import { getDashboardData } from "@/lib/queries";
-import { canAccessPage } from "@/lib/rbac";
 import { firstParam, type PageSearchParams } from "@/lib/search";
 import { formatCompactRupiah, formatNumber, formatPercent, monthLabel, trafficLabel } from "@/lib/utils";
-import type { Role } from "@/types";
 
 export default async function DashboardPage({ searchParams }: { searchParams?: PageSearchParams }) {
-  const session = await getServerSession(authOptions);
-  const role = session?.user.role as Role | undefined;
   const data = getDashboardData();
   const denied = firstParam(searchParams, "denied") === "1";
+  const isDataEmpty = data.kpis.totalOpd === 0;
   const labels = data.trend.filter((item) => item.tahun_pajak === 2025).map((item) => monthLabel(item.periode));
   const current = data.trend.filter((item) => item.tahun_pajak === 2025).map((item) => item.persen);
   const previous = data.trend.filter((item) => item.tahun_pajak === 2024).map((item) => item.persen);
-  const showDataOpd = canAccessPage(role, "/data-opd");
-  const showPegawai = canAccessPage(role, "/pegawai-belum-lapor");
+
+  if (isDataEmpty) {
+    return (
+      <>
+        <PageHeader
+          title="Dashboard SIMPATIK"
+          description="Login sudah aktif, tetapi database monitoring belum berisi data."
+        />
+
+        {denied ? <div className="alert">Role Anda tidak memiliki akses ke halaman yang diminta.</div> : null}
+
+        <div className="card">
+          <div className="card-header">
+            <div>
+              <div className="card-title">Belum ada data monitoring</div>
+              <div className="card-subtitle">
+                Dashboard, grafik, KPI, dan tabel prioritas akan muncul setelah data OPD dan data monitoring pajak tersedia.
+              </div>
+            </div>
+          </div>
+          <div className="card-body">
+            <div className="empty">
+              <strong>Database aktif masih kosong.</strong>
+              <p style={{ margin: "8px auto 0", maxWidth: 760 }}>
+                Isi data lewat skrip import: <code>npm run import:contoh</code> atau <code>npm run import:excel</code> dengan
+                menunjuk file sumber. Setelah import, dashboard dan seluruh modul monitoring akan menampilkan angka.
+              </p>
+            </div>
+          </div>
+        </div>
+      </>
+    );
+  }
 
   return (
     <>
@@ -84,28 +109,15 @@ export default async function DashboardPage({ searchParams }: { searchParams?: P
             <span className="quick-card-sub">Jadwal dan rekam jejak</span>
           </span>
         </Link>
-        {showPegawai ? (
-          <Link className="quick-card" href="/pegawai-belum-lapor">
-            <span className="quick-card-icon" style={{ background: "var(--red)" }}>
-              <UsersRound size={19} />
-            </span>
-            <span className="quick-card-copy">
-              <span className="quick-card-label">Belum Lapor</span>
-              <span className="quick-card-sub">Daftar individu</span>
-            </span>
-          </Link>
-        ) : null}
-        {showDataOpd ? (
-          <Link className="quick-card" href="/data-opd">
-            <span className="quick-card-icon" style={{ background: "var(--green)" }}>
-              <Building2 size={19} />
-            </span>
-            <span className="quick-card-copy">
-              <span className="quick-card-label">Data OPD</span>
-              <span className="quick-card-sub">{formatNumber(data.kpis.totalOpd)} instansi</span>
-            </span>
-          </Link>
-        ) : null}
+        <Link className="quick-card" href="/scoring-opd">
+          <span className="quick-card-icon" style={{ background: "var(--green)" }}>
+            <ReceiptText size={19} />
+          </span>
+          <span className="quick-card-copy">
+            <span className="quick-card-label">Scoring OPD</span>
+            <span className="quick-card-sub">Skor komposit kepatuhan</span>
+          </span>
+        </Link>
       </section>
 
       <section className="kpi-grid">

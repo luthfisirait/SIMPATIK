@@ -4,39 +4,46 @@ export function cn(...values: Array<string | false | null | undefined>) {
   return values.filter(Boolean).join(" ");
 }
 
-export function formatPercent(value: number, digits = 1) {
-  return `${value.toLocaleString("id-ID", {
+function safeNumber(value: number | null | undefined) {
+  const parsed = Number(value ?? 0);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+export function formatPercent(value: number | null | undefined, digits = 1) {
+  return `${safeNumber(value).toLocaleString("id-ID", {
     minimumFractionDigits: digits,
     maximumFractionDigits: digits,
   })}%`;
 }
 
-export function formatNumber(value: number) {
-  return value.toLocaleString("id-ID");
+export function formatNumber(value: number | null | undefined) {
+  return safeNumber(value).toLocaleString("id-ID");
 }
 
-export function formatRupiah(value: number) {
+export function formatRupiah(value: number | null | undefined) {
   return new Intl.NumberFormat("id-ID", {
     style: "currency",
     currency: "IDR",
     maximumFractionDigits: 0,
-  }).format(value);
+  }).format(safeNumber(value));
 }
 
-export function formatCompactRupiah(value: number) {
-  if (value >= 1_000_000_000) {
-    return `Rp ${(value / 1_000_000_000).toLocaleString("id-ID", {
+export function formatCompactRupiah(value: number | null | undefined) {
+  const safeValue = safeNumber(value);
+
+  if (safeValue >= 1_000_000_000) {
+    return `Rp ${(safeValue / 1_000_000_000).toLocaleString("id-ID", {
       maximumFractionDigits: 1,
     })} M`;
   }
 
-  if (value >= 1_000_000) {
-    return `Rp ${(value / 1_000_000).toLocaleString("id-ID", {
+  if (safeValue >= 1_000_000) {
+    return `Rp ${(safeValue / 1_000_000).toLocaleString("id-ID", {
       maximumFractionDigits: 1,
     })} jt`;
   }
 
-  return formatRupiah(value);
+  return formatRupiah(safeValue);
 }
 
 export function monthLabel(period: string) {
