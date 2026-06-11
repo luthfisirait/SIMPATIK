@@ -194,7 +194,8 @@ export type Notification = {
 export type ImportTemplateKey =
   | "masterfile"
   | "penerimaan"
-  | "pelaporan"
+  | "pelaporan_pph21"
+  | "pelaporan_unifikasi"
   | "pegawai"
   | "sosialisasi";
 
@@ -279,6 +280,11 @@ export type ImportAnalysis = {
   totalRows: number;
 };
 
+export type ImportSkipReason = {
+  reason: string;
+  count: number;
+};
+
 export type ImportCommitResult = {
   opd_created: number;
   opd_updated: number;
@@ -288,4 +294,5 @@ export type ImportCommitResult = {
   pegawai: number;
   sosialisasi: number;
   skipped: number;
+  skipped_reasons: ImportSkipReason[];
 };

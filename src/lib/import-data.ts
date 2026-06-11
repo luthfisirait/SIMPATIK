@@ -25,10 +25,11 @@ type RowAccessor = {
 
 const TEMPLATE_LABEL: Record<ImportTemplateKey, string> = {
   masterfile: "Masterfile Wajib Pajak",
-  penerimaan: "Data Penerimaan (Setoran)",
-  pelaporan: "Pelaporan SPT Masa",
+  penerimaan: "Data Penerimaan",
+  pelaporan_pph21: "Pelaporan SPT Masa PPh Pasal 21",
+  pelaporan_unifikasi: "Pelaporan SPT Masa Unifikasi",
   pegawai: "Daftar Pegawai Instansi",
-  sosialisasi: "Rencana/Realisasi Sosialisasi",
+  sosialisasi: "Rekam Sosialisasi",
 };
 
 // ---------------------------------------------------------------------------
@@ -38,54 +39,196 @@ const TEMPLATE_LABEL: Record<ImportTemplateKey, string> = {
 type TemplateSpec = {
   label: string;
   sheetName: string;
-  headers: string[];
+  headerRows: string[][];
   samples: Array<Array<string | number>>;
+  merges?: string[];
 };
+
+const PELAPORAN_HEADERS = [
+  "NO",
+  "NPWP",
+  "NAMA WP",
+  "MASA PAJAK",
+  "JENIS SPT",
+  "NOMOR TANDA TERIMA",
+  "TGL TERIMA",
+  "NOP",
+  "STATUS PELAPORAN",
+  "PEMBE-TULAN",
+  "KANAL PELAPORAN",
+  "KPP ADMINISTRASI",
+  "UNIT PENERIMA",
+];
+
+const MASTERFILE_HEADERS = [
+  "NPWP16",
+  "NPWP15",
+  "NAMA_WP",
+  "SEKSI",
+  "NIP_AR",
+  "NAMA_AR",
+  "TANGGAL_DAFTAR",
+  "TANGGAL_PINDAH",
+  "TANGGAL_LAHIR",
+  "ALAMAT",
+  "KODE_WILAYAH",
+  "KELURAHAN",
+  "KECAMATAN",
+  "KOTA",
+  "PROPINSI",
+  "KODE_POS",
+  "NOMOR_TELEPON",
+  "EMAIL",
+  "NOMOR_IDENTITAS",
+  "EMAIL_EFILING",
+  "NOMOR_IDENTITAS_AKTA",
+  "STATUS_WP",
+  "JENIS_WP",
+  "JENIS_IP",
+  "KODE_KLU",
+  "TANGGAL_PKP",
+  "BENTUK_HUKUM",
+  "MATA_UANG",
+  "NO_SKT",
+  "NO_PKP",
+  "NO_PKP_CABUT",
+  "TGL_PKP_CABUT",
+  "NIP_EKS",
+  "NIP_JS",
+  "NAMA_JS",
+  "KD_NOTE",
+  "STATUS_MODAL",
+  "KATEGORI",
+  "KEWARGANEGARAAN",
+  "ID_BL_BUKU_AWAL",
+  "ID_BL_BUKU_AKHIR",
+  "NITKU",
+  "STS_16",
+  "TGL_UPDATE16",
+  "KODE_ZONA_PENGAWASAN",
+  "FLAG_WPS_WPK",
+  "JNS_ASSIGN",
+  "KOORDINAT",
+  "WAJIB_SPT_TAHUNAN",
+  "WAJIB_SPT_PPH21",
+  "WAJIB_SPT_PPN",
+  "TEMPAT_LAHIR",
+  "TARIF_DAFTAR",
+  "TGL_NE",
+  "NO_PROD_NE",
+  "FLAG_WP_TUNGGAL",
+  "DW_PROCESS_DATE",
+];
 
 const TEMPLATE_SPECS: Record<ImportTemplateKey, TemplateSpec> = {
   masterfile: {
     label: TEMPLATE_LABEL.masterfile,
-    sheetName: "Masterfile",
-    headers: ["NPWP16", "NAMA_WP", "SEKSI", "NIP_AR", "NAMA_AR", "KOTA", "TANGGAL_DAFTAR"],
+    sheetName: "Sheet1",
+    headerRows: [MASTERFILE_HEADERS],
     samples: [
-      ["0012345678901000", "Dinas Pendidikan Kota Padang", "Waskon I", "198501012010011001", "Andi Pratama", "Padang", "2021-03-10"],
-      ["0023456789012000", "Dinas Kesehatan Kota Padang", "Waskon II", "199002022015022002", "Siti Rahma", "Padang", "2021-04-05"],
+      [
+        "1234567891234567",
+        "123456789123456",
+        "Instansi Pemerintah",
+        "SEKSI PENGAWASAN II",
+        "198501012010011001",
+        "Budi",
+        "07/07/2020 00:00",
+        "",
+        "2005-01-05",
+        "Jl Tester",
+        "1305072001",
+        "KURANJI HULU",
+        "SUNGAI GARINGGIANG",
+        "KABUPATEN PADANG PARIAMAN",
+        "SUMATERA BARAT",
+        "25563",
+        "",
+        "",
+        "",
+        "",
+        "1234567891234567",
+        "AKTIF",
+        "BENDAHARA",
+        "",
+        "12345",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "123456789",
+        "Jursit",
+        "KEP-300/PJ/2020",
+        "",
+        "Bendahara",
+        "INDONESIA",
+        "",
+        "",
+        "",
+        "VALID",
+        "2020/07/13 00:00:00.000000000",
+        "201-0424071900-2023",
+        "WPK",
+        "AN2M",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "TUNGGAL",
+        "2026/06/03 00:00:00.000",
+      ],
     ],
   },
   penerimaan: {
     label: TEMPLATE_LABEL.penerimaan,
-    sheetName: "Penerimaan",
-    headers: ["NPWP", "NAMA WAJIB PAJAK", "MASA PAJAK", "KD MAP", "NILAI SETOR"],
+    sheetName: "Sheet1",
+    headerRows: [["NO", "NPWP", "NAMA WAJIB PAJAK", "MASA PAJAK", "KD MAP", "KD SETOR", "NILAI SETOR", "TGL SETOR", "NTPN", "NO SK", "NOP", "ID BILLING", "SUMBER DATA"]],
     samples: [
-      ["0012345678901000", "Dinas Pendidikan Kota Padang", "012025", "411121", 5000000],
-      ["0012345678901000", "Dinas Pendidikan Kota Padang", "012025", "411211", 1500000],
+      [1, "5091031123456780", "Instansi Pemerintah", "05052026", "411121", "100", 10000000, "2026-05-09", "360100123456789", "", "", "0", "SPM"],
     ],
   },
-  pelaporan: {
-    label: TEMPLATE_LABEL.pelaporan,
-    sheetName: "Pelaporan SPT",
-    headers: ["NPWP", "NAMA WP", "MASA PAJAK", "JENIS SPT", "STATUS PELAPORAN"],
+  pelaporan_pph21: {
+    label: TEMPLATE_LABEL.pelaporan_pph21,
+    sheetName: "PPh Pasal 21",
+    headerRows: [PELAPORAN_HEADERS],
     samples: [
-      ["0012345678901000", "Dinas Pendidikan Kota Padang", "012025", "PPh 21", "Sudah Lapor"],
-      ["0012345678901000", "Dinas Pendidikan Kota Padang", "012025", "PPN", "Belum Lapor"],
+      [1, "1234567891234567", "Kantor Pemerintahan", "04042025", "SPT Masa PPh Pasal 21/26", "BPE-03738/CT/KPP.2704/2026", "12-01-2026", "", "Submitted", "Normal", "Portal Wajib Pajak", "788-KPP Pratama Pasar", "788-KPP Pratama Pasar"],
+    ],
+  },
+  pelaporan_unifikasi: {
+    label: TEMPLATE_LABEL.pelaporan_unifikasi,
+    sheetName: "Sheet1",
+    headerRows: [PELAPORAN_HEADERS],
+    samples: [
+      [1, "1000000000912729", "BBPMP DIREKTORAT JENDERAL PENDIDIKAN ANAK USIA DINI, PENDIDIKAN DASAR, DAN PENDIDIKAN MENENGAH KEMENTERIAN PENDIDIKAN DASAR DAN MENENGAH", "05052025", "SPT Masa PPh Unifikasi", "BPE-09759/CT/KPP.2704/2026", "02-01-2026", "", "Submitted", "Normal", "Portal Wajib Pajak", "201-KPP Pratama Padang Satu", "201-KPP Pratama Padang Satu"],
     ],
   },
   pegawai: {
     label: TEMPLATE_LABEL.pegawai,
-    sheetName: "Pegawai",
-    headers: ["NAMA", "NIP", "NPWP", "NIK", "OPD", "EMAIL", "NO HP", "PNS/P3K"],
+    sheetName: "Sheet1",
+    headerRows: [["No", "Nama", "NIP", "npwp", "NIK", "OPD", "Email", "No HP", "PNS/P3K"]],
     samples: [
-      ["Budi Santoso", "198501012010011001", "0098765432101000", "1371010101850001", "Dinas Pendidikan Kota Padang", "budi@padang.go.id", "081234567890", "PNS"],
-      ["Maya Sari", "199203032018032003", "0087654321012000", "1371020202920002", "Dinas Pendidikan Kota Padang", "maya@padang.go.id", "081298765432", "P3K"],
+      [1, "INDRA", "199908222015211000", "1301072208940005", "1301072208940005", "BAGIAN UMUM", "indra2252@gmail.com", "081269078342", "PPPK"],
     ],
   },
   sosialisasi: {
     label: TEMPLATE_LABEL.sosialisasi,
-    sheetName: "Sosialisasi",
-    headers: ["NPWP", "NAMA OPD", "WILAYAH KERJA", "TEMA", "TANGGAL", "TEMPAT", "JUMLAH PESERTA"],
+    sheetName: "Sheet1",
+    headerRows: [
+      ["No", "NPWP", "Nama OPD", "Wilayah Kerja", "Tema PPh Pasal 21", "", "", "Tema SPT PPh Orang Pribadi", "", ""],
+      ["", "", "", "", "Hari/Tgl Pelaksanaan sosialisasi", "Tempat", "Jumlah Peserta", "Hari/Tgl Pelaksanaan sosialisasi", "Tempat", "Jumlah Peserta"],
+    ],
+    merges: ["A1:A2", "B1:B2", "C1:C2", "D1:D2", "E1:G1", "H1:J1"],
     samples: [
-      ["0012345678901000", "Dinas Pendidikan Kota Padang", "Padang Utara", "Pemotongan PPh Pasal 21", "2025-02-15", "Aula KPP Padang Satu", 35],
-      ["0023456789012000", "Dinas Kesehatan Kota Padang", "Padang Selatan", "Pelaporan SPT Masa Unifikasi", "2025-03-20", "Aula Dinkes", 28],
+      [1, "0781675361801000", "RUMAH SAKIT UMUM DAERAH", "OPD Kabupaten", "Senin, 1 Desember 2025", "RSUD Prof H. Muhammad Yamin SH, Jl Prof. M. Yamin,", "", "", "", ""],
     ],
   },
 };
@@ -108,21 +251,41 @@ export async function buildTemplateBuffer(key: ImportTemplateKey): Promise<Array
   workbook.created = new Date();
   const sheet = workbook.addWorksheet(spec.sheetName);
 
-  sheet.addRow(spec.headers);
-  const headerRow = sheet.getRow(1);
-  headerRow.font = { bold: true };
-  headerRow.eachCell((cell) => {
-    cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF0A8090" } };
-    cell.font = { bold: true, color: { argb: "FFFFFFFF" } };
+  spec.headerRows.forEach((headerRow) => sheet.addRow(headerRow));
+  spec.merges?.forEach((range) => sheet.mergeCells(range));
+
+  for (let index = 1; index <= spec.headerRows.length; index += 1) {
+    const headerRow = sheet.getRow(index);
+    headerRow.font = { bold: true };
+    headerRow.alignment = { vertical: "middle", horizontal: "center", wrapText: true };
+    headerRow.eachCell({ includeEmpty: true }, (cell) => {
+      cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF0A8090" } };
+      cell.font = { bold: true, color: { argb: "FFFFFFFF" } };
+      cell.border = {
+        top: { style: "thin", color: { argb: "FFD7E3EA" } },
+        left: { style: "thin", color: { argb: "FFD7E3EA" } },
+        bottom: { style: "thin", color: { argb: "FFD7E3EA" } },
+        right: { style: "thin", color: { argb: "FFD7E3EA" } },
+      };
+    });
+  }
+
+  spec.samples.forEach((row) => {
+    const added = sheet.addRow(row);
+    added.eachCell({ includeEmpty: true }, (cell) => {
+      cell.alignment = { vertical: "top", wrapText: true };
+    });
   });
 
-  spec.samples.forEach((row) => sheet.addRow(row));
-
-  spec.headers.forEach((header, index) => {
+  const leafHeaders = spec.headerRows[spec.headerRows.length - 1];
+  const topHeaders = spec.headerRows[0];
+  const columnCount = Math.max(...spec.headerRows.map((row) => row.length), ...spec.samples.map((row) => row.length));
+  for (let index = 0; index < columnCount; index += 1) {
     const column = sheet.getColumn(index + 1);
-    const longest = Math.max(header.length, ...spec.samples.map((row) => String(row[index] ?? "").length));
+    const header = leafHeaders[index] || topHeaders[index] || "";
+    const longest = Math.max(String(header).length, ...spec.samples.map((row) => String(row[index] ?? "").length));
     column.width = Math.min(Math.max(longest + 2, 12), 40);
-  });
+  }
 
   return (await workbook.xlsx.writeBuffer()) as ArrayBuffer;
 }
@@ -184,7 +347,7 @@ export function analyzeSheets(
   const warnings: string[] = [];
 
   sheets.forEach((sheet) => {
-    const type = detectSheet(sheet);
+    const type = detectSheet(sheet, expected);
     if (!type) return;
     if (expected && type !== expected) {
       warnings.push(
@@ -201,8 +364,11 @@ export function analyzeSheets(
       case "penerimaan":
         normalizePenerimaan(sheet, payload, warnings);
         break;
-      case "pelaporan":
-        normalizePelaporan(sheet, payload);
+      case "pelaporan_pph21":
+        normalizePelaporan(sheet, payload, "pph21");
+        break;
+      case "pelaporan_unifikasi":
+        normalizePelaporan(sheet, payload, "unifikasi");
         break;
       case "pegawai":
         normalizePegawai(sheet, payload, warnings);
@@ -246,16 +412,32 @@ export function describeTemplate(key: ImportTemplateKey) {
 // Deteksi tipe sheet berdasarkan header
 // ---------------------------------------------------------------------------
 
-function detectSheet(sheet: ParsedSheet): ImportTemplateKey | null {
+function detectSheet(sheet: ParsedSheet, expected?: ImportTemplateKey | null): ImportTemplateKey | null {
   const keys = headerKeySet(sheet);
   const has = (...candidates: string[]) => candidates.some((c) => keys.has(c));
 
   if (has("npwp16") && has("nama_wp") && has("nip_ar")) return "masterfile";
   if (has("kd_map") && has("nilai_setor")) return "penerimaan";
-  if (has("jenis_spt") && has("status_pelaporan")) return "pelaporan";
+  if (has("jenis_spt") && has("status_pelaporan")) return detectPelaporanSheet(sheet, expected);
   if (has("nik") && has("pns_p3k", "pns_pppk", "pns/p3k") && (has("opd") || has("nama"))) return "pegawai";
   if (has("wilayah_kerja") && has("nama_opd")) return "sosialisasi";
   return null;
+}
+
+function detectPelaporanSheet(sheet: ParsedSheet, expected?: ImportTemplateKey | null): ImportTemplateKey {
+  let hasPph21 = false;
+  let hasUnifikasi = false;
+
+  forEachRow(sheet, (row) => {
+    const jenis = textValue(row.pick("jenis_spt")).toLowerCase();
+    if (jenis.includes("unifikasi")) hasUnifikasi = true;
+    if (jenis.includes("21") || jenis.includes("26")) hasPph21 = true;
+  });
+
+  if (hasUnifikasi && !hasPph21) return "pelaporan_unifikasi";
+  if (hasPph21 && !hasUnifikasi) return "pelaporan_pph21";
+  if (expected === "pelaporan_pph21" || expected === "pelaporan_unifikasi") return expected;
+  return hasUnifikasi ? "pelaporan_unifikasi" : "pelaporan_pph21";
 }
 
 // ---------------------------------------------------------------------------
@@ -328,7 +510,7 @@ function normalizePenerimaan(sheet: ParsedSheet, payload: ImportPayload, warning
   });
 }
 
-function normalizePelaporan(sheet: ParsedSheet, payload: ImportPayload) {
+function normalizePelaporan(sheet: ParsedSheet, payload: ImportPayload, fallbackKind: "pph21" | "unifikasi") {
   // Satu sheet bisa memuat beberapa blok (PPh 21 / PPN / Unifikasi) dipisah baris kosong.
   // Karena tiap blok punya header sendiri, kita proses per baris dengan header aktif.
   const blocks = splitBlocks(sheet);
@@ -343,8 +525,8 @@ function normalizePelaporan(sheet: ParsedSheet, payload: ImportPayload) {
       const status = textValue(row.pick("status_pelaporan")) || null;
       const target = ensureSptMasaRow(payload, npwp, nama, masa);
       if (jenis.includes("ppn")) target.ppn_put_status = status;
-      else if (jenis.includes("unifikasi")) target.pph23_status = status;
-      else if (jenis.includes("21") || jenis.includes("26")) target.pph21_status = status;
+      else if (jenis.includes("unifikasi") || fallbackKind === "unifikasi") target.pph23_status = status;
+      else if (jenis.includes("21") || jenis.includes("26") || fallbackKind === "pph21") target.pph21_status = status;
     });
   });
 }
@@ -370,18 +552,55 @@ function normalizePegawai(sheet: ParsedSheet, payload: ImportPayload, warnings: 
 }
 
 function normalizeSosialisasi(sheet: ParsedSheet, payload: ImportPayload) {
+  const groups = [
+    {
+      tema: "Tema PPh Pasal 21",
+      tanggal: "tema_pph_pasal_21_hari_tgl_pelaksanaan_sosialisasi",
+      tempat: "tema_pph_pasal_21_tempat",
+      peserta: "tema_pph_pasal_21_jumlah_peserta",
+    },
+    {
+      tema: "Tema SPT PPh Orang Pribadi",
+      tanggal: "tema_spt_pph_orang_pribadi_hari_tgl_pelaksanaan_sosialisasi",
+      tempat: "tema_spt_pph_orang_pribadi_tempat",
+      peserta: "tema_spt_pph_orang_pribadi_jumlah_peserta",
+    },
+  ];
+
   forEachRow(sheet, (row) => {
     const nama = textValue(row.pick("nama_opd"));
     if (!nama) return;
-    payload.sosialisasi.push({
+    const base = {
       npwp: textValue(row.pick("npwp")) || null,
       nama_opd: nama,
       wilayah: textValue(row.pick("wilayah_kerja", "wilayah")) || null,
-      tanggal: toIsoDate(row.pick("hari_tgl_pelaksanaan_sosialisasi", "tanggal", "hari_tgl")),
-      tempat: textValue(row.pick("tempat")) || null,
-      tema: textValue(row.pick("tema_pph_pasal_21", "tema", "tema_spt_pph_orang_pribadi")) || null,
-      jumlah_peserta: numberValue(row.pick("jumlah_peserta")),
+    };
+    let hasGroupedSession = false;
+
+    groups.forEach((group) => {
+      const tanggal = toIsoDate(row.pick(group.tanggal));
+      const tempat = textValue(row.pick(group.tempat)) || null;
+      const jumlahPeserta = numberValue(row.pick(group.peserta));
+      if (!tanggal && !tempat && jumlahPeserta <= 0) return;
+      hasGroupedSession = true;
+      payload.sosialisasi.push({
+        ...base,
+        tanggal,
+        tempat,
+        tema: group.tema,
+        jumlah_peserta: jumlahPeserta,
+      });
     });
+
+    if (!hasGroupedSession) {
+      payload.sosialisasi.push({
+        ...base,
+        tanggal: toIsoDate(row.pick("hari_tgl_pelaksanaan_sosialisasi", "tanggal", "hari_tgl")),
+        tempat: textValue(row.pick("tempat")) || null,
+        tema: textValue(row.pick("tema")) || null,
+        jumlah_peserta: numberValue(row.pick("jumlah_peserta")),
+      });
+    }
   });
 }
 
@@ -426,7 +645,7 @@ function splitBlocks(sheet: ParsedSheet): Block[] {
     }
     if (looksLikeHeader(row)) {
       flush();
-      headers = headerMap(toTextRow(row));
+      headers = headerMap([toTextRow(row)]);
       return;
     }
     if (headers) rows.push(row);
@@ -441,8 +660,9 @@ function looksLikeHeader(row: Array<string | number | Date | null>) {
 }
 
 function forEachRow(sheet: ParsedSheet, callback: (row: RowAccessor) => void) {
-  const headers = headerMap(sheet.headerRows[0] ?? []);
-  sheet.rows.slice(1).forEach((raw) => {
+  const depth = headerDepth(sheet);
+  const headers = headerMap(sheet.headerRows.slice(0, depth));
+  sheet.rows.slice(depth).forEach((raw) => {
     if (raw.every((value) => isBlank(value))) return;
     callback({ raw, pick: (...keys) => pickFrom(headers, raw, keys) });
   });
@@ -455,6 +675,20 @@ function forEachRowOf(block: Block, callback: (row: RowAccessor) => void) {
   });
 }
 
+function headerDepth(sheet: ParsedSheet): number {
+  const first = new Set((sheet.headerRows[0] ?? []).map(slug));
+  const second = new Set((sheet.headerRows[1] ?? []).map(slug));
+  if (
+    first.has("nama_opd") &&
+    first.has("wilayah_kerja") &&
+    (first.has("tema_pph_pasal_21") || first.has("tema_spt_pph_orang_pribadi")) &&
+    second.has("hari_tgl_pelaksanaan_sosialisasi")
+  ) {
+    return 2;
+  }
+  return 1;
+}
+
 function pickFrom(headers: Map<string, number>, raw: Array<string | number | Date | null>, keys: string[]) {
   for (const key of keys) {
     const index = headers.get(key);
@@ -463,12 +697,18 @@ function pickFrom(headers: Map<string, number>, raw: Array<string | number | Dat
   return null;
 }
 
-function headerMap(headerRow: string[]): Map<string, number> {
+function headerMap(headerRows: string[][]): Map<string, number> {
   const map = new Map<string, number>();
-  headerRow.forEach((value, index) => {
-    const key = slug(value);
-    if (key && !map.has(key)) map.set(key, index);
-  });
+  const maxColumns = Math.max(0, ...headerRows.map((row) => row.length));
+
+  for (let index = 0; index < maxColumns; index += 1) {
+    const parts = headerRows.map((row) => row[index]).filter((value) => !isBlank(value));
+    const uniqueParts = parts.filter((part, partIndex) => partIndex === 0 || slug(part) !== slug(parts[partIndex - 1]));
+    const keys = [slug(uniqueParts.join(" ")), slug(parts[parts.length - 1])].filter(Boolean);
+    keys.forEach((key) => {
+      if (!map.has(key)) map.set(key, index);
+    });
+  }
   return map;
 }
 

@@ -9,16 +9,18 @@ import type { ImportAnalysis, ImportCommitResult, ImportTemplateKey } from "@/ty
 type PreviewResponse = { mode: "preview"; analysis: ImportAnalysis };
 type CommitResponse = { mode: "commit"; analysis: ImportAnalysis; result: ImportCommitResult };
 type ApiResponse = Partial<PreviewResponse> & Partial<CommitResponse> & { message?: string };
+type NumericResultKey = Exclude<keyof ImportCommitResult, "skipped_reasons">;
 
 const TEMPLATE_OPTIONS: Array<{ key: ImportTemplateKey; label: string }> = [
   { key: "masterfile", label: "Masterfile Wajib Pajak" },
-  { key: "penerimaan", label: "Data Penerimaan (Setoran)" },
-  { key: "pelaporan", label: "Pelaporan SPT Masa" },
+  { key: "penerimaan", label: "Data Penerimaan" },
+  { key: "pelaporan_pph21", label: "Pelaporan SPT Masa PPh Pasal 21" },
+  { key: "pelaporan_unifikasi", label: "Pelaporan SPT Masa Unifikasi" },
   { key: "pegawai", label: "Daftar Pegawai Instansi" },
-  { key: "sosialisasi", label: "Rencana/Realisasi Sosialisasi" },
+  { key: "sosialisasi", label: "Rekam Sosialisasi" },
 ];
 
-const RESULT_LABELS: Array<{ key: keyof ImportCommitResult; label: string }> = [
+const RESULT_LABELS: Array<{ key: NumericResultKey; label: string }> = [
   { key: "opd_created", label: "OPD baru" },
   { key: "opd_updated", label: "OPD diperbarui" },
   { key: "pph21", label: "Setoran PPh 21" },
@@ -179,6 +181,18 @@ export function ImportClient() {
                 </Badge>
               ))}
             </div>
+            {result.skipped_reasons.length > 0 ? (
+              <div style={{ marginTop: 12 }}>
+                <strong>Alasan dilewati</strong>
+                <ul style={{ margin: "8px 0 0", paddingLeft: 18 }}>
+                  {result.skipped_reasons.map((item) => (
+                    <li key={item.reason} className="muted">
+                      {item.reason} ({item.count} baris)
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
           </div>
         ) : null}
 

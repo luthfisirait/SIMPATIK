@@ -1640,6 +1640,13 @@ export function commitImportData(payload: ImportPayload, actor?: AuditActor): Im
       pegawai: 0,
       sosialisasi: 0,
       skipped: 0,
+      skipped_reasons: [],
+    };
+    const addSkip = (reason: string) => {
+      result.skipped += 1;
+      const existing = result.skipped_reasons.find((item) => item.reason === reason);
+      if (existing) existing.count += 1;
+      else result.skipped_reasons.push({ reason, count: 1 });
     };
 
     // --- Registry wilayah -------------------------------------------------
@@ -1711,6 +1718,17 @@ export function commitImportData(payload: ImportPayload, actor?: AuditActor): Im
       `INSERT INTO opd (nama, wilayah_id, jenis_instansi, npwp_opd, nama_bendahara, hp_bendahara, nama_pic_kepeg, hp_pic_kepeg, ar_id, tanggal_input, tanggal_update_kontak)
        VALUES (?, ?, ?, ?, 'Belum diisi', '-', 'Belum diisi', '-', ?, ?, ?)`,
     );
+    const createMinimalOpd = (nama: string | null, npwp: string | null, wilayah: string | null): number | null => {
+      const cleanNama = (nama ?? "").trim();
+      if (!cleanNama) return null;
+      const npwpDigits = npwp ? npwp.replace(/\D/g, "") : null;
+      const wilayahId = ensureWilayah(wilayah);
+      const id = Number(insertOpd.run(cleanNama, wilayahId, "OPD", npwp, null, today, today).lastInsertRowid);
+      opdByName.set(importLookup(cleanNama), id);
+      if (npwpDigits) opdByNpwp.set(npwpDigits, id);
+      result.opd_created += 1;
+      return id;
+    };
     const updateOpdMaster = database.prepare(
       `UPDATE opd SET wilayah_id = ?, jenis_instansi = COALESCE(?, jenis_instansi), ar_id = COALESCE(?, ar_id),
         tanggal_input = COALESCE(tanggal_input, ?) WHERE id = ?`,
@@ -1742,7 +1760,7 @@ export function commitImportData(payload: ImportPayload, actor?: AuditActor): Im
     payload.pph21.forEach((row) => {
       const opdId = resolveOpd(row.npwp, row.nama_opd);
       if (!opdId) {
-        result.skipped += 1;
+        addSkip("Setoran PPh 21: OPD tidak ditemukan.");
         return;
       }
       upsertPph21.run(opdId, row.bulan, Math.round(row.nominal_setor), row.ketepatan);
@@ -1762,7 +1780,7 @@ export function commitImportData(payload: ImportPayload, actor?: AuditActor): Im
     payload.deposit.forEach((row) => {
       const opdId = resolveOpd(row.npwp, row.nama_opd);
       if (!opdId) {
-        result.skipped += 1;
+        addSkip("Deposit: OPD tidak ditemukan.");
         return;
       }
       const pph21 = Math.round(row.deposit_pph21);
@@ -1784,7 +1802,7 @@ export function commitImportData(payload: ImportPayload, actor?: AuditActor): Im
     payload.sptMasa.forEach((row) => {
       const opdId = resolveOpd(row.npwp, row.nama_opd);
       if (!opdId) {
-        result.skipped += 1;
+        addSkip("SPT Masa: OPD tidak ditemukan.");
         return;
       }
       const overall = [row.pph21_status, row.ppn_put_status, row.pph23_status].find((s) => s) ?? null;
@@ -1804,7 +1822,7 @@ export function commitImportData(payload: ImportPayload, actor?: AuditActor): Im
     payload.pegawai.forEach((row) => {
       const opdId = resolveOpd(null, row.opd_nama);
       if (!opdId || !row.nip) {
-        result.skipped += 1;
+        addSkip(!opdId ? "Pegawai: OPD tidak ditemukan." : "Pegawai: NIP kosong.");
         return;
       }
       try {
@@ -1821,7 +1839,7 @@ export function commitImportData(payload: ImportPayload, actor?: AuditActor): Im
         );
         result.pegawai += 1;
       } catch {
-        result.skipped += 1;
+        addSkip("Pegawai: gagal disimpan.");
       }
     });
 
@@ -1833,15 +1851,15 @@ export function commitImportData(payload: ImportPayload, actor?: AuditActor): Im
       "INSERT INTO sosialisasi (opd_id, tanggal, jumlah_peserta, status, tempat, tema) VALUES (?, ?, ?, ?, ?, ?)",
     );
     payload.sosialisasi.forEach((row) => {
-      const opdId = resolveOpd(row.npwp, row.nama_opd);
+      const opdId = resolveOpd(row.npwp, row.nama_opd) ?? createMinimalOpd(row.nama_opd, row.npwp, row.wilayah);
       if (!opdId) {
-        result.skipped += 1;
+        addSkip("Sosialisasi: nama OPD kosong atau tidak valid.");
         return;
       }
       const tanggal = row.tanggal ?? today;
       const status = row.tanggal ? "sudah" : "belum";
       if (findSosialisasi.get(opdId, tanggal, row.tema)) {
-        result.skipped += 1;
+        addSkip("Sosialisasi: duplikat OPD, tanggal, dan tema.");
         return;
       }
       insertSosialisasi.run(opdId, tanggal, Math.max(0, Math.round(row.jumlah_peserta)), status, row.tempat, row.tema);

@@ -15,15 +15,21 @@ const templateInfo = [
   },
   {
     key: "penerimaan",
-    nama: "Data Penerimaan (Setoran)",
-    kolom: "NPWP, MASA PAJAK, KD MAP, NILAI SETOR",
+    nama: "Data Penerimaan",
+    kolom: "NO, NPWP, NAMA WAJIB PAJAK, MASA PAJAK, KD MAP, KD SETOR, NILAI SETOR",
     modul: "Modul 5 Deposit + Modul 2 PPh 21 (agregasi per masa pajak)",
   },
   {
-    key: "pelaporan",
-    nama: "Pelaporan SPT Masa (PPh 21 / PPN / Unifikasi)",
-    kolom: "NPWP, MASA PAJAK, JENIS SPT, STATUS PELAPORAN",
-    modul: "Modul 4 SPT Masa (status PPN & Unifikasi)",
+    key: "pelaporan_pph21",
+    nama: "Pelaporan SPT Masa PPh Pasal 21",
+    kolom: "NO, NPWP, NAMA WP, MASA PAJAK, JENIS SPT, STATUS PELAPORAN",
+    modul: "Modul 4 SPT Masa (status PPh 21)",
+  },
+  {
+    key: "pelaporan_unifikasi",
+    nama: "Pelaporan SPT Masa Unifikasi",
+    kolom: "NO, NPWP, NAMA WP, MASA PAJAK, JENIS SPT, STATUS PELAPORAN",
+    modul: "Modul 4 SPT Masa (status Unifikasi)",
   },
   {
     key: "pegawai",
@@ -33,9 +39,9 @@ const templateInfo = [
   },
   {
     key: "sosialisasi",
-    nama: "Rencana/Realisasi Sosialisasi",
-    kolom: "NPWP, Nama OPD, Wilayah Kerja, Tema, Tanggal, Tempat, Jumlah Peserta",
-    modul: "Modul 3 Sosialisasi",
+    nama: "Rekam Sosialisasi",
+    kolom: "NPWP, Nama OPD, Wilayah Kerja, 2 blok tema, Hari/Tgl, Tempat, Jumlah Peserta",
+    modul: "Modul 3 Sosialisasi (buat OPD minimal bila belum ada)",
   },
 ];
 
@@ -44,7 +50,7 @@ export default function ImportPage() {
     <>
       <PageHeader
         title="Import Data Excel"
-        description="Unggah template resmi (Masterfile, Penerimaan, Pelaporan SPT, Pegawai, Sosialisasi). Sistem mendeteksi jenis template otomatis, menampilkan pratinjau, lalu menyimpan ke modul terkait."
+        description="Unggah 6 template resmi final: Masterfile, Penerimaan, Pelaporan PPh 21, Pelaporan Unifikasi, Pegawai, dan Sosialisasi. Sistem menampilkan pratinjau, lalu menyimpan ke modul terkait."
       />
 
       <ImportClient />
