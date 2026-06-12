@@ -7,6 +7,7 @@ import { KpiCard } from "@/components/ui/KpiCard";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Pagination } from "@/components/ui/Pagination";
 import { authOptions } from "@/lib/auth";
+import { ensureGoogleSheetsHydrated } from "@/lib/google-sheets-store";
 import { getWilayah, listAr, listScoring } from "@/lib/queries";
 import { firstParam, keepQuery, numericParam, queryString, type PageSearchParams } from "@/lib/search";
 import { formatNumber, formatPercent, monthLabel, trafficLabel } from "@/lib/utils";
@@ -29,6 +30,7 @@ function score(value: number) {
 
 export default async function ScoringOpdPage({ searchParams }: { searchParams?: PageSearchParams }) {
   const session = await getServerSession(authOptions);
+  await ensureGoogleSheetsHydrated();
   const q = firstParam(searchParams, "q");
   const wilayah = firstParam(searchParams, "wilayah", "all");
   const kategori = firstParam(searchParams, "kategori", "all");

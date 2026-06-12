@@ -12,6 +12,7 @@ function safeCallbackUrl(value: string | null) {
     const parsed = new URL(value, window.location.origin);
     if (parsed.origin !== window.location.origin) return "/dashboard";
     const path = `${parsed.pathname}${parsed.search}${parsed.hash}`;
+    if (path === "/") return "/dashboard";
     if (!path.startsWith("/") || path.startsWith("//") || path.startsWith("/login")) return "/dashboard";
     return path;
   } catch {

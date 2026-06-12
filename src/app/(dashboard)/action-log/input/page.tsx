@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/Badge";
 import { KpiCard } from "@/components/ui/KpiCard";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { authOptions } from "@/lib/auth";
-import { persistGoogleSheetsSnapshot } from "@/lib/google-sheets-store";
+import { ensureGoogleSheetsHydrated, persistGoogleSheetsSnapshot } from "@/lib/google-sheets-store";
 import { createActionLog, getActionLog, getOpd, listOpdOptions } from "@/lib/queries";
 import { firstParam, type PageSearchParams } from "@/lib/search";
 import { formatNumber } from "@/lib/utils";
@@ -34,6 +34,8 @@ async function submitActionLog(formData: FormData) {
 
   const session = await getServerSession(authOptions);
   if (!session?.user) throw new Error("Autentikasi diperlukan.");
+
+  await ensureGoogleSheetsHydrated();
 
   const opdId = Number(formData.get("opd_id"));
   if (!Number.isFinite(opdId) || opdId <= 0) throw new Error("OPD wajib dipilih.");
@@ -75,6 +77,7 @@ function formatDateTime(value: string) {
 
 export default async function ActionLogInputPage({ searchParams }: { searchParams?: PageSearchParams }) {
   const session = await getServerSession(authOptions);
+  await ensureGoogleSheetsHydrated();
   const role = session?.user.role as Role | undefined;
   const userId = session?.user.id;
   const isAr = role === "ar";

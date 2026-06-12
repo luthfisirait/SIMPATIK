@@ -15,11 +15,13 @@ import { Badge, toneForTraffic } from "@/components/ui/Badge";
 import { KpiCard } from "@/components/ui/KpiCard";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { ProgressBar } from "@/components/ui/ProgressBar";
+import { ensureGoogleSheetsHydrated } from "@/lib/google-sheets-store";
 import { getDashboardData } from "@/lib/queries";
 import { firstParam, type PageSearchParams } from "@/lib/search";
 import { formatCompactRupiah, formatNumber, formatPercent, monthLabel, trafficLabel } from "@/lib/utils";
 
 export default async function DashboardPage({ searchParams }: { searchParams?: PageSearchParams }) {
+  await ensureGoogleSheetsHydrated();
   const data = getDashboardData();
   const denied = firstParam(searchParams, "denied") === "1";
   const isDataEmpty = data.kpis.totalOpd === 0;

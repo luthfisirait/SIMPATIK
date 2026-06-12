@@ -3,6 +3,7 @@ import { Award, Send, ShieldAlert, Trophy } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
 import { KpiCard } from "@/components/ui/KpiCard";
 import { PageHeader } from "@/components/ui/PageHeader";
+import { ensureGoogleSheetsHydrated } from "@/lib/google-sheets-store";
 import { getRewardPunishment } from "@/lib/queries";
 import { formatNumber } from "@/lib/utils";
 
@@ -22,7 +23,8 @@ const punishmentScheme = [
   "Koordinasi Inspektorat Daerah & BPKAD/BPKPD: tembusan laporan untuk akuntabilitas internal OPD.",
 ];
 
-export default function RewardPunishmentPage() {
+export default async function RewardPunishmentPage() {
+  await ensureGoogleSheetsHydrated();
   const { reward, punishment, summary } = getRewardPunishment();
 
   return (

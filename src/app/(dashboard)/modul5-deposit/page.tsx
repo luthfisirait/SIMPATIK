@@ -7,6 +7,7 @@ import { KpiCard } from "@/components/ui/KpiCard";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Pagination } from "@/components/ui/Pagination";
 import { authOptions } from "@/lib/auth";
+import { ensureGoogleSheetsHydrated } from "@/lib/google-sheets-store";
 import { getWilayah, listAr, listDeposit } from "@/lib/queries";
 import { firstParam, keepQuery, numericParam, queryString, type PageSearchParams } from "@/lib/search";
 import { formatCompactRupiah, formatNumber, monthLabel, trafficLabel } from "@/lib/utils";
@@ -21,6 +22,7 @@ function statusTone(value: string | null | undefined): "green" | "amber" | "red"
 
 export default async function ModulDepositPage({ searchParams }: { searchParams?: PageSearchParams }) {
   const session = await getServerSession(authOptions);
+  await ensureGoogleSheetsHydrated();
   const q = firstParam(searchParams, "q");
   const wilayah = firstParam(searchParams, "wilayah", "all");
   const status = firstParam(searchParams, "status", "all");

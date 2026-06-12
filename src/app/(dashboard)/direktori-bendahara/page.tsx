@@ -7,6 +7,7 @@ import { KpiCard } from "@/components/ui/KpiCard";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Pagination } from "@/components/ui/Pagination";
 import { authOptions } from "@/lib/auth";
+import { ensureGoogleSheetsHydrated } from "@/lib/google-sheets-store";
 import { getWilayah, listAr, listBendahara } from "@/lib/queries";
 import { firstParam, keepQuery, numericParam, queryString, type PageSearchParams } from "@/lib/search";
 import { formatNumber, formatPercent, monthLabel, toWaLink } from "@/lib/utils";
@@ -19,6 +20,7 @@ const pphLabel: Record<string, string> = {
 
 export default async function DirektoriBendaharaPage({ searchParams }: { searchParams?: PageSearchParams }) {
   const session = await getServerSession(authOptions);
+  await ensureGoogleSheetsHydrated();
   const q = firstParam(searchParams, "q");
   const wilayah = firstParam(searchParams, "wilayah", "all");
   const ar = session?.user.role === "ar" ? session.user.id : firstParam(searchParams, "ar", "all");

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { KpiCard } from "@/components/ui/KpiCard";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { authOptions } from "@/lib/auth";
+import { ensureGoogleSheetsHydrated } from "@/lib/google-sheets-store";
 import { getWilayah, listSosialisasi } from "@/lib/queries";
 import { firstParam, numericParam, queryString, type PageSearchParams } from "@/lib/search";
 import { formatNumber } from "@/lib/utils";
@@ -12,6 +13,7 @@ import { SosialisasiWorkspace } from "./SosialisasiWorkspace";
 
 export default async function ModulSosialisasiPage({ searchParams }: { searchParams?: PageSearchParams }) {
   const session = await getServerSession(authOptions);
+  await ensureGoogleSheetsHydrated();
   const q = firstParam(searchParams, "q");
   const wilayah = firstParam(searchParams, "wilayah", "all");
   const status = firstParam(searchParams, "status", "all");
