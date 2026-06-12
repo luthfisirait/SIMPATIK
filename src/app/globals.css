@@ -908,6 +908,24 @@ textarea {
   background: #fbfdff;
 }
 
+.sosialisasi-layout {
+  grid-template-columns: minmax(0, 2fr) minmax(280px, 1fr);
+  align-items: start;
+}
+
+.sosialisasi-layout-wide {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.sosialisasi-main-card,
+.sosialisasi-priority-card {
+  min-width: 0;
+}
+
+.sosialisasi-table {
+  min-width: 960px;
+}
+
 .td-mono {
   font-family: var(--font-mono), ui-monospace, SFMono-Regular, Consolas, monospace;
   color: var(--text-2);

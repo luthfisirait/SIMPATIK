@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 
 import { Shell } from "@/components/layout/Shell";
 import { authOptions } from "@/lib/auth";
+import { ensureGoogleSheetsHydrated, isGoogleSheetsStoreConfigured } from "@/lib/google-sheets-store";
 import { getDataStatus } from "@/lib/queries";
 
 export const dynamic = "force-dynamic";
@@ -14,6 +15,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
     redirect("/login");
   }
 
+  await ensureGoogleSheetsHydrated();
   const dataStatus = getDataStatus();
   const monitoringKosong =
     dataStatus.opd === 0 ||
@@ -27,9 +29,11 @@ export default async function DashboardLayout({ children }: { children: React.Re
       ? "Database monitoring belum berisi data OPD."
       : "Data OPD sudah ada, tetapi data monitoring pajak belum lengkap.";
   const storageNote =
-    process.env.VERCEL === "1"
-      ? "Di Vercel, SQLite berjalan di storage sementara sehingga deploy atau cold start dapat membuat data kembali kosong."
-      : "Isi data lewat skrip import (npm run import:contoh / import:excel) agar dashboard dan modul monitoring menampilkan angka.";
+    isGoogleSheetsStoreConfigured()
+      ? "Data persistent tersinkron ke Google Sheets sebagai database produksi."
+      : process.env.VERCEL === "1"
+        ? "Di Vercel, SQLite berjalan di storage sementara. Aktifkan Google Sheets database agar data import tetap tampil setelah cold start."
+        : "Isi data lewat skrip import (npm run import:contoh / import:excel) agar dashboard dan modul monitoring menampilkan angka.";
 
   return (
     <Shell user={session.user}>

@@ -84,7 +84,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    const result = commitImportData(template, payload, {
+    const result = await commitImportData(template, payload, {
       id: auth.session?.user.id,
       name: auth.session?.user.name,
     });

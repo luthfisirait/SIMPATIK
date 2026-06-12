@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/Badge";
 import { KpiCard } from "@/components/ui/KpiCard";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { authOptions } from "@/lib/auth";
+import { persistGoogleSheetsSnapshot } from "@/lib/google-sheets-store";
 import { createActionLog, getActionLog, getOpd, listOpdOptions } from "@/lib/queries";
 import { firstParam, type PageSearchParams } from "@/lib/search";
 import { formatNumber } from "@/lib/utils";
@@ -58,6 +59,7 @@ async function submitActionLog(formData: FormData) {
     follow_up: cleanText(formData.get("follow_up")),
     next_follow_up_at: cleanText(formData.get("next_follow_up_at")),
   });
+  await persistGoogleSheetsSnapshot();
 
   revalidatePath("/action-log/input");
   revalidatePath("/dashboard");
@@ -87,7 +89,7 @@ export default async function ActionLogInputPage({ searchParams }: { searchParam
         description="Form tindak lanjut OPD dengan struktur respons Microsoft Forms."
       />
 
-      {success ? <div className="alert">Action log berhasil disimpan ke database SQLite.</div> : null}
+      {success ? <div className="alert">Action log berhasil disimpan dan disinkronkan ke Google Sheets bila aktif.</div> : null}
 
       <section className="kpi-grid">
         <KpiCard

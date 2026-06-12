@@ -2,6 +2,7 @@ import { getServerSession } from "next-auth";
 import { NextResponse } from "next/server";
 
 import { authOptions } from "@/lib/auth";
+import { ensureGoogleSheetsHydrated } from "@/lib/google-sheets-store";
 import { canAccessApi } from "@/lib/rbac";
 import type { Role } from "@/types";
 
@@ -15,6 +16,8 @@ export async function requireApiPermission(request: Request) {
       session: null,
     };
   }
+
+  await ensureGoogleSheetsHydrated();
 
   if (!canAccessApi(session.user.role as Role, pathname, request.method)) {
     return {

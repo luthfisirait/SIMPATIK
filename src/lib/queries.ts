@@ -1,4 +1,5 @@
 import { getDb } from "@/lib/db";
+import { persistGoogleSheetsSnapshot } from "@/lib/google-sheets-store";
 import { ensureSeeded } from "@/lib/seed";
 import type {
   ActionLog,
@@ -1714,7 +1715,7 @@ function clearImportDataForTemplate(database: ReturnType<typeof getDb>, template
   }
 }
 
-export function commitImportData(template: ImportTemplateKey, payload: ImportPayload, actor?: AuditActor): ImportCommitResult {
+export async function commitImportData(template: ImportTemplateKey, payload: ImportPayload, actor?: AuditActor): Promise<ImportCommitResult> {
   const database = db();
   const today = new Date().toISOString().slice(0, 10);
 
@@ -1969,6 +1970,8 @@ export function commitImportData(template: ImportTemplateKey, payload: ImportPay
     entity_name: "Import data Excel",
     after: summary,
   });
+
+  await persistGoogleSheetsSnapshot(database);
 
   return summary;
 }

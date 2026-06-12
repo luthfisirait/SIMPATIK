@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { requireApiPermission } from "@/lib/api-auth";
+import { persistGoogleSheetsSnapshot } from "@/lib/google-sheets-store";
 import { createActionLog, getActionLog, getOpd } from "@/lib/queries";
 
 export const runtime = "nodejs";
@@ -60,5 +61,6 @@ export async function POST(request: Request) {
     next_follow_up_at: cleanText(body.next_follow_up_at),
     attachment_url: cleanText(body.attachment_url),
   });
+  await persistGoogleSheetsSnapshot();
   return NextResponse.json({ id }, { status: 201 });
 }
