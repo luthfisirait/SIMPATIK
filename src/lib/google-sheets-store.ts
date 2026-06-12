@@ -65,6 +65,7 @@ type SheetValues = Map<TableName, unknown[][]>;
 let hydrated = false;
 let hydratePromise: Promise<void> | null = null;
 let tokenCache: { token: string; expiresAt: number } | null = null;
+const isVercel = process.env.VERCEL === "1";
 
 function config() {
   const clientEmail = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
@@ -105,6 +106,7 @@ async function accessToken() {
 
   const response = await fetch(TOKEN_URL, {
     method: "POST",
+    cache: "no-store",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({
       grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
@@ -126,6 +128,7 @@ async function sheetsFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const token = await accessToken();
   const url = `https://sheets.googleapis.com/v4/spreadsheets/${cfg.spreadsheetId}${path}`;
   const response = await fetch(url, {
+    cache: init?.cache ?? "no-store",
     ...init,
     headers: {
       Authorization: `Bearer ${token}`,
@@ -234,14 +237,25 @@ async function writeSnapshot(database: Database.Database) {
 }
 
 export async function ensureGoogleSheetsHydrated(database = getDb()) {
-  if (!isGoogleSheetsStoreConfigured() || hydrated) return;
-  hydratePromise ??= (async () => {
+  if (!isGoogleSheetsStoreConfigured()) return;
+  if (!isVercel && hydrated) return;
+  if (hydratePromise) {
+    await hydratePromise;
+    if (!isVercel) return;
+  }
+
+  hydratePromise = (async () => {
     const values = await readSheets();
     if (sheetHasRows(values)) restoreSnapshot(database, values);
     else await writeSnapshot(database);
     hydrated = true;
   })();
-  await hydratePromise;
+
+  try {
+    await hydratePromise;
+  } finally {
+    if (isVercel) hydratePromise = null;
+  }
 }
 
 export async function persistGoogleSheetsSnapshot(database = getDb()) {
