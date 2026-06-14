@@ -1,13 +1,13 @@
 "use client";
 
 import {
-  Award,
+  BarChart3,
   BookUser,
+  Building2,
   ChevronLeft,
   ChevronRight,
-  ClipboardCheck,
-  ClipboardList,
   ContactRound,
+  Database,
   FileCheck2,
   Landmark,
   LayoutDashboard,
@@ -15,8 +15,9 @@ import {
   Presentation,
   ReceiptText,
   Search,
-  Trophy,
+  Settings,
   Upload,
+  UsersRound,
 } from "lucide-react";
 import { signOut } from "next-auth/react";
 import Image from "next/image";
@@ -40,55 +41,57 @@ type ShellProps = {
 
 const navGroups = [
   {
-    label: "Overview",
+    label: "Utama",
     items: [{ href: "/dashboard", label: "Dashboard", icon: LayoutDashboard }],
   },
   {
-    label: "Modul Monitoring",
+    label: "Monitoring",
     items: [
-      { href: "/modul1-spt", label: "Modul 1 SPT PPh OP", icon: FileCheck2 },
-      { href: "/modul2-pph21", label: "Modul 2 PPh 21", icon: ReceiptText },
-      { href: "/modul3-sosialisasi", label: "Modul 3 Jejak Coretax", icon: Presentation },
-      { href: "/modul4-spt-masa", label: "Modul 4 SPT Masa", icon: ClipboardCheck },
-      { href: "/modul5-deposit", label: "Modul 5 Deposit", icon: Landmark },
+      { href: "/modul1-spt", label: "SPT Tahunan OP", icon: FileCheck2 },
+      { href: "/modul2-pph21", label: "PPh Masa", icon: ReceiptText },
+      { href: "/modul3-sosialisasi", label: "Sosialisasi Coretax", icon: Presentation },
+      { href: "/modul5-deposit", label: "Deposit Pajak OPD", icon: Landmark },
     ],
   },
   {
-    label: "Analitik",
+    label: "Manajemen",
     items: [
-      { href: "/scoring-opd", label: "Scoring OPD", icon: Trophy },
-      { href: "/reward-punishment", label: "Reward & Punishment", icon: Award },
+      { href: "/pegawai-belum-lapor", label: "Rincian Pegawai SPT", icon: BookUser },
+      { href: "/rincian-pph-masa", label: "Rincian PPh Masa OPD", icon: Database },
+      { href: "/data-opd", label: "Data OPD", icon: Building2 },
+      { href: "/import", label: "Import Data", icon: Upload },
+      { href: "/direktori-ar", label: "Data AR", icon: ContactRound },
+      { href: "/analitik", label: "Analitik", icon: BarChart3 },
     ],
   },
   {
-    label: "Direktori",
+    label: "Sistem",
     items: [
-      { href: "/direktori-ar", label: "Direktori AR", icon: ContactRound },
-      { href: "/direktori-bendahara", label: "Direktori Bendahara", icon: BookUser },
+      { href: "/pengguna", label: "Pengguna", icon: UsersRound },
+      { href: "/pengaturan", label: "Pengaturan", icon: Settings },
     ],
-  },
-  {
-    label: "Log",
-    items: [{ href: "/action-log/input", label: "Action Log AR", icon: ClipboardList }],
-  },
-  {
-    label: "Administrasi",
-    items: [{ href: "/import", label: "Import Data", icon: Upload }],
   },
 ];
 
 const meta: Record<string, { title: string; bc: string }> = {
   "/dashboard": { title: "Dashboard", bc: "/ Ringkasan Kepatuhan" },
-  "/modul1-spt": { title: "Modul 1 - SPT PPh OP", bc: "/ Monitoring Kepatuhan SPT" },
-  "/modul2-pph21": { title: "Modul 2 - PPh Pasal 21", bc: "/ Monitoring Kewajiban Bendahara" },
-  "/modul3-sosialisasi": { title: "Modul 3 - Jejak Coretax", bc: "/ Rekam Jejak Sosialisasi" },
-  "/modul4-spt-masa": { title: "Modul 4 - SPT Masa", bc: "/ PPh Unifikasi dan PPN PUT" },
-  "/modul5-deposit": { title: "Modul 5 - Deposit", bc: "/ Realisasi Setoran Pajak" },
+  "/modul1-spt": { title: "SPT Tahunan OP", bc: "/ Monitoring Kepatuhan SPT" },
+  "/modul2-pph21": { title: "PPh Masa", bc: "/ Pembayaran dan Pelaporan" },
+  "/modul3-sosialisasi": { title: "Sosialisasi Coretax", bc: "/ Rekam Jejak Sosialisasi" },
+  "/modul4-spt-masa": { title: "SPT Masa", bc: "/ PPh Unifikasi dan PPN PUT" },
+  "/modul5-deposit": { title: "Deposit Pajak OPD", bc: "/ Saldo dan Realisasi Setoran" },
+  "/rincian-pph-masa": { title: "Rincian PPh Masa OPD", bc: "/ Manajemen" },
   "/scoring-opd": { title: "Scoring OPD", bc: "/ Skor Komposit Kepatuhan" },
   "/reward-punishment": { title: "Reward & Punishment", bc: "/ Tindak Lanjut Berbasis Scoring" },
-  "/direktori-ar": { title: "Direktori AR", bc: "/ Contact Person" },
+  "/pegawai-belum-lapor": { title: "Rincian Pegawai SPT", bc: "/ Manajemen" },
+  "/data-opd": { title: "Data OPD", bc: "/ Master OPD" },
+  "/direktori-ar": { title: "Data AR", bc: "/ Account Representative" },
   "/direktori-bendahara": { title: "Direktori Bendahara", bc: "/ Kontak Bendahara Pengeluaran" },
+  "/analitik": { title: "Analitik", bc: "/ Tren dan Insight" },
+  "/pengguna": { title: "Pengguna", bc: "/ Manajemen Akun" },
+  "/pengaturan": { title: "Pengaturan", bc: "/ Sistem" },
   "/action-log/input": { title: "Action Log AR", bc: "/ Rekam Jejak Tindak Lanjut" },
+  "/import": { title: "Import Data", bc: "/ Administrasi" },
 };
 
 export function Shell({ children, user }: ShellProps) {

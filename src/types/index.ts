@@ -246,6 +246,7 @@ export type ImportPegawaiRow = {
   phone: string | null;
   jenis_kepegawaian: string | null;
   opd_nama: string | null;
+  status_coretax?: "aktif_belum_lapor" | "belum_aktivasi" | "sudah_lapor";
 };
 
 export type ImportSosialisasiRow = {
@@ -295,6 +296,10 @@ export type ImportCommitResult = {
   spt_masa: number;
   pegawai: number;
   sosialisasi: number;
+  derived_spt: number;
+  derived_deposit_status: number;
+  derived_spt_masa_status: number;
+  derived_scoring: number;
   skipped: number;
   skipped_reasons: ImportSkipReason[];
 };

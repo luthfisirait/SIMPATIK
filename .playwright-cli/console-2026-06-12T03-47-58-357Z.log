@@ -1,0 +1,60 @@
+[  998539ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:3000/modul1-spt?_rsc=1i6l9:0
+[  998542ms] [ERROR] Failed to fetch RSC payload for http://localhost:3000/modul1-spt. Falling back to browser navigation. TypeError: Failed to fetch
+    at f (http://localhost:3000/_next/static/chunks/117-f28aa159560a3bfc.js:1:45433)
+    at http://localhost:3000/_next/static/chunks/117-f28aa159560a3bfc.js:1:58959
+    at Object.u [as task] (http://localhost:3000/_next/static/chunks/117-f28aa159560a3bfc.js:1:31834)
+    at c.s (http://localhost:3000/_next/static/chunks/117-f28aa159560a3bfc.js:1:32539)
+    at c.enqueue (http://localhost:3000/_next/static/chunks/117-f28aa159560a3bfc.js:1:31964)
+    at s (http://localhost:3000/_next/static/chunks/117-f28aa159560a3bfc.js:1:58922)
+    at i (http://localhost:3000/_next/static/chunks/117-f28aa159560a3bfc.js:1:58462)
+    at a (http://localhost:3000/_next/static/chunks/117-f28aa159560a3bfc.js:1:65251)
+    at f (http://localhost:3000/_next/static/chunks/117-f28aa159560a3bfc.js:1:75111)
+    at Object.action (http://localhost:3000/_next/static/chunks/117-f28aa159560a3bfc.js:2:7082) @ http://localhost:3000/_next/static/chunks/117-f28aa159560a3bfc.js:0
+[  998615ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:3000/modul2-pph21?_rsc=1i6l9:0
+[  998616ms] [ERROR] Failed to fetch RSC payload for http://localhost:3000/modul2-pph21. Falling back to browser navigation. TypeError: Failed to fetch
+    at f (http://localhost:3000/_next/static/chunks/117-f28aa159560a3bfc.js:1:45433)
+    at http://localhost:3000/_next/static/chunks/117-f28aa159560a3bfc.js:1:58959
+    at Object.u [as task] (http://localhost:3000/_next/static/chunks/117-f28aa159560a3bfc.js:1:31834)
+    at c.s (http://localhost:3000/_next/static/chunks/117-f28aa159560a3bfc.js:1:32539)
+    at c.enqueue (http://localhost:3000/_next/static/chunks/117-f28aa159560a3bfc.js:1:31964)
+    at s (http://localhost:3000/_next/static/chunks/117-f28aa159560a3bfc.js:1:58922)
+    at i (http://localhost:3000/_next/static/chunks/117-f28aa159560a3bfc.js:1:58462)
+    at a (http://localhost:3000/_next/static/chunks/117-f28aa159560a3bfc.js:1:65251)
+    at f (http://localhost:3000/_next/static/chunks/117-f28aa159560a3bfc.js:1:75111)
+    at Object.action (http://localhost:3000/_next/static/chunks/117-f28aa159560a3bfc.js:2:7082) @ http://localhost:3000/_next/static/chunks/117-f28aa159560a3bfc.js:0
+[  998817ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:3000/modul3-sosialisasi?_rsc=1i6l9:0
+[  998819ms] [ERROR] Failed to fetch RSC payload for http://localhost:3000/modul3-sosialisasi. Falling back to browser navigation. TypeError: Failed to fetch
+    at f (http://localhost:3000/_next/static/chunks/117-f28aa159560a3bfc.js:1:45433)
+    at http://localhost:3000/_next/static/chunks/117-f28aa159560a3bfc.js:1:58959
+    at Object.u [as task] (http://localhost:3000/_next/static/chunks/117-f28aa159560a3bfc.js:1:31834)
+    at c.s (http://localhost:3000/_next/static/chunks/117-f28aa159560a3bfc.js:1:32539)
+    at c.enqueue (http://localhost:3000/_next/static/chunks/117-f28aa159560a3bfc.js:1:31964)
+    at s (http://localhost:3000/_next/static/chunks/117-f28aa159560a3bfc.js:1:58922)
+    at i (http://localhost:3000/_next/static/chunks/117-f28aa159560a3bfc.js:1:58462)
+    at a (http://localhost:3000/_next/static/chunks/117-f28aa159560a3bfc.js:1:65251)
+    at f (http://localhost:3000/_next/static/chunks/117-f28aa159560a3bfc.js:1:75111)
+    at Object.action (http://localhost:3000/_next/static/chunks/117-f28aa159560a3bfc.js:2:7082) @ http://localhost:3000/_next/static/chunks/117-f28aa159560a3bfc.js:0
+[  998929ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:3000/modul4-spt-masa?_rsc=1i6l9:0
+[  998931ms] [ERROR] Failed to fetch RSC payload for http://localhost:3000/modul4-spt-masa. Falling back to browser navigation. TypeError: Failed to fetch
+    at f (http://localhost:3000/_next/static/chunks/117-f28aa159560a3bfc.js:1:45433)
+    at http://localhost:3000/_next/static/chunks/117-f28aa159560a3bfc.js:1:58959
+    at Object.u [as task] (http://localhost:3000/_next/static/chunks/117-f28aa159560a3bfc.js:1:31834)
+    at c.s (http://localhost:3000/_next/static/chunks/117-f28aa159560a3bfc.js:1:32539)
+    at c.enqueue (http://localhost:3000/_next/static/chunks/117-f28aa159560a3bfc.js:1:31964)
+    at s (http://localhost:3000/_next/static/chunks/117-f28aa159560a3bfc.js:1:58922)
+    at i (http://localhost:3000/_next/static/chunks/117-f28aa159560a3bfc.js:1:58462)
+    at a (http://localhost:3000/_next/static/chunks/117-f28aa159560a3bfc.js:1:65251)
+    at f (http://localhost:3000/_next/static/chunks/117-f28aa159560a3bfc.js:1:75111)
+    at Object.action (http://localhost:3000/_next/static/chunks/117-f28aa159560a3bfc.js:2:7082) @ http://localhost:3000/_next/static/chunks/117-f28aa159560a3bfc.js:0
+[  998932ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:3000/modul5-deposit?_rsc=1i6l9:0
+[  998934ms] [ERROR] Failed to fetch RSC payload for http://localhost:3000/modul5-deposit. Falling back to browser navigation. TypeError: Failed to fetch
+    at f (http://localhost:3000/_next/static/chunks/117-f28aa159560a3bfc.js:1:45433)
+    at http://localhost:3000/_next/static/chunks/117-f28aa159560a3bfc.js:1:58959
+    at Object.u [as task] (http://localhost:3000/_next/static/chunks/117-f28aa159560a3bfc.js:1:31834)
+    at c.s (http://localhost:3000/_next/static/chunks/117-f28aa159560a3bfc.js:1:32539)
+    at c.enqueue (http://localhost:3000/_next/static/chunks/117-f28aa159560a3bfc.js:1:31964)
+    at s (http://localhost:3000/_next/static/chunks/117-f28aa159560a3bfc.js:1:58922)
+    at i (http://localhost:3000/_next/static/chunks/117-f28aa159560a3bfc.js:1:58462)
+    at a (http://localhost:3000/_next/static/chunks/117-f28aa159560a3bfc.js:1:65251)
+    at f (http://localhost:3000/_next/static/chunks/117-f28aa159560a3bfc.js:1:75111)
+    at Object.action (http://localhost:3000/_next/static/chunks/117-f28aa159560a3bfc.js:2:7082) @ http://localhost:3000/_next/static/chunks/117-f28aa159560a3bfc.js:0

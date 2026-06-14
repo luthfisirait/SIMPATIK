@@ -29,6 +29,10 @@ const RESULT_LABELS: Array<{ key: NumericResultKey; label: string }> = [
   { key: "spt_masa", label: "SPT Masa" },
   { key: "pegawai", label: "Pegawai" },
   { key: "sosialisasi", label: "Sosialisasi" },
+  { key: "derived_spt", label: "Derivasi SPT Tahunan" },
+  { key: "derived_deposit_status", label: "Derivasi status deposit" },
+  { key: "derived_spt_masa_status", label: "Derivasi status SPT Masa" },
+  { key: "derived_scoring", label: "Derivasi scoring" },
   { key: "skipped", label: "Dilewati" },
 ];
 

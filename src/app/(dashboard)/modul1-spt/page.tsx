@@ -31,7 +31,7 @@ export default async function ModulSptPage({ searchParams }: { searchParams?: Pa
   return (
     <>
       <PageHeader
-        title="Modul 1 - SPT PPh OP"
+        title="Monitoring SPT Tahunan OP ASN & PPPK"
         description={`Monitoring kepatuhan SPT per OPD untuk ${monthLabel(result.periode)}.`}
         actions={
           <>

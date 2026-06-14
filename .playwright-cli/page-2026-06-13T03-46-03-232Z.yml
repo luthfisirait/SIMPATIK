@@ -1,0 +1,28 @@
+- generic [active] [ref=e1]:
+  - main [ref=e2]:
+    - generic [ref=e3]:
+      - img "Logo Kementerian Keuangan dan DJP" [ref=e5]
+      - heading "SIMPATIK" [level=1] [ref=e6]
+      - paragraph [ref=e7]: Sistem Monitoring Terintegrasi Kepatuhan Perpajakan untuk memantau kepatuhan dan tindak lanjut secara terpadu.
+      - generic [ref=e8]:
+        - generic [ref=e9]:
+          - generic [ref=e10]: Username / Email
+          - generic [ref=e11]:
+            - img [ref=e12]
+            - textbox "Username / Email" [ref=e15]: demo
+        - generic [ref=e16]:
+          - generic [ref=e17]: Password
+          - generic [ref=e18]:
+            - img [ref=e19]
+            - textbox "Password" [ref=e23]: demo
+        - generic [ref=e24]: Email atau password tidak sesuai.
+        - button "Masuk" [ref=e25] [cursor=pointer]:
+          - img [ref=e26]
+          - text: Masuk
+      - generic [ref=e29]:
+        - text: "Default:"
+        - strong [ref=e30]: demo
+        - text: /
+        - strong [ref=e31]: demo
+        - text: .
+  - alert [ref=e32]

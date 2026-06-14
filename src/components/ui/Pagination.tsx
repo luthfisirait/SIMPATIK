@@ -5,20 +5,21 @@ type PaginationProps = {
   pages: number;
   basePath: string;
   query?: Record<string, string | number | undefined>;
+  pageParam?: string;
 };
 
-function hrefFor(basePath: string, page: number, query: PaginationProps["query"]) {
+function hrefFor(basePath: string, page: number, query: PaginationProps["query"], pageParam: string) {
   const params = new URLSearchParams();
   Object.entries(query ?? {}).forEach(([key, value]) => {
     if (value !== undefined && value !== "" && value !== "all") {
       params.set(key, String(value));
     }
   });
-  params.set("page", String(page));
+  params.set(pageParam, String(page));
   return `${basePath}?${params.toString()}`;
 }
 
-export function Pagination({ page, pages, basePath, query }: PaginationProps) {
+export function Pagination({ page, pages, basePath, query, pageParam = "page" }: PaginationProps) {
   const safePage = Math.min(Math.max(page, 1), pages);
   const nearby = Array.from(new Set([1, safePage - 1, safePage, safePage + 1, pages])).filter(
     (item) => item >= 1 && item <= pages,
@@ -26,15 +27,15 @@ export function Pagination({ page, pages, basePath, query }: PaginationProps) {
 
   return (
     <div className="pagination">
-      <Link className="page-btn" href={hrefFor(basePath, Math.max(1, safePage - 1), query)} aria-label="Halaman sebelumnya">
+      <Link className="page-btn" href={hrefFor(basePath, Math.max(1, safePage - 1), query, pageParam)} aria-label="Halaman sebelumnya">
         {"<"}
       </Link>
       {nearby.map((item) => (
-        <Link key={item} className={item === safePage ? "page-btn active" : "page-btn"} href={hrefFor(basePath, item, query)}>
+        <Link key={item} className={item === safePage ? "page-btn active" : "page-btn"} href={hrefFor(basePath, item, query, pageParam)}>
           {item}
         </Link>
       ))}
-      <Link className="page-btn" href={hrefFor(basePath, Math.min(pages, safePage + 1), query)} aria-label="Halaman berikutnya">
+      <Link className="page-btn" href={hrefFor(basePath, Math.min(pages, safePage + 1), query, pageParam)} aria-label="Halaman berikutnya">
         {">"}
       </Link>
     </div>

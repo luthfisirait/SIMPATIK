@@ -1,8 +1,10 @@
 import {
+  BarChart3,
   Building2,
   CalendarPlus,
   Download,
   FileCheck2,
+  Landmark,
   Presentation,
   ReceiptText,
   Send,
@@ -89,7 +91,7 @@ export default async function DashboardPage({ searchParams }: { searchParams?: P
             <FileCheck2 size={19} />
           </span>
           <span className="quick-card-copy">
-            <span className="quick-card-label">Monitoring SPT</span>
+            <span className="quick-card-label">SPT Tahunan OP</span>
             <span className="quick-card-sub">Traffic light OPD</span>
           </span>
         </Link>
@@ -98,8 +100,8 @@ export default async function DashboardPage({ searchParams }: { searchParams?: P
             <ReceiptText size={19} />
           </span>
           <span className="quick-card-copy">
-            <span className="quick-card-label">PPh 21</span>
-            <span className="quick-card-sub">Status bendahara</span>
+            <span className="quick-card-label">PPh Masa</span>
+            <span className="quick-card-sub">Bayar dan lapor</span>
           </span>
         </Link>
         <Link className="quick-card" href="/modul3-sosialisasi">
@@ -111,13 +113,22 @@ export default async function DashboardPage({ searchParams }: { searchParams?: P
             <span className="quick-card-sub">Jadwal dan rekam jejak</span>
           </span>
         </Link>
-        <Link className="quick-card" href="/scoring-opd">
+        <Link className="quick-card" href="/modul5-deposit">
           <span className="quick-card-icon" style={{ background: "var(--green)" }}>
-            <ReceiptText size={19} />
+            <Landmark size={19} />
           </span>
           <span className="quick-card-copy">
-            <span className="quick-card-label">Scoring OPD</span>
-            <span className="quick-card-sub">Skor komposit kepatuhan</span>
+            <span className="quick-card-label">Deposit Pajak</span>
+            <span className="quick-card-sub">Saldo dan setoran</span>
+          </span>
+        </Link>
+        <Link className="quick-card" href="/analitik">
+          <span className="quick-card-icon" style={{ background: "var(--red)" }}>
+            <BarChart3 size={19} />
+          </span>
+          <span className="quick-card-copy">
+            <span className="quick-card-label">Analitik</span>
+            <span className="quick-card-sub">Tren dan insight</span>
           </span>
         </Link>
       </section>

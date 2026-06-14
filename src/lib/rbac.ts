@@ -17,11 +17,17 @@ const pageRules: Array<{ prefix: string; roles: Role[] }> = [
   { prefix: "/modul3-sosialisasi", roles: ALL_ROLES },
   { prefix: "/modul4-spt-masa", roles: ALL_ROLES },
   { prefix: "/modul5-deposit", roles: ALL_ROLES },
+  { prefix: "/rincian-pph-masa", roles: ALL_ROLES },
   { prefix: "/scoring-opd", roles: ALL_ROLES },
   { prefix: "/reward-punishment", roles: ALL_ROLES },
   { prefix: "/action-log/input", roles: OPERATIONAL_ROLES },
+  { prefix: "/pegawai-belum-lapor", roles: OPERATIONAL_ROLES },
+  { prefix: "/data-opd", roles: ALL_ROLES },
   { prefix: "/direktori-ar", roles: ALL_ROLES },
   { prefix: "/direktori-bendahara", roles: OPERATIONAL_ROLES },
+  { prefix: "/analitik", roles: ALL_ROLES },
+  { prefix: "/pengguna", roles: ["kasiwas"] },
+  { prefix: "/pengaturan", roles: DATA_WRITER_ROLES },
   { prefix: "/import", roles: DATA_WRITER_ROLES },
 ];
 

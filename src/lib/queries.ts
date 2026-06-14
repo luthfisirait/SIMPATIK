@@ -28,6 +28,7 @@ type ListParams = {
   ar?: string;
   page?: number;
   pageSize?: number;
+  includeSudah?: boolean;
 };
 
 export type WriteOpdPayload = {
@@ -143,6 +144,24 @@ type CountTable =
   | "scoring_opd"
   | "sosialisasi"
   | "pegawai";
+
+const IMPORT_ORDER: ImportTemplateKey[] = [
+  "masterfile",
+  "penerimaan",
+  "pelaporan_pph21",
+  "pelaporan_unifikasi",
+  "pegawai",
+  "sosialisasi",
+];
+
+const IMPORT_LABELS: Record<ImportTemplateKey, string> = {
+  masterfile: "Masterfile Wajib Pajak",
+  penerimaan: "Data Penerimaan",
+  pelaporan_pph21: "Pelaporan SPT Masa PPh Pasal 21",
+  pelaporan_unifikasi: "Pelaporan SPT Masa Unifikasi",
+  pegawai: "Daftar Pegawai Instansi",
+  sosialisasi: "Rekam Sosialisasi",
+};
 
 function tableCount(database: ReturnType<typeof getDb>, table: CountTable) {
   return (database.prepare(`SELECT COUNT(*) AS total FROM ${table}`).get() as { total: number }).total;
@@ -1182,7 +1201,7 @@ export function listPegawai(params: ListParams = {}) {
   const page = Math.max(1, params.page ?? 1);
   const pageSize = Math.min(100, Math.max(5, params.pageSize ?? 12));
   const offset = (page - 1) * pageSize;
-  const where = ["p.status_coretax != 'sudah_lapor'"];
+  const where = params.includeSudah ? [] : ["p.status_coretax != 'sudah_lapor'"];
   const values: Array<string | number> = [];
 
   if (params.q) {
@@ -1615,6 +1634,28 @@ export function getAnalyticsData() {
   return { dashboard, pphTrend, scatter };
 }
 
+export function listSettings() {
+  return db()
+    .prepare("SELECT key, value FROM settings ORDER BY key")
+    .all() as Array<{ key: string; value: string }>;
+}
+
+function readSetting(database: ReturnType<typeof getDb>, key: string) {
+  return (database.prepare("SELECT value FROM settings WHERE key = ?").get(key) as { value: string } | undefined)?.value ?? null;
+}
+
+function writeSetting(database: ReturnType<typeof getDb>, key: string, value: string) {
+  database
+    .prepare(
+      `
+      INSERT INTO settings (key, value)
+      VALUES (?, ?)
+      ON CONFLICT(key) DO UPDATE SET value = excluded.value
+    `,
+    )
+    .run(key, value);
+}
+
 // ---------------------------------------------------------------------------
 // Import data dari template Excel resmi (commit transaksional + audit)
 // ---------------------------------------------------------------------------
@@ -1685,6 +1726,401 @@ function deleteEmptySptMasaRows(database: ReturnType<typeof getDb>) {
     .run().changes;
 }
 
+function importTemplateHasSourceData(database: ReturnType<typeof getDb>, template: ImportTemplateKey) {
+  switch (template) {
+    case "masterfile":
+      return tableCount(database, "opd") > 0;
+    case "penerimaan":
+      return tableCount(database, "pph21_monitoring") > 0 || tableCount(database, "deposit_monitoring") > 0;
+    case "pelaporan_pph21":
+      return (
+        database.prepare("SELECT 1 FROM spt_masa_monitoring WHERE pph21_status IS NOT NULL LIMIT 1").get() !== undefined
+      );
+    case "pelaporan_unifikasi":
+      return (
+        database
+          .prepare(
+            "SELECT 1 FROM spt_masa_monitoring WHERE pph23_status IS NOT NULL OR ppn_put_status IS NOT NULL LIMIT 1",
+          )
+          .get() !== undefined
+      );
+    case "pegawai":
+      return tableCount(database, "pegawai") > 0;
+    case "sosialisasi":
+      return tableCount(database, "sosialisasi") > 0;
+  }
+}
+
+function completedImportTemplates(database: ReturnType<typeof getDb>) {
+  const raw = readSetting(database, "import_completed_templates");
+  if (raw) {
+    const values = new Set(
+      raw
+        .split(",")
+        .map((item) => item.trim())
+        .filter((item): item is ImportTemplateKey => (IMPORT_ORDER as string[]).includes(item)),
+    );
+    if (values.size > 0) return values;
+  }
+
+  return new Set(IMPORT_ORDER.filter((template) => importTemplateHasSourceData(database, template)));
+}
+
+function validateImportOrder(database: ReturnType<typeof getDb>, template: ImportTemplateKey) {
+  const completed = completedImportTemplates(database);
+  const index = IMPORT_ORDER.indexOf(template);
+
+  if (template === "masterfile") {
+    const later = IMPORT_ORDER.slice(1).filter((item) => completed.has(item));
+    if (later.length > 0) {
+      throw new Error(
+        `Masterfile harus diimpor paling awal. Data template berikut sudah masuk: ${later
+          .map((item) => IMPORT_LABELS[item])
+          .join(", ")}. Ulangi dari database kosong atau reset data terlebih dahulu agar relasi OPD tidak terhapus.`,
+      );
+    }
+    return;
+  }
+
+  const missing = IMPORT_ORDER.slice(0, index).filter((item) => !completed.has(item));
+  if (missing.length > 0) {
+    throw new Error(
+      `Urutan import belum terpenuhi. Sebelum ${IMPORT_LABELS[template]}, impor dulu: ${missing
+        .map((item) => IMPORT_LABELS[item])
+        .join(" -> ")}.`,
+    );
+  }
+}
+
+function markImportCompleted(database: ReturnType<typeof getDb>, template: ImportTemplateKey) {
+  const completed = completedImportTemplates(database);
+  completed.add(template);
+  writeSetting(
+    database,
+    "import_completed_templates",
+    IMPORT_ORDER.filter((item) => completed.has(item)).join(","),
+  );
+  writeSetting(database, "import_last_template", template);
+  writeSetting(database, "import_last_at", new Date().toISOString());
+}
+
+function importedRowCountForTemplate(result: ImportCommitResult, template: ImportTemplateKey) {
+  switch (template) {
+    case "masterfile":
+      return result.opd_created + result.opd_updated;
+    case "penerimaan":
+      return result.pph21 + result.deposit;
+    case "pelaporan_pph21":
+    case "pelaporan_unifikasi":
+      return result.spt_masa;
+    case "pegawai":
+      return result.pegawai;
+    case "sosialisasi":
+      return result.sosialisasi;
+  }
+}
+
+function currentMonth() {
+  return new Date().toISOString().slice(0, 7);
+}
+
+function collectFiscalPeriods(database: ReturnType<typeof getDb>) {
+  const rows = database
+    .prepare(
+      `
+      SELECT bulan AS period FROM pph21_monitoring
+      UNION
+      SELECT masa_pajak AS period FROM deposit_monitoring
+      UNION
+      SELECT masa_pajak AS period FROM spt_masa_monitoring
+      ORDER BY period
+    `,
+    )
+    .all() as Array<{ period: string | null }>;
+
+  return rows.map((row) => row.period).filter((period): period is string => Boolean(period));
+}
+
+function trafficFromImportedPercent(percent: number): TrafficLight {
+  if (percent >= 70) return "hijau";
+  if (percent >= 40) return "kuning";
+  return "merah";
+}
+
+function scoreFromTraffic(value: string | null | undefined) {
+  if (value === "hijau") return 100;
+  if (value === "kuning") return 60;
+  return 0;
+}
+
+function scoreFromPph21(ketepatan: string | null | undefined, nominal: number | null | undefined) {
+  if ((nominal ?? 0) <= 0) return 0;
+  if (ketepatan === "tepat_waktu") return 100;
+  if (ketepatan === "terlambat") return 60;
+  return 0;
+}
+
+function deriveOpdPegawaiCounts(database: ReturnType<typeof getDb>) {
+  return database
+    .prepare(
+      `
+      UPDATE opd
+      SET
+        jumlah_asn = (
+          SELECT COUNT(*)
+          FROM pegawai p
+          WHERE p.opd_id = opd.id
+            AND LOWER(COALESCE(p.jenis_kepegawaian, '')) NOT LIKE '%ppp%'
+            AND LOWER(COALESCE(p.jenis_kepegawaian, '')) NOT LIKE '%p3k%'
+        ),
+        jumlah_pppk = (
+          SELECT COUNT(*)
+          FROM pegawai p
+          WHERE p.opd_id = opd.id
+            AND (
+              LOWER(COALESCE(p.jenis_kepegawaian, '')) LIKE '%ppp%'
+              OR LOWER(COALESCE(p.jenis_kepegawaian, '')) LIKE '%p3k%'
+            )
+        )
+      WHERE EXISTS (SELECT 1 FROM pegawai p WHERE p.opd_id = opd.id)
+    `,
+    )
+    .run().changes;
+}
+
+function deriveSptMonitoring(database: ReturnType<typeof getDb>, periods: string[]) {
+  const sourcePeriods = periods.length > 0 ? periods : tableCount(database, "pegawai") > 0 ? [currentMonth()] : [];
+  if (sourcePeriods.length === 0) return 0;
+
+  const rows = database
+    .prepare(
+      `
+      SELECT o.id AS opd_id,
+        CASE
+          WHEN COUNT(p.id) > 0 THEN COUNT(p.id)
+          ELSE COALESCE(o.jumlah_asn, 0) + COALESCE(o.jumlah_pppk, 0)
+        END AS wajib,
+        COALESCE(SUM(CASE WHEN p.status_coretax = 'sudah_lapor' THEN 1 ELSE 0 END), 0) AS sudah
+      FROM opd o
+      LEFT JOIN pegawai p ON p.opd_id = o.id
+      GROUP BY o.id
+    `,
+    )
+    .all() as Array<{ opd_id: number; wajib: number; sudah: number }>;
+
+  const upsert = database.prepare(
+    `
+    INSERT INTO spt_monitoring (
+      opd_id, tahun_pajak, periode, jumlah_wajib_lapor, jumlah_sudah_lapor, persen_kepatuhan, traffic_light
+    )
+    VALUES (?, 2025, ?, ?, ?, ?, ?)
+    ON CONFLICT(opd_id, tahun_pajak, periode) DO UPDATE SET
+      jumlah_wajib_lapor = excluded.jumlah_wajib_lapor,
+      jumlah_sudah_lapor = excluded.jumlah_sudah_lapor,
+      persen_kepatuhan = excluded.persen_kepatuhan,
+      traffic_light = excluded.traffic_light
+  `,
+  );
+
+  let changed = 0;
+  sourcePeriods.forEach((period) => {
+    rows.forEach((row) => {
+      const wajib = Math.max(0, Number(row.wajib ?? 0));
+      const sudah = Math.min(wajib, Math.max(0, Number(row.sudah ?? 0)));
+      const persen = wajib === 0 ? 0 : Number(((sudah * 100) / wajib).toFixed(1));
+      changed += upsert.run(row.opd_id, period, wajib, sudah, persen, trafficFromImportedPercent(persen)).changes;
+    });
+  });
+  return changed;
+}
+
+function ensurePph21Rows(database: ReturnType<typeof getDb>, periods: string[]) {
+  const insert = database.prepare(
+    `
+    INSERT INTO pph21_monitoring (opd_id, bulan, jumlah_dipotong, nominal_setor, estimasi_wajar, ketepatan, status)
+    SELECT o.id, ?, 0, 0, 0, 'belum_setor', 'kritis'
+    FROM opd o
+    WHERE NOT EXISTS (
+      SELECT 1 FROM pph21_monitoring p WHERE p.opd_id = o.id AND p.bulan = ?
+    )
+  `,
+  );
+  return periods.reduce((sum, period) => sum + insert.run(period, period).changes, 0);
+}
+
+function deriveDepositStatuses(database: ReturnType<typeof getDb>, periods: string[]) {
+  if (periods.length === 0) return 0;
+
+  const insert = database.prepare(
+    `
+    INSERT INTO deposit_monitoring (opd_id, masa_pajak, deposit_pph21, deposit_pph_unifikasi, deposit_ppn_put, total_deposit)
+    SELECT o.id, ?, 0, 0, 0, 0
+    FROM opd o
+    WHERE NOT EXISTS (
+      SELECT 1 FROM deposit_monitoring d WHERE d.opd_id = o.id AND d.masa_pajak = ?
+    )
+  `,
+  );
+  periods.forEach((period) => insert.run(period, period));
+
+  const update = database.prepare(
+    `
+    UPDATE deposit_monitoring
+    SET
+      total_deposit = COALESCE(deposit_pph21, 0) + COALESCE(deposit_pph_unifikasi, 0) + COALESCE(deposit_ppn_put, 0),
+      status_pph21 = CASE WHEN COALESCE(deposit_pph21, 0) > 0 THEN 'TEPAT WAKTU' ELSE 'NIHIL' END,
+      status_unifikasi = CASE WHEN COALESCE(deposit_pph_unifikasi, 0) > 0 THEN 'TEPAT WAKTU' ELSE 'NIHIL' END,
+      status_ppn_put = CASE WHEN COALESCE(deposit_ppn_put, 0) > 0 THEN 'TEPAT WAKTU' ELSE 'NIHIL' END,
+      status_deposit_overall = CASE
+        WHEN COALESCE(deposit_pph21, 0) + COALESCE(deposit_pph_unifikasi, 0) + COALESCE(deposit_ppn_put, 0) > 0
+        THEN 'hijau'
+        ELSE 'merah'
+      END
+    WHERE masa_pajak = ?
+  `,
+  );
+
+  return periods.reduce((sum, period) => sum + update.run(period).changes, 0);
+}
+
+function deriveSptMasaStatuses(database: ReturnType<typeof getDb>, periods: string[]) {
+  if (periods.length === 0) return 0;
+
+  const insert = database.prepare(
+    `
+    INSERT INTO spt_masa_monitoring (opd_id, masa_pajak, status_keseluruhan)
+    SELECT o.id, ?, NULL
+    FROM opd o
+    WHERE NOT EXISTS (
+      SELECT 1 FROM spt_masa_monitoring m WHERE m.opd_id = o.id AND m.masa_pajak = ?
+    )
+  `,
+  );
+  periods.forEach((period) => insert.run(period, period));
+
+  const updatePemungut = database.prepare(
+    `
+    UPDATE spt_masa_monitoring
+    SET status_opd_pemungut = COALESCE(
+      status_opd_pemungut,
+      (SELECT status_pemungut_ppn FROM opd WHERE opd.id = spt_masa_monitoring.opd_id)
+    )
+    WHERE masa_pajak = ?
+  `,
+  );
+  periods.forEach((period) => updatePemungut.run(period));
+
+  const updateStatus = database.prepare(
+    `
+    UPDATE spt_masa_monitoring
+    SET
+      pph21_status = COALESCE(pph21_status, 'Belum Lapor'),
+      pph23_status = COALESCE(pph23_status, 'Belum Lapor'),
+      ppn_put_status = COALESCE(
+        ppn_put_status,
+        CASE WHEN UPPER(COALESCE(status_opd_pemungut, 'TIDAK')) = 'YA' THEN 'Belum Lapor' ELSE 'Bukan Pemungut' END
+      )
+    WHERE masa_pajak = ?
+  `,
+  );
+
+  const changed = periods.reduce((sum, period) => sum + updateStatus.run(period).changes, 0);
+  refreshSptMasaOverall(database);
+  return changed;
+}
+
+function deriveScoring(database: ReturnType<typeof getDb>, periods: string[]) {
+  if (periods.length === 0) return 0;
+
+  const selectRows = database.prepare(
+    `
+    SELECT o.id AS opd_id,
+      COALESCE(s.persen_kepatuhan, 0) AS skor_spt_op,
+      p.ketepatan AS pph21_ketepatan,
+      COALESCE(p.nominal_setor, 0) AS pph21_nominal,
+      LOWER(COALESCE(m.status_keseluruhan, 'merah')) AS spt_masa_status,
+      LOWER(COALESCE(d.status_deposit_overall, 'merah')) AS deposit_status
+    FROM opd o
+    LEFT JOIN spt_monitoring s ON s.opd_id = o.id AND s.tahun_pajak = 2025 AND s.periode = ?
+    LEFT JOIN pph21_monitoring p ON p.opd_id = o.id AND p.bulan = ?
+    LEFT JOIN spt_masa_monitoring m ON m.opd_id = o.id AND m.masa_pajak = ?
+    LEFT JOIN deposit_monitoring d ON d.opd_id = o.id AND d.masa_pajak = ?
+    ORDER BY o.id
+  `,
+  );
+  const upsert = database.prepare(
+    `
+    INSERT INTO scoring_opd (
+      opd_id, bulan_scoring, skor_spt_op, skor_pph21, skor_spt_masa, skor_deposit, skor_total, kategori, status_rp, catatan
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(opd_id, bulan_scoring) DO UPDATE SET
+      skor_spt_op = excluded.skor_spt_op,
+      skor_pph21 = excluded.skor_pph21,
+      skor_spt_masa = excluded.skor_spt_masa,
+      skor_deposit = excluded.skor_deposit,
+      skor_total = excluded.skor_total,
+      kategori = excluded.kategori,
+      status_rp = excluded.status_rp,
+      catatan = excluded.catatan
+  `,
+  );
+
+  let changed = 0;
+  periods.forEach((period) => {
+    const rows = selectRows.all(period, period, period, period) as Array<{
+      opd_id: number;
+      skor_spt_op: number;
+      pph21_ketepatan: string | null;
+      pph21_nominal: number;
+      spt_masa_status: string | null;
+      deposit_status: string | null;
+    }>;
+
+    rows.forEach((row) => {
+      const skorSpt = Math.min(100, Math.max(0, Number(row.skor_spt_op ?? 0)));
+      const skorPph21 = scoreFromPph21(row.pph21_ketepatan, row.pph21_nominal);
+      const skorSptMasa = scoreFromTraffic(row.spt_masa_status);
+      const skorDeposit = scoreFromTraffic(row.deposit_status);
+      const skorTotal = Number((skorSpt * 0.3 + skorPph21 * 0.25 + skorSptMasa * 0.25 + skorDeposit * 0.2).toFixed(2));
+      const kategori: TrafficLight = skorTotal >= 90 ? "hijau" : skorTotal >= 70 ? "kuning" : "merah";
+      const statusRp = skorTotal >= 90 ? "reward" : skorTotal < 70 ? "punishment" : "monitor";
+      changed += upsert.run(
+        row.opd_id,
+        period,
+        skorSpt,
+        skorPph21,
+        skorSptMasa,
+        skorDeposit,
+        skorTotal,
+        kategori,
+        statusRp,
+        "Dihitung otomatis setelah import.",
+      ).changes;
+    });
+  });
+
+  return changed;
+}
+
+function deriveImportedMonitoring(database: ReturnType<typeof getDb>) {
+  deriveOpdPegawaiCounts(database);
+  const fiscalPeriods = collectFiscalPeriods(database);
+
+  ensurePph21Rows(database, fiscalPeriods);
+  const derivedSpt = deriveSptMonitoring(database, fiscalPeriods);
+  const derivedDeposit = deriveDepositStatuses(database, fiscalPeriods);
+  const derivedSptMasa = deriveSptMasaStatuses(database, fiscalPeriods);
+  const derivedScoring = deriveScoring(database, fiscalPeriods);
+
+  return {
+    derived_spt: derivedSpt,
+    derived_deposit_status: derivedDeposit,
+    derived_spt_masa_status: derivedSptMasa,
+    derived_scoring: derivedScoring,
+  };
+}
+
 function clearImportDataForTemplate(database: ReturnType<typeof getDb>, template: ImportTemplateKey): number {
   switch (template) {
     case "masterfile":
@@ -1718,6 +2154,7 @@ function clearImportDataForTemplate(database: ReturnType<typeof getDb>, template
 export async function commitImportData(template: ImportTemplateKey, payload: ImportPayload, actor?: AuditActor): Promise<ImportCommitResult> {
   const database = db();
   const today = new Date().toISOString().slice(0, 10);
+  validateImportOrder(database, template);
 
   const run = database.transaction((): ImportCommitResult => {
     const result: ImportCommitResult = {
@@ -1729,6 +2166,10 @@ export async function commitImportData(template: ImportTemplateKey, payload: Imp
       spt_masa: 0,
       pegawai: 0,
       sosialisasi: 0,
+      derived_spt: 0,
+      derived_deposit_status: 0,
+      derived_spt_masa_status: 0,
+      derived_scoring: 0,
       skipped: 0,
       skipped_reasons: [],
     };
@@ -1905,9 +2346,10 @@ export async function commitImportData(template: ImportTemplateKey, payload: Imp
     // --- 5. Pegawai -------------------------------------------------------
     const upsertPegawai = database.prepare(
       `INSERT INTO pegawai (nama, nip, opd_id, jabatan, status_coretax, phone, npwp, nik, email, jenis_kepegawaian)
-       VALUES (?, ?, ?, ?, 'belum_aktivasi', ?, ?, ?, ?, ?)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(nip) DO UPDATE SET
          nama = excluded.nama, opd_id = excluded.opd_id, jabatan = excluded.jabatan,
+         status_coretax = excluded.status_coretax,
          phone = excluded.phone, npwp = excluded.npwp, nik = excluded.nik,
          email = excluded.email, jenis_kepegawaian = excluded.jenis_kepegawaian`,
     );
@@ -1923,6 +2365,7 @@ export async function commitImportData(template: ImportTemplateKey, payload: Imp
           row.nip,
           opdId,
           row.jabatan || "Pegawai",
+          row.status_coretax ?? "belum_aktivasi",
           row.phone,
           row.npwp,
           row.nik,
@@ -1957,6 +2400,19 @@ export async function commitImportData(template: ImportTemplateKey, payload: Imp
       insertSosialisasi.run(opdId, tanggal, Math.max(0, Math.round(row.jumlah_peserta)), status, row.tempat, row.tema);
       result.sosialisasi += 1;
     });
+
+    if (importedRowCountForTemplate(result, template) === 0) {
+      throw new Error(
+        `${IMPORT_LABELS[template]} tidak menyimpan baris apa pun. Periksa hasil pratinjau dan alasan baris dilewati.`,
+      );
+    }
+
+    const derived = deriveImportedMonitoring(database);
+    result.derived_spt = derived.derived_spt;
+    result.derived_deposit_status = derived.derived_deposit_status;
+    result.derived_spt_masa_status = derived.derived_spt_masa_status;
+    result.derived_scoring = derived.derived_scoring;
+    markImportCompleted(database, template);
 
     return result;
   });

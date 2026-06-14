@@ -90,9 +90,16 @@ export async function POST(request: Request) {
     });
     return NextResponse.json({ mode: "commit", analysis, result });
   } catch (error) {
+    const message = error instanceof Error ? error.message : "Gagal menyimpan data import.";
+    const status =
+      message.startsWith("Urutan import belum terpenuhi") || message.startsWith("Masterfile harus diimpor")
+        ? 409
+        : message.includes("tidak menyimpan baris apa pun")
+          ? 422
+          : 500;
     return NextResponse.json(
-      { message: error instanceof Error ? error.message : "Gagal menyimpan data import." },
-      { status: 500 },
+      { message },
+      { status },
     );
   }
 }

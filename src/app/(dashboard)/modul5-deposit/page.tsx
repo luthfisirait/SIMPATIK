@@ -39,7 +39,7 @@ export default async function ModulDepositPage({ searchParams }: { searchParams?
   return (
     <>
       <PageHeader
-        title="Modul 5 - Deposit"
+        title="Monitoring Deposit Pajak OPD"
         description={`Realisasi setoran seluruh jenis pajak untuk ${monthLabel(result.masa)}.`}
         actions={
           <Link className="btn btn-secondary" href={exportHref} target="_blank">

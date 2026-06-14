@@ -1048,6 +1048,15 @@ textarea {
   margin-bottom: 16px;
 }
 
+.section-divider {
+  color: var(--text-2);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  margin: 24px 0 12px;
+}
+
 .filter-chip {
   border: 1px solid var(--border);
   border-radius: 99px;
@@ -1150,6 +1159,38 @@ textarea {
   display: flex;
   align-items: center;
   gap: 10px;
+}
+
+.user-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border);
+}
+
+.user-row:last-child {
+  border-bottom: 0;
+}
+
+.user-name2 {
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.user-meta {
+  color: var(--text-3);
+  font-size: 12px;
+  margin-top: 2px;
+}
+
+.user-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
 .metric-row {
@@ -1355,6 +1396,21 @@ textarea {
   border-bottom: 1px solid var(--border);
 }
 
+.settings-block {
+  display: grid;
+  gap: 0;
+}
+
+.settings-row-label {
+  font-weight: 800;
+}
+
+.settings-row-desc {
+  color: var(--text-3);
+  font-size: 12px;
+  margin-top: 2px;
+}
+
 .toggle-row:last-child {
   border-bottom: 0;
 }
@@ -1449,9 +1505,18 @@ textarea {
 
   .page-header,
   .card-footer,
-  .data-status-banner {
+  .data-status-banner,
+  .user-row {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .user-row {
+    display: flex;
+  }
+
+  .user-actions {
+    justify-content: flex-start;
   }
 
   .data-status-actions {

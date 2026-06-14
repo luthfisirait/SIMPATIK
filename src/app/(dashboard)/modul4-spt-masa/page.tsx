@@ -39,7 +39,7 @@ export default async function ModulSptMasaPage({ searchParams }: { searchParams?
   return (
     <>
       <PageHeader
-        title="Modul 4 - SPT Masa"
+        title="Detail SPT Masa"
         description={`Monitoring PPh Unifikasi dan PPN 1107 PUT untuk ${monthLabel(result.masa)}.`}
         actions={
           <Link className="btn btn-secondary" href={exportHref} target="_blank">

@@ -50,7 +50,7 @@ export default function ImportPage() {
     <>
       <PageHeader
         title="Import Data Excel"
-        description="Unggah 6 template resmi final: Masterfile, Penerimaan, Pelaporan PPh 21, Pelaporan Unifikasi, Pegawai, dan Sosialisasi. Sistem menampilkan pratinjau, lalu menyimpan ke modul terkait."
+        description="Unggah 6 template resmi final secara berurutan: Masterfile, Penerimaan, Pelaporan PPh 21, Pelaporan Unifikasi, Pegawai, lalu Sosialisasi. Setelah commit, sistem membentuk data turunan untuk dashboard, SPT, deposit, dan scoring."
       />
 
       <ImportClient />

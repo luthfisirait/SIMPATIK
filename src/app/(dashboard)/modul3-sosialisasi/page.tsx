@@ -27,7 +27,7 @@ export default async function ModulSosialisasiPage({ searchParams }: { searchPar
   return (
     <>
       <PageHeader
-        title="Modul 3 - Sosialisasi Coretax"
+        title="Monitoring Sosialisasi Coretax"
         description="Rekam jejak sosialisasi, peserta, dan OPD prioritas yang belum terjangkau."
         actions={
           <>

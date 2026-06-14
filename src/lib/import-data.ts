@@ -547,8 +547,16 @@ function normalizePegawai(sheet: ParsedSheet, payload: ImportPayload, warnings: 
       phone: textValue(row.pick("no_hp", "phone", "hp")) || null,
       jenis_kepegawaian: textValue(row.pick("pns_p3k", "pns_pppk", "pns/p3k")) || null,
       opd_nama: opd,
+      status_coretax: normalizePegawaiStatus(row.pick("status_coretax", "status_spt", "status_pelaporan", "status")),
     });
   });
+}
+
+function normalizePegawaiStatus(value: unknown): "aktif_belum_lapor" | "belum_aktivasi" | "sudah_lapor" {
+  const status = textValue(value).toLowerCase();
+  if (status.includes("belum lapor") || status.includes("aktif")) return "aktif_belum_lapor";
+  if (status.includes("sudah") || status.includes("submitted")) return "sudah_lapor";
+  return "belum_aktivasi";
 }
 
 function normalizeSosialisasi(sheet: ParsedSheet, payload: ImportPayload) {
