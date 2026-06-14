@@ -10,6 +10,8 @@ database/*.db-journal
 database/*.db-shm
 database/*.db-wal
 next-dev*.log
+.playwright-cli/
+.playwright-mcp/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
