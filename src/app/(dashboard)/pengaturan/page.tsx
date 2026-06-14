@@ -4,7 +4,6 @@ import { Badge } from "@/components/ui/Badge";
 import { KpiCard } from "@/components/ui/KpiCard";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Toggle } from "@/components/ui/Toggle";
-import { ensureGoogleSheetsHydrated } from "@/lib/google-sheets-store";
 import { getDataStatus, listSettings } from "@/lib/queries";
 import { formatNumber } from "@/lib/utils";
 
@@ -27,7 +26,6 @@ function valueLabel(value: string) {
 }
 
 export default async function PengaturanPage() {
-  await ensureGoogleSheetsHydrated();
   const settings = listSettings();
   const status = getDataStatus();
 

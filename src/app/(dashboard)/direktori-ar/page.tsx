@@ -2,12 +2,10 @@ import { Mail, Phone } from "lucide-react";
 
 import { Badge } from "@/components/ui/Badge";
 import { PageHeader } from "@/components/ui/PageHeader";
-import { ensureGoogleSheetsHydrated } from "@/lib/google-sheets-store";
 import { listAr } from "@/lib/queries";
 import { formatNumber, formatPercent, initials, toWaLink } from "@/lib/utils";
 
 export default async function DirektoriArPage() {
-  await ensureGoogleSheetsHydrated();
   const ar = listAr();
 
   return (

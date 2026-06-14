@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 
 import { requireApiPermission } from "@/lib/api-auth";
-import { persistGoogleSheetsSnapshot } from "@/lib/google-sheets-store";
 import { createSosialisasi, getOpd, listSosialisasi } from "@/lib/queries";
 import { validateSosialisasiPayload, validationError } from "@/lib/validation";
 
@@ -46,6 +45,5 @@ export async function POST(request: Request) {
   }
 
   const id = createSosialisasi(parsed.data);
-  await persistGoogleSheetsSnapshot();
   return NextResponse.json({ id }, { status: 201 });
 }

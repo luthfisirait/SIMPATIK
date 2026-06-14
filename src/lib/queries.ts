@@ -1,5 +1,4 @@
 import { getDb } from "@/lib/db";
-import { persistGoogleSheetsSnapshot } from "@/lib/google-sheets-store";
 import { ensureSeeded } from "@/lib/seed";
 import type {
   ActionLog,
@@ -2426,8 +2425,6 @@ export async function commitImportData(template: ImportTemplateKey, payload: Imp
     entity_name: "Import data Excel",
     after: summary,
   });
-
-  await persistGoogleSheetsSnapshot(database);
 
   return summary;
 }

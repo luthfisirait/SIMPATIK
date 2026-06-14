@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 
 import { requireApiPermission } from "@/lib/api-auth";
-import { persistGoogleSheetsSnapshot } from "@/lib/google-sheets-store";
 import { deleteOpd, getOpd, updateOpd } from "@/lib/queries";
 import { canEditOpd } from "@/lib/rbac";
 import { validateOpdPayload, validationError } from "@/lib/validation";
@@ -45,7 +44,6 @@ export async function PUT(request: Request, context: RouteContext) {
     const data = updateOpd(Number(context.params.id), parsed.data, {
       actor: { id: auth.session?.user.id, name: auth.session?.user.name },
     });
-    await persistGoogleSheetsSnapshot();
     return NextResponse.json(data);
   } catch (error) {
     return NextResponse.json(
@@ -63,6 +61,5 @@ export async function DELETE(request: Request, context: RouteContext) {
     actor: { id: auth.session?.user.id, name: auth.session?.user.name },
   });
   if (!deleted) return NextResponse.json({ message: "OPD tidak ditemukan" }, { status: 404 });
-  await persistGoogleSheetsSnapshot();
   return NextResponse.json({ deleted: true });
 }

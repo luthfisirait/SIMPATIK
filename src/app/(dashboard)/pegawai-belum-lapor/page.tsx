@@ -7,7 +7,6 @@ import { KpiCard } from "@/components/ui/KpiCard";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Pagination } from "@/components/ui/Pagination";
 import { authOptions } from "@/lib/auth";
-import { ensureGoogleSheetsHydrated } from "@/lib/google-sheets-store";
 import { getWilayah, listAr, listPegawai } from "@/lib/queries";
 import { firstParam, keepQuery, numericParam, queryString, type PageSearchParams } from "@/lib/search";
 import { formatNumber, toWaLink } from "@/lib/utils";
@@ -27,7 +26,6 @@ function statusTone(status: string): "green" | "amber" | "red" | "teal" {
 
 export default async function PegawaiBelumLaporPage({ searchParams }: { searchParams?: PageSearchParams }) {
   const session = await getServerSession(authOptions);
-  await ensureGoogleSheetsHydrated();
   const q = firstParam(searchParams, "q");
   const wilayah = firstParam(searchParams, "wilayah", "all");
   const status = firstParam(searchParams, "status", "all");

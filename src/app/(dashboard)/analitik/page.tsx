@@ -4,12 +4,10 @@ import { DoughnutPanel, PphBarChart, ScatterPanel, SptTrendChart } from "@/compo
 import { Badge } from "@/components/ui/Badge";
 import { KpiCard } from "@/components/ui/KpiCard";
 import { PageHeader } from "@/components/ui/PageHeader";
-import { ensureGoogleSheetsHydrated } from "@/lib/google-sheets-store";
 import { getAnalyticsData } from "@/lib/queries";
 import { formatCompactRupiah, formatNumber, formatPercent, monthLabel } from "@/lib/utils";
 
 export default async function AnalitikPage() {
-  await ensureGoogleSheetsHydrated();
   const data = getAnalyticsData();
   const trendCurrent = data.dashboard.trend.filter((item) => item.tahun_pajak === 2025);
   const trendPrevious = data.dashboard.trend.filter((item) => item.tahun_pajak === 2024);

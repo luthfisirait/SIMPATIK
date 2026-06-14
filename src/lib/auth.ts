@@ -3,7 +3,6 @@ import type { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 
 import { getDb } from "@/lib/db";
-import { ensureGoogleSheetsHydrated } from "@/lib/google-sheets-store";
 import { ensureSeeded } from "@/lib/seed";
 import type { Role } from "@/types";
 
@@ -118,7 +117,6 @@ export const authOptions: NextAuthOptions = {
         }
 
         ensureSeeded();
-        await ensureGoogleSheetsHydrated();
         const normalizedLogin = credentials.email.toLowerCase().trim();
         const isDemoLogin =
           normalizedLogin === demoCredential.username && credentials.password === demoCredential.password;

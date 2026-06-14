@@ -3,12 +3,10 @@ import { Mail, Phone, UsersRound } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
 import { KpiCard } from "@/components/ui/KpiCard";
 import { PageHeader } from "@/components/ui/PageHeader";
-import { ensureGoogleSheetsHydrated } from "@/lib/google-sheets-store";
 import { listUsers } from "@/lib/queries";
 import { formatNumber, initials, roleLabel, toWaLink } from "@/lib/utils";
 
 export default async function PenggunaPage() {
-  await ensureGoogleSheetsHydrated();
   const users = listUsers();
   const aktif = users.filter((item) => item.status === "aktif").length;
   const ar = users.filter((item) => item.role === "ar").length;

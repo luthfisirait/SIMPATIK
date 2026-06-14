@@ -17,13 +17,11 @@ import { Badge, toneForTraffic } from "@/components/ui/Badge";
 import { KpiCard } from "@/components/ui/KpiCard";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { ProgressBar } from "@/components/ui/ProgressBar";
-import { ensureGoogleSheetsHydrated } from "@/lib/google-sheets-store";
 import { getDashboardData } from "@/lib/queries";
 import { firstParam, type PageSearchParams } from "@/lib/search";
 import { formatCompactRupiah, formatNumber, formatPercent, monthLabel, trafficLabel } from "@/lib/utils";
 
 export default async function DashboardPage({ searchParams }: { searchParams?: PageSearchParams }) {
-  await ensureGoogleSheetsHydrated();
   const data = getDashboardData();
   const denied = firstParam(searchParams, "denied") === "1";
   const isDataEmpty = data.kpis.totalOpd === 0;
@@ -54,8 +52,8 @@ export default async function DashboardPage({ searchParams }: { searchParams?: P
             <div className="empty">
               <strong>Database aktif masih kosong.</strong>
               <p style={{ margin: "8px auto 0", maxWidth: 760 }}>
-                Isi data lewat skrip import: <code>npm run import:contoh</code> atau <code>npm run import:excel</code> dengan
-                menunjuk file sumber. Setelah import, dashboard dan seluruh modul monitoring akan menampilkan angka.
+                Isi data lewat halaman Import dengan menunjuk file sumber. Setelah import, dashboard dan seluruh modul monitoring
+                akan menampilkan angka dari database SQLite lokal.
               </p>
             </div>
           </div>

@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 
 import { requireApiPermission } from "@/lib/api-auth";
-import { persistGoogleSheetsSnapshot } from "@/lib/google-sheets-store";
 import { createOpd, listOpd } from "@/lib/queries";
 import { validateOpdPayload, validationError } from "@/lib/validation";
 
@@ -40,7 +39,6 @@ export async function POST(request: Request) {
     const data = createOpd(parsed.data, {
       actor: { id: auth.session?.user.id, name: auth.session?.user.name },
     });
-    await persistGoogleSheetsSnapshot();
     return NextResponse.json(data, { status: 201 });
   } catch (error) {
     return NextResponse.json(

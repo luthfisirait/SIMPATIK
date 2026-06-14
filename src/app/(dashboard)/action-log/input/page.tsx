@@ -7,7 +7,6 @@ import { Badge } from "@/components/ui/Badge";
 import { KpiCard } from "@/components/ui/KpiCard";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { authOptions } from "@/lib/auth";
-import { ensureGoogleSheetsHydrated, persistGoogleSheetsSnapshot } from "@/lib/google-sheets-store";
 import { createActionLog, getActionLog, getOpd, listOpdOptions } from "@/lib/queries";
 import { firstParam, type PageSearchParams } from "@/lib/search";
 import { formatNumber } from "@/lib/utils";
@@ -35,8 +34,6 @@ async function submitActionLog(formData: FormData) {
   const session = await getServerSession(authOptions);
   if (!session?.user) throw new Error("Autentikasi diperlukan.");
 
-  await ensureGoogleSheetsHydrated();
-
   const opdId = Number(formData.get("opd_id"));
   if (!Number.isFinite(opdId) || opdId <= 0) throw new Error("OPD wajib dipilih.");
 
@@ -61,8 +58,6 @@ async function submitActionLog(formData: FormData) {
     follow_up: cleanText(formData.get("follow_up")),
     next_follow_up_at: cleanText(formData.get("next_follow_up_at")),
   });
-  await persistGoogleSheetsSnapshot();
-
   revalidatePath("/action-log/input");
   revalidatePath("/dashboard");
   redirect("/action-log/input?success=1");
@@ -77,7 +72,6 @@ function formatDateTime(value: string) {
 
 export default async function ActionLogInputPage({ searchParams }: { searchParams?: PageSearchParams }) {
   const session = await getServerSession(authOptions);
-  await ensureGoogleSheetsHydrated();
   const role = session?.user.role as Role | undefined;
   const userId = session?.user.id;
   const isAr = role === "ar";
@@ -89,10 +83,10 @@ export default async function ActionLogInputPage({ searchParams }: { searchParam
     <>
       <PageHeader
         title="Input Action Log AR"
-        description="Form tindak lanjut OPD dengan struktur respons Microsoft Forms."
+        description="Form tindak lanjut OPD yang tersimpan di database lokal."
       />
 
-      {success ? <div className="alert">Action log berhasil disimpan dan disinkronkan ke Google Sheets bila aktif.</div> : null}
+      {success ? <div className="alert">Action log berhasil disimpan ke database lokal.</div> : null}
 
       <section className="kpi-grid">
         <KpiCard
