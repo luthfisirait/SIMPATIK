@@ -66,6 +66,7 @@ export type Pph21Record = {
   opd_id: number;
   opd_nama: string;
   wilayah_nama: string;
+  ar_nama: string | null;
   bulan: string;
   jumlah_dipotong: number;
   nominal_setor: number;
@@ -207,15 +208,29 @@ export type ImportOpdRow = {
   jenis_instansi: string | null;
   ar_nama: string | null;
   ar_nip: string | null;
+  status_pemungut_ppn: "YA" | "TIDAK" | null;
+  nama_bendahara: string | null;
+  nip_bendahara: string | null;
+  hp_bendahara: string | null;
+  email_bendahara: string | null;
+  nama_bendahara_penerimaan: string | null;
+  hp_bendahara_penerimaan: string | null;
+  nama_pic_kepeg: string | null;
+  hp_pic_kepeg: string | null;
+  status: "aktif" | "tidak_aktif" | "perlu_update" | null;
   tanggal_input: string | null;
+  tanggal_update_kontak: string | null;
 };
 
 export type ImportPph21Row = {
   npwp: string | null;
   nama_opd: string | null;
   bulan: string; // YYYY-MM
+  jumlah_dipotong: number;
   nominal_setor: number;
+  estimasi_wajar: number;
   ketepatan: "tepat_waktu" | "terlambat" | "belum_setor";
+  status: "normal" | "under_reporting" | "kritis";
 };
 
 export type ImportDepositRow = {
@@ -261,6 +276,9 @@ export type ImportSosialisasiRow = {
   tempat: string | null;
   tema: string | null;
   jumlah_peserta: number;
+  penyuluh_nama: string | null;
+  penyuluh_nip: string | null;
+  status: "sudah" | "belum" | "perlu_ulang" | null;
 };
 
 export type ImportPayload = {

@@ -1,76 +1,75 @@
 import { BarChart3, LineChart, ScatterChart, TrendingUp } from "lucide-react";
 
-import { DoughnutPanel, PphBarChart, ScatterPanel, SptTrendChart } from "@/components/charts/ChartPanels";
-import { Badge } from "@/components/ui/Badge";
+import {
+  DoughnutPanel,
+  ScatterPanel,
+  SingleBarChart,
+  SptVolumeTrendChart,
+} from "@/components/charts/ChartPanels";
 import { KpiCard } from "@/components/ui/KpiCard";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { getAnalyticsData } from "@/lib/queries";
-import { formatCompactRupiah, formatNumber, formatPercent, monthLabel } from "@/lib/utils";
+import { formatNumber, formatPercent, monthLabel } from "@/lib/utils";
 
-export default async function AnalitikPage() {
-  const data = getAnalyticsData();
-  const trendCurrent = data.dashboard.trend.filter((item) => item.tahun_pajak === 2025);
-  const trendPrevious = data.dashboard.trend.filter((item) => item.tahun_pajak === 2024);
-  const pphLabels = data.pphTrend.map((item) => monthLabel(item.bulan));
-  const pphTotalSetor = data.pphTrend.reduce((sum, item) => sum + item.setor, 0);
-  const totalTraffic = data.dashboard.trafficCounts.reduce((sum, item) => sum + item.total, 0);
-  const merah = data.dashboard.trafficCounts.find((item) => item.status === "merah")?.total ?? 0;
-  const sudahSosialisasi = data.scatter.filter((item) => item.sosialisasi).length;
+export default function AnalitikPage() {
+  const { dashboard, pphTrend, scatter } = getAnalyticsData();
+  const currentTrend = dashboard.trend.filter((item) => item.tahun_pajak === 2025);
+  const previousTrend = dashboard.trend.filter((item) => item.tahun_pajak === 2024);
+  const trendLabels = (currentTrend.length > 0 ? currentTrend : previousTrend).map((item) => monthLabel(item.periode));
+  const opdMerah = dashboard.trafficCounts.find((item) => item.status === "merah")?.total ?? 0;
 
   return (
     <>
       <PageHeader
         title="Analitik & Tren"
-        description="Visualisasi tren kepatuhan, PPh Masa, distribusi status OPD, dan korelasi sosialisasi."
+        description="Visualisasi data kepatuhan, perbandingan historis, dan insight berbasis data."
       />
 
       <section className="kpi-grid">
-        <KpiCard
-          label="Kepatuhan SPT"
-          value={formatPercent(data.dashboard.kpis.kepatuhanSpt)}
-          sub={`Periode ${monthLabel(data.dashboard.period)}`}
-          accent="teal"
-          icon={<TrendingUp size={18} />}
-        />
-        <KpiCard label="Total Setoran PPh 21" value={formatCompactRupiah(pphTotalSetor)} sub="Akumulasi data tren" accent="navy" icon={<BarChart3 size={18} />} />
-        <KpiCard label="OPD Merah" value={formatNumber(merah)} sub={`Dari ${formatNumber(totalTraffic)} OPD terhitung`} accent="red" icon={<LineChart size={18} />} />
-        <KpiCard label="Sampel Sosialisasi" value={formatNumber(sudahSosialisasi)} sub="OPD pada plot korelasi" accent="gold" icon={<ScatterChart size={18} />} />
+        <KpiCard label="Kepatuhan SPT" value={formatPercent(dashboard.kpis.kepatuhanSpt)} sub={monthLabel(dashboard.period)} accent="teal" icon={<TrendingUp size={18} />} />
+        <KpiCard label="PPh Tepat Waktu" value={formatNumber(dashboard.kpis.pphTepat)} sub={`OPD pada ${monthLabel(dashboard.pphMonth)}`} accent="navy" icon={<BarChart3 size={18} />} />
+        <KpiCard label="OPD Merah" value={formatNumber(opdMerah)} sub="Prioritas tindak lanjut" accent="red" icon={<LineChart size={18} />} />
+        <KpiCard label="OPD Sosialisasi" value={formatNumber(dashboard.kpis.sudahSosialisasi)} sub="Sudah/perlu ulang" accent="gold" icon={<ScatterChart size={18} />} />
       </section>
 
       <section className="grid-2">
         <div className="card">
           <div className="card-header">
-            <div>
-              <div className="card-title">SPT Tahunan OP 2024 vs 2025</div>
-              <div className="card-subtitle">Perbandingan persentase kepatuhan bulanan.</div>
-            </div>
+            <div className="card-title">SPT Tahunan OP 2024 vs 2025</div>
           </div>
           <div className="card-body">
-            <div className="chart-wrap">
-              <SptTrendChart
-                labels={trendCurrent.map((item) => monthLabel(item.periode))}
-                current={trendCurrent.map((item) => item.persen)}
-                previous={trendPrevious.map((item) => item.persen)}
-              />
-            </div>
+            {trendLabels.length === 0 ? (
+              <span className="muted">Belum ada data tren SPT.</span>
+            ) : (
+              <div className="chart-wrap">
+                <SptVolumeTrendChart
+                  labels={trendLabels}
+                  current={currentTrend.map((item) => item.sudah)}
+                  previous={previousTrend.map((item) => item.sudah)}
+                  currentLabel="SPT 2025"
+                  previousLabel="SPT 2024"
+                />
+              </div>
+            )}
           </div>
         </div>
 
         <div className="card">
           <div className="card-header">
-            <div>
-              <div className="card-title">Tren Penyetoran PPh 21 Masa</div>
-              <div className="card-subtitle">Jumlah OPD tepat waktu dibanding belum/terlambat.</div>
-            </div>
+            <div className="card-title">Tren Penyetoran PPh 21 Masa per Bulan</div>
           </div>
           <div className="card-body">
-            <div className="chart-wrap">
-              <PphBarChart
-                labels={pphLabels}
-                tepat={data.pphTrend.map((item) => item.tepat)}
-                terlambat={data.pphTrend.map((item) => item.terlambat)}
-              />
-            </div>
+            {pphTrend.length === 0 ? (
+              <span className="muted">Belum ada data tren PPh 21.</span>
+            ) : (
+              <div className="chart-wrap">
+                <SingleBarChart
+                  labels={pphTrend.map((item) => monthLabel(item.bulan))}
+                  values={pphTrend.map((item) => item.tepat)}
+                  label="OPD tepat waktu bayar PPh 21"
+                />
+              </div>
+            )}
           </div>
         </div>
       </section>
@@ -81,9 +80,13 @@ export default async function AnalitikPage() {
             <div className="card-title">Korelasi SPT vs Sosialisasi</div>
           </div>
           <div className="card-body">
-            <div className="chart-wrap-sm">
-              <ScatterPanel data={data.scatter} />
-            </div>
+            {scatter.length === 0 ? (
+              <span className="muted">Belum ada data korelasi.</span>
+            ) : (
+              <div className="chart-wrap-sm">
+                <ScatterPanel data={scatter} />
+              </div>
+            )}
           </div>
         </div>
 
@@ -92,9 +95,16 @@ export default async function AnalitikPage() {
             <div className="card-title">Distribusi Status OPD</div>
           </div>
           <div className="card-body">
-            <div className="chart-wrap-sm">
-              <DoughnutPanel labels={data.dashboard.trafficCounts.map((item) => item.status)} data={data.dashboard.trafficCounts.map((item) => item.total)} />
-            </div>
+            {dashboard.trafficCounts.length === 0 ? (
+              <span className="muted">Belum ada data distribusi status.</span>
+            ) : (
+              <div className="chart-wrap-sm">
+                <DoughnutPanel
+                  labels={dashboard.trafficCounts.map((item) => item.status)}
+                  data={dashboard.trafficCounts.map((item) => item.total)}
+                />
+              </div>
+            )}
           </div>
         </div>
 
@@ -104,19 +114,27 @@ export default async function AnalitikPage() {
           </div>
           <div className="card-body">
             <div className="insight-list">
-              <div className="insight-item">
-                <strong>OPD merah perlu prioritas AR</strong>
-                <span className="muted">{formatNumber(merah)} OPD berada pada kategori merah di periode terakhir.</span>
-              </div>
-              <div className="insight-item">
-                <strong>PPh Masa perlu rekonsiliasi rutin</strong>
-                <span className="muted">Pantau selisih antara estimasi dan nominal setor dari grafik PPh 21.</span>
-              </div>
-              <div className="insight-item">
-                <strong>Sosialisasi Coretax tetap relevan</strong>
-                <span className="muted">Plot korelasi membantu memilih OPD sasaran sosialisasi ulang.</span>
-              </div>
-              <Badge tone="teal">Update dari data monitoring aktif</Badge>
+              {dashboard.kpis.totalOpd === 0 ? (
+                <div className="insight-item">
+                  <strong>Belum ada data</strong>
+                  <span>Import data OPD dan monitoring untuk menampilkan insight.</span>
+                </div>
+              ) : (
+                <>
+                  <div className="insight-item insight-red">
+                    <strong>OPD merah</strong>
+                    <span>{formatNumber(opdMerah)} OPD berada pada status merah.</span>
+                  </div>
+                  <div className="insight-item insight-green">
+                    <strong>Kepatuhan SPT</strong>
+                    <span>Rata-rata kepatuhan SPT {formatPercent(dashboard.kpis.kepatuhanSpt)}.</span>
+                  </div>
+                  <div className="insight-item insight-amber">
+                    <strong>Sosialisasi</strong>
+                    <span>{formatNumber(dashboard.kpis.belumSosialisasi)} OPD belum memiliki rekam sosialisasi.</span>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </div>

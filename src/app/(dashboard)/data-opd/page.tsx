@@ -1,21 +1,19 @@
-import { Building2, Download, Search, Upload } from "lucide-react";
+import { Download, Plus, Search, Upload } from "lucide-react";
 import { getServerSession } from "next-auth";
 import Link from "next/link";
 
 import { Badge } from "@/components/ui/Badge";
-import { KpiCard } from "@/components/ui/KpiCard";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Pagination } from "@/components/ui/Pagination";
 import { authOptions } from "@/lib/auth";
 import { getWilayah, listAr, listOpd } from "@/lib/queries";
-import { canCreateOpd } from "@/lib/rbac";
 import { firstParam, keepQuery, numericParam, queryString, type PageSearchParams } from "@/lib/search";
-import { formatNumber, toWaLink } from "@/lib/utils";
+import { formatNumber } from "@/lib/utils";
 
 const statusLabel: Record<string, string> = {
   aktif: "Aktif",
-  perlu_update: "Perlu Update",
-  tidak_aktif: "Tidak Aktif",
+  tidak_aktif: "Tidak aktif",
+  perlu_update: "Perlu update",
 };
 
 function statusTone(status: string): "green" | "amber" | "red" | "teal" {
@@ -35,10 +33,6 @@ export default async function DataOpdPage({ searchParams }: { searchParams?: Pag
   const result = listOpd({ q, wilayah, status, ar, page, pageSize: 12 });
   const wilayahOptions = getWilayah();
   const arOptions = listAr();
-  const canImport = canCreateOpd(session?.user.role);
-  const activeCount = result.data.filter((item) => item.status === "aktif").length;
-  const perluUpdateCount = result.data.filter((item) => item.status === "perlu_update").length;
-  const wajibLapor = result.data.reduce((sum, item) => sum + (item.total_wajib_lapor ?? item.jumlah_asn + item.jumlah_pppk), 0);
   const exportQuery = queryString({ q, wilayah, status, ar });
   const exportHref = exportQuery ? `/api/export/opd?${exportQuery}` : "/api/export/opd";
 
@@ -46,40 +40,29 @@ export default async function DataOpdPage({ searchParams }: { searchParams?: Pag
     <>
       <PageHeader
         title="Data OPD"
-        description="Basis data OPD, bendahara, PIC kepegawaian, dan AR pengampu."
+        description="Basis data OPD wilayah KPP Pratama Padang Satu beserta PIC bendahara."
         actions={
           <>
-            {canImport ? (
-              <Link className="btn btn-secondary" href="/import">
-                <Upload size={16} />
-                Import
-              </Link>
-            ) : null}
-            <Link className="btn btn-primary" href={exportHref} target="_blank">
+            <Link className="btn btn-secondary" href={exportHref} target="_blank">
               <Download size={16} />
-              Export CSV
+              Ekspor
             </Link>
+            <Link className="btn btn-secondary" href="/import">
+              <Upload size={16} />
+              Import
+            </Link>
+            <button className="btn btn-primary" type="button">
+              <Plus size={16} />
+              Tambah
+            </button>
           </>
         }
       />
 
-      <section className="kpi-grid">
-        <KpiCard label="OPD Ditampilkan" value={formatNumber(result.total)} sub="Sesuai filter aktif" accent="navy" icon={<Building2 size={18} />} />
-        <KpiCard label="Aktif" value={formatNumber(activeCount)} sub="Pada halaman ini" accent="green" icon={<Building2 size={18} />} />
-        <KpiCard label="Perlu Update" value={formatNumber(perluUpdateCount)} sub="Kontak atau profil perlu cek ulang" accent="gold" icon={<Building2 size={18} />} />
-        <KpiCard label="Wajib Lapor" value={formatNumber(wajibLapor)} sub="ASN dan PPPK pada halaman ini" accent="teal" icon={<Building2 size={18} />} />
-      </section>
-
       <div className="card">
         <div className="card-header">
-          <div>
-            <div className="card-title">Master OPD dan Kontak Bendahara</div>
-            <div className="card-subtitle">Filter wilayah, status, dan AR untuk mempercepat rekonsiliasi data.</div>
-          </div>
-        </div>
-        <div className="card-body">
           <form className="filter-bar">
-            <input className="search-input" name="q" placeholder="Cari OPD, bendahara, PIC, atau AR" defaultValue={q} style={{ maxWidth: 300 }} />
+            <input className="search-input" name="q" placeholder="Cari OPD atau bendahara" defaultValue={q} style={{ maxWidth: 260 }} />
             <select className="search-input" name="wilayah" defaultValue={wilayah} style={{ maxWidth: 220 }}>
               <option value="all">Semua wilayah</option>
               {wilayahOptions.map((item) => (
@@ -114,40 +97,50 @@ export default async function DataOpdPage({ searchParams }: { searchParams?: Pag
               <tr>
                 <th>Nama OPD</th>
                 <th>Wilayah</th>
-                <th>ASN/PPPK</th>
+                <th>Jml ASN</th>
+                <th>Jml PPPK</th>
                 <th>Bendahara</th>
-                <th>PIC Kepegawaian</th>
+                <th>No. HP</th>
                 <th>AR</th>
                 <th>Status</th>
+                <th>Aksi</th>
               </tr>
             </thead>
             <tbody>
-              {result.data.map((item) => (
-                <tr key={item.id}>
-                  <td>
-                    <strong>{item.nama}</strong>
-                    <div className="muted">{item.jenis_instansi ?? "OPD"}</div>
-                  </td>
-                  <td>{item.wilayah_nama}</td>
-                  <td className="td-mono">{formatNumber(item.total_wajib_lapor ?? item.jumlah_asn + item.jumlah_pppk)}</td>
-                  <td>
-                    <div>{item.nama_bendahara}</div>
-                    <a className="wa-link" href={toWaLink(item.hp_bendahara)} target="_blank">
-                      {item.hp_bendahara}
-                    </a>
-                  </td>
-                  <td>
-                    <div>{item.nama_pic_kepeg}</div>
-                    <a className="wa-link" href={toWaLink(item.hp_pic_kepeg)} target="_blank">
-                      {item.hp_pic_kepeg}
-                    </a>
-                  </td>
-                  <td>{item.ar_nama ?? "-"}</td>
-                  <td>
-                    <Badge tone={statusTone(item.status)}>{statusLabel[item.status] ?? item.status}</Badge>
+              {result.data.length === 0 ? (
+                <tr>
+                  <td colSpan={9} className="muted">
+                    Belum ada data OPD.
                   </td>
                 </tr>
-              ))}
+              ) : (
+                result.data.map((item) => (
+                  <tr key={item.id}>
+                    <td>
+                      <strong>{item.nama}</strong>
+                    </td>
+                    <td className="td-mono">{item.wilayah_nama}</td>
+                    <td>{formatNumber(item.jumlah_asn)}</td>
+                    <td>{formatNumber(item.jumlah_pppk)}</td>
+                    <td>{item.nama_bendahara}</td>
+                    <td className="td-mono">{item.hp_bendahara}</td>
+                    <td>{item.ar_nama ?? "-"}</td>
+                    <td>
+                      <Badge tone={statusTone(item.status)}>{statusLabel[item.status]}</Badge>
+                    </td>
+                    <td>
+                      <div className="toolbar compact-actions">
+                        <button className="btn btn-secondary btn-sm" type="button">
+                          Edit
+                        </button>
+                        <button className="btn btn-danger btn-sm" type="button">
+                          Hapus
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>

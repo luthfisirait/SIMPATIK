@@ -444,7 +444,13 @@ function detectSheet(sheet: ParsedSheet, expected?: ImportTemplateKey | null): I
   if (has("npwp16") && has("nama_wp") && has("nip_ar")) return "masterfile";
   if (has("kd_map") && has("nilai_setor")) return "penerimaan";
   if (has("jenis_spt") && has("status_pelaporan")) return detectPelaporanSheet(sheet, expected);
-  if (has("nik") && has("pns_p3k", "pns_pppk", "pns/p3k") && (has("opd") || has("nama"))) return "pegawai";
+  if (
+    has("nik") &&
+    has("pns_p3k", "pns_pppk", "pns/p3k", "status_asn") &&
+    (has("opd") || has("nama") || has("nama_pegawai") || has("nama_satker"))
+  ) {
+    return "pegawai";
+  }
   if (has("wilayah_kerja") && has("nama_opd")) return "sosialisasi";
   return null;
 }
@@ -484,7 +490,18 @@ function normalizeMasterfile(sheet: ParsedSheet, payload: ImportPayload, warning
       jenis_instansi: textValue(row.pick("jenis_wp", "kategori")) || null,
       ar_nama: textValue(row.pick("nama_ar")) || null,
       ar_nip: textValue(row.pick("nip_ar")) || null,
+      status_pemungut_ppn: normalizeYesNo(row.pick("status_pemungut_ppn", "wajib_spt_ppn")),
+      nama_bendahara: textValue(row.pick("nama_bendahara")) || null,
+      nip_bendahara: textValue(row.pick("nip_bendahara")) || null,
+      hp_bendahara: textValue(row.pick("hp_bendahara", "no_hp_bendahara")) || null,
+      email_bendahara: textValue(row.pick("email_bendahara")) || null,
+      nama_bendahara_penerimaan: textValue(row.pick("nama_bendahara_penerimaan")) || null,
+      hp_bendahara_penerimaan: textValue(row.pick("hp_bendahara_penerimaan")) || null,
+      nama_pic_kepeg: textValue(row.pick("nama_pic_kepeg", "nama_pic_kepegawaian")) || null,
+      hp_pic_kepeg: textValue(row.pick("hp_pic_kepeg", "hp_pic_kepegawaian")) || null,
+      status: normalizeOpdStatus(row.pick("status_opd")),
       tanggal_input: toIsoDate(row.pick("tanggal_daftar")),
+      tanggal_update_kontak: toIsoDate(row.pick("tanggal_update_kontak")),
     });
     if (!npwp) warnings.push(`Masterfile: WP "${nama}" tidak punya NPWP, pencocokan memakai nama.`);
   });
@@ -504,6 +521,10 @@ function normalizePenerimaan(sheet: ParsedSheet, payload: ImportPayload, warning
       pphFinal: number;
       ppn: number;
       depositUmum: number;
+      jumlahDipotong: number;
+      estimasiWajar: number;
+      ketepatan: "tepat_waktu" | "terlambat" | "belum_setor";
+      status: "normal" | "under_reporting" | "kritis";
     }
   >();
 
@@ -534,7 +555,21 @@ function normalizePenerimaan(sheet: ParsedSheet, payload: ImportPayload, warning
       pphFinal: 0,
       ppn: 0,
       depositUmum: 0,
+      jumlahDipotong: 0,
+      estimasiWajar: 0,
+      ketepatan: "tepat_waktu",
+      status: "normal",
     };
+    entry.jumlahDipotong = Math.max(entry.jumlahDipotong, numberValue(row.pick("jumlah_dipotong")));
+    entry.estimasiWajar = Math.max(entry.estimasiWajar, numberValue(row.pick("estimasi_wajar")));
+    entry.ketepatan = worstKetepatan(
+      entry.ketepatan,
+      normalizeKetepatan(row.pick("status_ketepatan", "ketepatan")),
+    );
+    entry.status = worstPphStatus(
+      entry.status,
+      normalizePphStatus(row.pick("status_nominal", "status_pph21")),
+    );
     if (kind === "pph21") entry.pph21 += nilai;
     else if (kind === "pph22") entry.pph22 += nilai;
     else if (kind === "pph23") entry.pph23 += nilai;
@@ -565,8 +600,11 @@ function normalizePenerimaan(sheet: ParsedSheet, payload: ImportPayload, warning
         npwp: entry.npwp,
         nama_opd: entry.nama,
         bulan: entry.masa,
+        jumlah_dipotong: entry.jumlahDipotong,
         nominal_setor: entry.pph21,
-        ketepatan: "tepat_waktu",
+        estimasi_wajar: entry.estimasiWajar,
+        ketepatan: entry.ketepatan,
+        status: entry.status,
       });
     }
   });
@@ -597,30 +635,90 @@ function normalizePelaporan(sheet: ParsedSheet, payload: ImportPayload, fallback
 
 function normalizePegawai(sheet: ParsedSheet, payload: ImportPayload, warnings: string[]) {
   forEachRow(sheet, (row) => {
-    const nama = textValue(row.pick("nama"));
+    const nama = textValue(row.pick("nama", "nama_pegawai"));
     if (!nama) return;
-    const opd = textValue(row.pick("opd", "nama_opd")) || null;
+    const opd = textValue(row.pick("nama_satker", "opd", "nama_opd")) || null;
     if (!opd) warnings.push(`Pegawai: "${nama}" tanpa OPD, akan dilewati saat commit bila OPD tak ditemukan.`);
     payload.pegawai.push({
-      npwp: textValue(row.pick("npwp")) || null,
+      npwp: textValue(row.pick("npwp", "npwp_pegawai")) || null,
       nik: textValue(row.pick("nik")) || null,
       nama,
-      nip: textValue(row.pick("nip")) || null,
+      nip: textValue(row.pick("nip", "nip_pegawai")) || null,
       jabatan: textValue(row.pick("jabatan")) || null,
       email: textValue(row.pick("email")) || null,
-      phone: textValue(row.pick("no_hp", "phone", "hp")) || null,
-      jenis_kepegawaian: textValue(row.pick("pns_p3k", "pns_pppk", "pns/p3k")) || null,
+      phone: textValue(row.pick("no_hp", "phone", "hp", "telepon")) || null,
+      jenis_kepegawaian: textValue(row.pick("pns_p3k", "pns_pppk", "pns/p3k", "status_asn")) || null,
       opd_nama: opd,
-      status_coretax: normalizePegawaiStatus(row.pick("status_coretax", "status_spt", "status_pelaporan", "status")),
+      status_coretax: normalizePegawaiStatus(
+        row.pick("status_coretax", "status_spt", "status_pelaporan", "lapor_spt", "status"),
+      ),
     });
   });
 }
 
 function normalizePegawaiStatus(value: unknown): "aktif_belum_lapor" | "belum_aktivasi" | "sudah_lapor" {
   const status = textValue(value).toLowerCase();
-  if (status.includes("belum lapor") || status.includes("aktif")) return "aktif_belum_lapor";
+  if (status === "1" || status === "ya" || status === "y" || status === "true") return "sudah_lapor";
+  if (status === "0" || status === "tidak" || status === "n" || status === "false") return "aktif_belum_lapor";
+  if (status.includes("belum aktivasi") || status.includes("nonaktif")) return "belum_aktivasi";
   if (status.includes("sudah") || status.includes("submitted")) return "sudah_lapor";
+  if (status.includes("belum lapor") || status.includes("aktif")) return "aktif_belum_lapor";
   return "belum_aktivasi";
+}
+
+function normalizeYesNo(value: unknown): "YA" | "TIDAK" | null {
+  const text = textValue(value).toLowerCase();
+  if (!text) return null;
+  if (["1", "ya", "y", "true", "wajib"].includes(text)) return "YA";
+  if (["0", "tidak", "n", "false", "bukan"].includes(text)) return "TIDAK";
+  return null;
+}
+
+function normalizeOpdStatus(value: unknown): "aktif" | "tidak_aktif" | "perlu_update" | null {
+  const text = textValue(value).toLowerCase().replace(/[\s-]+/g, "_");
+  if (text === "aktif") return "aktif";
+  if (text === "tidak_aktif" || text === "nonaktif") return "tidak_aktif";
+  if (text === "perlu_update") return "perlu_update";
+  return null;
+}
+
+function normalizeKetepatan(value: unknown): "tepat_waktu" | "terlambat" | "belum_setor" {
+  const text = textValue(value).toLowerCase().replace(/[\s-]+/g, "_");
+  if (text.includes("belum") || text.includes("nihil")) return "belum_setor";
+  if (text.includes("terlambat")) return "terlambat";
+  return "tepat_waktu";
+}
+
+function normalizePphStatus(value: unknown): "normal" | "under_reporting" | "kritis" {
+  const text = textValue(value).toLowerCase().replace(/[\s-]+/g, "_");
+  if (text.includes("kritis")) return "kritis";
+  if (text.includes("under")) return "under_reporting";
+  return "normal";
+}
+
+function worstKetepatan(
+  current: "tepat_waktu" | "terlambat" | "belum_setor",
+  candidate: "tepat_waktu" | "terlambat" | "belum_setor",
+) {
+  const rank = { tepat_waktu: 0, terlambat: 1, belum_setor: 2 };
+  return rank[candidate] > rank[current] ? candidate : current;
+}
+
+function worstPphStatus(
+  current: "normal" | "under_reporting" | "kritis",
+  candidate: "normal" | "under_reporting" | "kritis",
+) {
+  const rank = { normal: 0, under_reporting: 1, kritis: 2 };
+  return rank[candidate] > rank[current] ? candidate : current;
+}
+
+function normalizeSosialisasiStatus(value: unknown): "sudah" | "belum" | "perlu_ulang" | null {
+  const text = textValue(value).toLowerCase().replace(/[\s-]+/g, "_");
+  if (!text) return null;
+  if (text.includes("ulang")) return "perlu_ulang";
+  if (text.includes("belum")) return "belum";
+  if (text.includes("sudah")) return "sudah";
+  return null;
 }
 
 function normalizeSosialisasi(sheet: ParsedSheet, payload: ImportPayload) {
@@ -646,6 +744,9 @@ function normalizeSosialisasi(sheet: ParsedSheet, payload: ImportPayload) {
       npwp: textValue(row.pick("npwp")) || null,
       nama_opd: nama,
       wilayah: textValue(row.pick("wilayah_kerja", "wilayah")) || null,
+      penyuluh_nama: textValue(row.pick("nama_penyuluh", "penyuluh")) || null,
+      penyuluh_nip: textValue(row.pick("nip_penyuluh")) || null,
+      status: normalizeSosialisasiStatus(row.pick("status_sesi", "status")),
     };
     let hasGroupedSession = false;
 

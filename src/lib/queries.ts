@@ -722,11 +722,12 @@ export function listPph21(params: ListParams & { bulan?: string; pphStatus?: str
   const data = database
     .prepare(
       `
-      SELECT p.id, o.id AS opd_id, o.nama AS opd_nama, w.nama AS wilayah_nama,
+      SELECT p.id, o.id AS opd_id, o.nama AS opd_nama, w.nama AS wilayah_nama, u.nama AS ar_nama,
         p.bulan, p.jumlah_dipotong, p.nominal_setor, p.estimasi_wajar, p.ketepatan, p.status
       FROM pph21_monitoring p
       JOIN opd o ON o.id = p.opd_id
       JOIN wilayah w ON w.id = o.wilayah_id
+      LEFT JOIN users u ON u.id = o.ar_id
       ${clause}
       ORDER BY CASE p.status WHEN 'kritis' THEN 1 WHEN 'under_reporting' THEN 2 ELSE 3 END, o.nama
       LIMIT ? OFFSET ?
@@ -1221,7 +1222,7 @@ export function listPegawai(params: ListParams = {}) {
     values.push(Number(params.ar));
   }
 
-  const clause = `WHERE ${where.join(" AND ")}`;
+  const clause = where.length > 0 ? `WHERE ${where.join(" AND ")}` : "";
   const total = (
     database
       .prepare(
@@ -1230,6 +1231,7 @@ export function listPegawai(params: ListParams = {}) {
         FROM pegawai p
         JOIN opd o ON o.id = p.opd_id
         JOIN wilayah w ON w.id = o.wilayah_id
+        LEFT JOIN users u ON u.id = o.ar_id
         ${clause}
       `,
       )
@@ -2334,9 +2336,33 @@ export async function commitImportData(template: ImportTemplateKey, payload: Imp
       result.opd_created += 1;
       return id;
     };
+    const insertOpdMaster = database.prepare(
+      `INSERT INTO opd (
+         nama, wilayah_id, jenis_instansi, npwp_opd, status_pemungut_ppn,
+         nama_bendahara, nip_bendahara, hp_bendahara, email_bendahara,
+         nama_bendahara_penerimaan, hp_bendahara_penerimaan,
+         nama_pic_kepeg, hp_pic_kepeg, ar_id, status, tanggal_input, tanggal_update_kontak
+       )
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    );
     const updateOpdMaster = database.prepare(
-      `UPDATE opd SET wilayah_id = ?, jenis_instansi = COALESCE(?, jenis_instansi), ar_id = COALESCE(?, ar_id),
-        tanggal_input = COALESCE(tanggal_input, ?) WHERE id = ?`,
+      `UPDATE opd SET
+         wilayah_id = ?,
+         jenis_instansi = COALESCE(?, jenis_instansi),
+         ar_id = COALESCE(?, ar_id),
+         status_pemungut_ppn = COALESCE(?, status_pemungut_ppn),
+         nama_bendahara = COALESCE(?, nama_bendahara),
+         nip_bendahara = COALESCE(?, nip_bendahara),
+         hp_bendahara = COALESCE(?, hp_bendahara),
+         email_bendahara = COALESCE(?, email_bendahara),
+         nama_bendahara_penerimaan = COALESCE(?, nama_bendahara_penerimaan),
+         hp_bendahara_penerimaan = COALESCE(?, hp_bendahara_penerimaan),
+         nama_pic_kepeg = COALESCE(?, nama_pic_kepeg),
+         hp_pic_kepeg = COALESCE(?, hp_pic_kepeg),
+         status = COALESCE(?, status),
+         tanggal_input = COALESCE(tanggal_input, ?),
+         tanggal_update_kontak = COALESCE(?, tanggal_update_kontak)
+       WHERE id = ?`,
     );
     payload.opd.forEach((row) => {
       const npwpDigits = row.npwp ? row.npwp.replace(/\D/g, "") : null;
@@ -2344,11 +2370,46 @@ export async function commitImportData(template: ImportTemplateKey, payload: Imp
       const arId = ensureAr(row.ar_nama, row.ar_nip);
       const existing = resolveOpd(row.npwp, row.nama);
       if (existing) {
-        updateOpdMaster.run(wilayahId, row.jenis_instansi, arId, row.tanggal_input ?? today, existing);
+        updateOpdMaster.run(
+          wilayahId,
+          row.jenis_instansi,
+          arId,
+          row.status_pemungut_ppn,
+          row.nama_bendahara,
+          row.nip_bendahara,
+          row.hp_bendahara,
+          row.email_bendahara,
+          row.nama_bendahara_penerimaan,
+          row.hp_bendahara_penerimaan,
+          row.nama_pic_kepeg,
+          row.hp_pic_kepeg,
+          row.status,
+          row.tanggal_input ?? today,
+          row.tanggal_update_kontak,
+          existing,
+        );
         result.opd_updated += 1;
       } else {
         const id = Number(
-          insertOpd.run(row.nama, wilayahId, row.jenis_instansi, row.npwp, arId, row.tanggal_input ?? today, today).lastInsertRowid,
+          insertOpdMaster.run(
+            row.nama,
+            wilayahId,
+            row.jenis_instansi,
+            row.npwp,
+            row.status_pemungut_ppn ?? "TIDAK",
+            row.nama_bendahara ?? "Belum diisi",
+            row.nip_bendahara,
+            row.hp_bendahara ?? "-",
+            row.email_bendahara,
+            row.nama_bendahara_penerimaan,
+            row.hp_bendahara_penerimaan,
+            row.nama_pic_kepeg ?? "Belum diisi",
+            row.hp_pic_kepeg ?? "-",
+            arId,
+            row.status ?? "aktif",
+            row.tanggal_input ?? today,
+            row.tanggal_update_kontak ?? today,
+          ).lastInsertRowid,
         );
         registerOpdName(row.nama, id);
         if (npwpDigits) opdByNpwp.set(npwpDigits, id);
@@ -2359,8 +2420,13 @@ export async function commitImportData(template: ImportTemplateKey, payload: Imp
     // --- 2. PPh 21 (setoran) ---------------------------------------------
     const upsertPph21 = database.prepare(
       `INSERT INTO pph21_monitoring (opd_id, bulan, jumlah_dipotong, nominal_setor, estimasi_wajar, ketepatan, status)
-       VALUES (?, ?, 0, ?, 0, ?, 'normal')
-       ON CONFLICT(opd_id, bulan) DO UPDATE SET nominal_setor = excluded.nominal_setor, ketepatan = excluded.ketepatan`,
+       VALUES (?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(opd_id, bulan) DO UPDATE SET
+         jumlah_dipotong = excluded.jumlah_dipotong,
+         nominal_setor = excluded.nominal_setor,
+         estimasi_wajar = excluded.estimasi_wajar,
+         ketepatan = excluded.ketepatan,
+         status = excluded.status`,
     );
     payload.pph21.forEach((row) => {
       const opdId = resolveOpd(row.npwp, row.nama_opd);
@@ -2368,7 +2434,15 @@ export async function commitImportData(template: ImportTemplateKey, payload: Imp
         addSkip("Setoran PPh 21: OPD tidak ditemukan.");
         return;
       }
-      upsertPph21.run(opdId, row.bulan, Math.round(row.nominal_setor), row.ketepatan);
+      upsertPph21.run(
+        opdId,
+        row.bulan,
+        Math.round(row.jumlah_dipotong),
+        Math.round(row.nominal_setor),
+        Math.round(row.estimasi_wajar),
+        row.ketepatan,
+        row.status,
+      );
       result.pph21 += 1;
     });
 
@@ -2472,7 +2546,7 @@ export async function commitImportData(template: ImportTemplateKey, payload: Imp
       "SELECT id FROM sosialisasi WHERE opd_id = ? AND tanggal = ? AND COALESCE(tema, '') = COALESCE(?, '')",
     );
     const insertSosialisasi = database.prepare(
-      "INSERT INTO sosialisasi (opd_id, tanggal, jumlah_peserta, status, tempat, tema) VALUES (?, ?, ?, ?, ?, ?)",
+      "INSERT INTO sosialisasi (opd_id, tanggal, jumlah_peserta, penyuluh_id, status, tempat, tema) VALUES (?, ?, ?, ?, ?, ?, ?)",
     );
     payload.sosialisasi.forEach((row) => {
       const opdId = resolveOpd(row.npwp, row.nama_opd) ?? createMinimalOpd(row.nama_opd, row.npwp, row.wilayah);
@@ -2481,12 +2555,21 @@ export async function commitImportData(template: ImportTemplateKey, payload: Imp
         return;
       }
       const tanggal = row.tanggal ?? today;
-      const status = row.tanggal ? "sudah" : "belum";
+      const status = row.status ?? (row.tanggal ? "sudah" : "belum");
+      const penyuluhId = ensureAr(row.penyuluh_nama, row.penyuluh_nip);
       if (findSosialisasi.get(opdId, tanggal, row.tema)) {
         addSkip("Sosialisasi: duplikat OPD, tanggal, dan tema.");
         return;
       }
-      insertSosialisasi.run(opdId, tanggal, Math.max(0, Math.round(row.jumlah_peserta)), status, row.tempat, row.tema);
+      insertSosialisasi.run(
+        opdId,
+        tanggal,
+        Math.max(0, Math.round(row.jumlah_peserta)),
+        penyuluhId,
+        status,
+        row.tempat,
+        row.tema,
+      );
       result.sosialisasi += 1;
     });
 

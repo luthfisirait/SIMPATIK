@@ -1,8 +1,5 @@
 import {
-  BarChart3,
   Building2,
-  CalendarPlus,
-  Download,
   FileCheck2,
   Landmark,
   Presentation,
@@ -12,284 +9,229 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 
-import { DoughnutPanel, SptTrendChart } from "@/components/charts/ChartPanels";
+import { DoughnutPanel, SptVolumeTrendChart } from "@/components/charts/ChartPanels";
 import { Badge, toneForTraffic } from "@/components/ui/Badge";
 import { KpiCard } from "@/components/ui/KpiCard";
-import { PageHeader } from "@/components/ui/PageHeader";
 import { ProgressBar } from "@/components/ui/ProgressBar";
 import { getDashboardData } from "@/lib/queries";
-import { firstParam, type PageSearchParams } from "@/lib/search";
 import { formatCompactRupiah, formatNumber, formatPercent, monthLabel, trafficLabel } from "@/lib/utils";
 
-export default async function DashboardPage({ searchParams }: { searchParams?: PageSearchParams }) {
+const quickIcon = {
+  "/modul1-spt": FileCheck2,
+  "/modul2-pph21": ReceiptText,
+  "/modul3-sosialisasi": Presentation,
+  "/modul5-deposit": Landmark,
+  "/action-log/input": Send,
+};
+
+const kpiIcon = [TrendingUp, FileCheck2, ReceiptText, Landmark, Building2];
+
+export default function DashboardPage() {
   const data = getDashboardData();
-  const denied = firstParam(searchParams, "denied") === "1";
-  const isDataEmpty = data.kpis.totalOpd === 0;
-  const labels = data.trend.filter((item) => item.tahun_pajak === 2025).map((item) => monthLabel(item.periode));
-  const current = data.trend.filter((item) => item.tahun_pajak === 2025).map((item) => item.persen);
-  const previous = data.trend.filter((item) => item.tahun_pajak === 2024).map((item) => item.persen);
+  const currentTrend = data.trend.filter((item) => item.tahun_pajak === 2025);
+  const previousTrend = data.trend.filter((item) => item.tahun_pajak === 2024);
+  const trendLabels = (currentTrend.length > 0 ? currentTrend : previousTrend).map((item) => monthLabel(item.periode));
+  const totalDepositKritis = data.trafficCounts.find((item) => item.status === "merah")?.total ?? 0;
 
-  if (isDataEmpty) {
-    return (
-      <>
-        <PageHeader
-          title="Dashboard SIMPATIK"
-          description="Login sudah aktif, tetapi database monitoring belum berisi data."
-        />
+  const quickCards = [
+    { href: "/modul1-spt", label: "SPT Tahunan OP", sub: `${formatPercent(data.kpis.kepatuhanSpt)} terkini`, accent: "teal" },
+    { href: "/modul2-pph21", label: "PPh Masa", sub: `${formatNumber(data.kpis.pphBelumSetor)} OPD bermasalah`, accent: "red" },
+    { href: "/modul3-sosialisasi", label: "Sosialisasi", sub: `${formatNumber(data.kpis.belumSosialisasi)} OPD belum`, accent: "gold" },
+    { href: "/modul5-deposit", label: "Deposit Pajak", sub: `${formatNumber(totalDepositKritis)} OPD kritis`, accent: "navy" },
+    { href: "/action-log/input", label: "Kirim Imbauan", sub: "WA / Surat resmi", accent: "green" },
+  ] as const;
 
-        {denied ? <div className="alert">Role Anda tidak memiliki akses ke halaman yang diminta.</div> : null}
-
-        <div className="card">
-          <div className="card-header">
-            <div>
-              <div className="card-title">Belum ada data monitoring</div>
-              <div className="card-subtitle">
-                Dashboard, grafik, KPI, dan tabel prioritas akan muncul setelah data OPD dan data monitoring pajak tersedia.
-              </div>
-            </div>
-          </div>
-          <div className="card-body">
-            <div className="empty">
-              <strong>Database aktif masih kosong.</strong>
-              <p style={{ margin: "8px auto 0", maxWidth: 760 }}>
-                Isi data lewat halaman Import dengan menunjuk file sumber. Setelah import, dashboard dan seluruh modul monitoring
-                akan menampilkan angka dari database SQLite lokal.
-              </p>
-            </div>
-          </div>
-        </div>
-      </>
-    );
-  }
+  const kpis = [
+    {
+      label: "Kepatuhan SPT Tahunan OP",
+      value: formatPercent(data.kpis.kepatuhanSpt),
+      sub: monthLabel(data.period),
+      accent: "teal",
+    },
+    {
+      label: "SPT Masuk",
+      value: formatNumber(data.kpis.sptMasuk),
+      sub: `dari ${formatNumber(data.kpis.sptWajib)}`,
+      accent: "green",
+    },
+    {
+      label: "OPD Masalah PPh Masa",
+      value: formatNumber(data.kpis.pphBelumSetor + data.kpis.pphUnderReporting),
+      sub: monthLabel(data.pphMonth),
+      accent: "red",
+    },
+    {
+      label: "Total Setoran PPh",
+      value: formatCompactRupiah(data.kpis.totalSetorPph),
+      sub: monthLabel(data.pphMonth),
+      accent: "gold",
+    },
+    {
+      label: "Total OPD Dipantau",
+      value: formatNumber(data.kpis.totalOpd),
+      sub: "Sesuai database aktif",
+      accent: "navy",
+    },
+  ] as const;
 
   return (
     <>
-      <PageHeader
-        title="Dashboard SIMPATIK"
-        description={`Periode monitoring ${monthLabel(data.period)}. Data dummy siap diganti integrasi Coretax/BKPSDM.`}
-        actions={
-          <>
-            <Link className="btn btn-secondary" href="/api/dashboard" target="_blank">
-              <Download size={16} />
-              JSON
-            </Link>
-            <Link className="btn btn-primary" href="/modul1-spt">
-              <Send size={16} />
-              Tindak Lanjut
-            </Link>
-          </>
-        }
-      />
-
-      {denied ? <div className="alert">Role Anda tidak memiliki akses ke halaman yang diminta.</div> : null}
-
       <section className="quick-strip">
-        <Link className="quick-card" href="/modul1-spt">
-          <span className="quick-card-icon">
-            <FileCheck2 size={19} />
-          </span>
-          <span className="quick-card-copy">
-            <span className="quick-card-label">SPT Tahunan OP</span>
-            <span className="quick-card-sub">Traffic light OPD</span>
-          </span>
-        </Link>
-        <Link className="quick-card" href="/modul2-pph21">
-          <span className="quick-card-icon" style={{ background: "var(--navy)" }}>
-            <ReceiptText size={19} />
-          </span>
-          <span className="quick-card-copy">
-            <span className="quick-card-label">PPh Masa</span>
-            <span className="quick-card-sub">Bayar dan lapor</span>
-          </span>
-        </Link>
-        <Link className="quick-card" href="/modul3-sosialisasi">
-          <span className="quick-card-icon" style={{ background: "var(--gold)" }}>
-            <Presentation size={19} />
-          </span>
-          <span className="quick-card-copy">
-            <span className="quick-card-label">Sosialisasi</span>
-            <span className="quick-card-sub">Jadwal dan rekam jejak</span>
-          </span>
-        </Link>
-        <Link className="quick-card" href="/modul5-deposit">
-          <span className="quick-card-icon" style={{ background: "var(--green)" }}>
-            <Landmark size={19} />
-          </span>
-          <span className="quick-card-copy">
-            <span className="quick-card-label">Deposit Pajak</span>
-            <span className="quick-card-sub">Saldo dan setoran</span>
-          </span>
-        </Link>
-        <Link className="quick-card" href="/analitik">
-          <span className="quick-card-icon" style={{ background: "var(--red)" }}>
-            <BarChart3 size={19} />
-          </span>
-          <span className="quick-card-copy">
-            <span className="quick-card-label">Analitik</span>
-            <span className="quick-card-sub">Tren dan insight</span>
-          </span>
-        </Link>
+        {quickCards.map((item) => {
+          const Icon = quickIcon[item.href];
+          return (
+            <Link className="quick-card" href={item.href} key={item.href}>
+              <span className={`quick-card-icon quick-${item.accent}`}>
+                <Icon size={19} />
+              </span>
+              <span className="quick-card-copy">
+                <span className="quick-card-label">{item.label}</span>
+                <span className="quick-card-sub">{item.sub}</span>
+              </span>
+            </Link>
+          );
+        })}
       </section>
 
       <section className="kpi-grid">
-        <KpiCard
-          label="Kepatuhan SPT"
-          value={formatPercent(data.kpis.kepatuhanSpt)}
-          sub={`${formatNumber(data.kpis.sptMasuk)} dari ${formatNumber(data.kpis.sptWajib)} wajib lapor`}
-          change="+ dibanding bulan lalu"
-          changeTone="up"
-          accent="teal"
-          icon={<TrendingUp size={18} />}
-        />
-        <KpiCard
-          label="SPT Masuk"
-          value={formatNumber(data.kpis.sptMasuk)}
-          sub={`Tahun pajak 2025 per ${monthLabel(data.period)}`}
-          accent="green"
-          icon={<FileCheck2 size={18} />}
-        />
-        <KpiCard
-          label="PPh 21 Belum Setor"
-          value={formatNumber(data.kpis.pphBelumSetor)}
-          sub={`${formatNumber(data.kpis.pphUnderReporting)} under-reporting`}
-          change={formatCompactRupiah(data.kpis.totalSetorPph)}
-          changeTone="neutral"
-          accent="red"
-          icon={<ReceiptText size={18} />}
-        />
-        <KpiCard
-          label="Belum Sosialisasi"
-          value={formatNumber(data.kpis.belumSosialisasi)}
-          sub={`${formatNumber(data.kpis.sudahSosialisasi)} OPD sudah tercatat`}
-          accent="gold"
-          icon={<Presentation size={18} />}
-        />
-        <KpiCard
-          label="Total OPD"
-          value={formatNumber(data.kpis.totalOpd)}
-          sub={`${formatNumber(data.kpis.totalPeserta)} peserta sosialisasi`}
-          accent="navy"
-          icon={<Building2 size={18} />}
-        />
+        {kpis.map((item, index) => {
+          const Icon = kpiIcon[index];
+          return (
+            <KpiCard
+              key={item.label}
+              label={item.label}
+              value={item.value}
+              sub={item.sub}
+              accent={item.accent}
+              icon={<Icon size={18} />}
+            />
+          );
+        })}
       </section>
 
       <section className="grid-main">
         <div className="card">
           <div className="card-header">
             <div>
-              <div className="card-title">Tren Kepatuhan SPT Bulanan</div>
-              <div className="card-subtitle">Perbandingan realisasi tahun pajak berjalan dan historis</div>
+              <div className="card-title">Tren SPT Tahunan OP</div>
+              <div className="card-subtitle">Akumulasi laporan per bulan</div>
             </div>
           </div>
           <div className="card-body">
-            <div className="chart-wrap">
-              <SptTrendChart labels={labels} current={current} previous={previous} />
-            </div>
+            {trendLabels.length === 0 ? (
+              <span className="muted">Belum ada data tren SPT.</span>
+            ) : (
+              <div className="chart-wrap-lg">
+                <SptVolumeTrendChart
+                  labels={trendLabels}
+                  current={currentTrend.map((item) => item.sudah)}
+                  previous={previousTrend.map((item) => item.sudah)}
+                  currentLabel="SPT 2025"
+                  previousLabel="SPT 2024"
+                />
+              </div>
+            )}
           </div>
         </div>
 
         <div className="card">
           <div className="card-header">
             <div>
-              <div className="card-title">Distribusi Wilayah</div>
+              <div className="card-title">Kepatuhan per Wilayah</div>
               <div className="card-subtitle">SPT masuk per wilayah</div>
             </div>
           </div>
           <div className="card-body">
-            <div className="chart-wrap-sm">
-              <DoughnutPanel labels={data.wilayahDistribution.map((item) => item.nama)} data={data.wilayahDistribution.map((item) => item.sudah)} />
-            </div>
-            <div className="insight-list" style={{ marginTop: 16 }}>
-              {data.wilayahDistribution.map((item) => (
-                <ProgressBar key={item.nama} label={item.nama} value={item.persen} />
-              ))}
-            </div>
+            {data.wilayahDistribution.length === 0 ? (
+              <span className="muted">Belum ada data wilayah.</span>
+            ) : (
+              <>
+                <div className="chart-wrap-sm">
+                  <DoughnutPanel
+                    labels={data.wilayahDistribution.map((item) => item.nama)}
+                    data={data.wilayahDistribution.map((item) => item.sudah)}
+                  />
+                </div>
+                <div className="insight-list" style={{ marginTop: 16 }}>
+                  {data.wilayahDistribution.map((item) => (
+                    <ProgressBar key={item.nama} label={item.nama} value={item.persen} />
+                  ))}
+                </div>
+              </>
+            )}
           </div>
         </div>
       </section>
 
-      <section className="grid-main-rev">
+      <section className="grid-2">
+        <div className="card">
+          <div className="card-header">
+            <div className="card-title">Traffic Light OPD - SPT Tahunan</div>
+            <Badge tone="teal">Live</Badge>
+          </div>
+          <div className="table-wrap">
+            <table className="data-table compact-table">
+              <thead>
+                <tr>
+                  <th>Nama OPD</th>
+                  <th>Wilayah</th>
+                  <th>ASN</th>
+                  <th>%</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.trafficTop.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="muted">
+                      Belum ada data SPT.
+                    </td>
+                  </tr>
+                ) : (
+                  data.trafficTop.map((item) => (
+                    <tr key={item.id}>
+                      <td>{item.opd_nama}</td>
+                      <td className="td-mono">{item.wilayah_nama}</td>
+                      <td>{formatNumber(item.jumlah_wajib_lapor)}</td>
+                      <td>{formatPercent(item.persen_kepatuhan)}</td>
+                      <td>
+                        <Badge tone={toneForTraffic(item.traffic_light)}>{trafficLabel(item.traffic_light)}</Badge>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+          <div className="card-footer">
+            <span className="muted">Merah &lt;40% - Kuning 40-70% - Hijau &gt;70%</span>
+            <Link className="btn btn-ghost btn-sm" href="/modul1-spt">
+              Lihat Semua
+            </Link>
+          </div>
+        </div>
+
         <div className="card">
           <div className="card-header">
             <div>
-              <div className="card-title">Aktivitas Terbaru</div>
-              <div className="card-subtitle">Log tindak lanjut AR</div>
+              <div className="card-title">Action Log AR</div>
+              <div className="card-subtitle">Tindak lanjut terkini</div>
             </div>
           </div>
           <div className="card-body">
             <div className="activity-list">
+              {data.activity.length === 0 ? <span className="muted">Belum ada action log.</span> : null}
               {data.activity.map((item) => (
-                <div className="activity-item" key={item.id}>
-                  <strong>{item.action}</strong>
-                  <span className="muted">{item.target_name}</span>
-                  <span className="muted">
-                    {item.user_nama ?? "Sistem"} - {new Date(item.created_at).toLocaleString("id-ID")}
-                  </span>
+                <div className="feed-card feed-green" key={item.id}>
+                  <strong>{item.user_nama ?? "SIMPATIK"} - {item.target_name}</strong>
+                  <span>{item.description ?? item.action}</span>
+                  <small>{new Date(item.created_at).toLocaleString("id-ID")}</small>
                 </div>
               ))}
             </div>
           </div>
         </div>
-
-        <div className="card">
-          <div className="card-header">
-            <div>
-              <div className="card-title">Traffic Light OPD Prioritas</div>
-              <div className="card-subtitle">Urutan dari kepatuhan terendah</div>
-            </div>
-            <Link href="/modul1-spt" className="btn btn-secondary btn-sm">
-              Lihat semua
-            </Link>
-          </div>
-          <div className="table-wrap">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>OPD</th>
-                  <th>Wilayah</th>
-                  <th>AR</th>
-                  <th>Kepatuhan</th>
-                  <th>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.trafficTop.map((item) => (
-                  <tr key={item.id}>
-                    <td>
-                      <strong>{item.opd_nama}</strong>
-                    </td>
-                    <td>{item.wilayah_nama}</td>
-                    <td>{item.ar_nama}</td>
-                    <td className="td-mono">{formatPercent(item.persen_kepatuhan)}</td>
-                    <td>
-                      <Badge tone={toneForTraffic(item.traffic_light)}>{trafficLabel(item.traffic_light)}</Badge>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
       </section>
-
-      <section className="grid-3">
-        {data.notifications.slice(0, 3).map((item) => (
-          <div className="card" key={item.id}>
-            <div className="card-body">
-              <Badge tone={item.type === "danger" ? "red" : item.type === "warning" ? "amber" : item.type === "success" ? "green" : "teal"}>
-                {item.type}
-              </Badge>
-              <h3 style={{ marginTop: 12, fontSize: 15 }}>{item.title}</h3>
-              <p className="text-2" style={{ marginTop: 6 }}>{item.body}</p>
-            </div>
-          </div>
-        ))}
-      </section>
-
-      <Link className="btn btn-secondary" href="/modul3-sosialisasi">
-        <CalendarPlus size={16} />
-        Kelola Jadwal Sosialisasi
-      </Link>
     </>
   );
 }

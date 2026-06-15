@@ -1,50 +1,64 @@
-import { Mail, Phone } from "lucide-react";
+import { Plus } from "lucide-react";
 
 import { Badge } from "@/components/ui/Badge";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { listAr } from "@/lib/queries";
-import { formatNumber, formatPercent, initials, toWaLink } from "@/lib/utils";
+import { formatNumber, formatPercent, initials } from "@/lib/utils";
 
-export default async function DirektoriArPage() {
-  const ar = listAr();
+function statusTone(status: string): "green" | "amber" | "red" | "teal" {
+  if (status === "aktif") return "green";
+  if (status === "cuti") return "amber";
+  if (status === "nonaktif") return "red";
+  return "teal";
+}
+
+export default function DirektoriArPage() {
+  const rows = listAr();
 
   return (
     <>
-      <PageHeader title="Direktori AR" description="Daftar Account Representative dan cakupan OPD pengampu." />
-      <section className="directory-grid">
-        {ar.map((item) => (
-          <article className="directory-card" key={item.id}>
-            <div className="directory-head">
-              <span className="user-avatar" style={item.avatar_color ? { background: item.avatar_color } : undefined}>
-                {initials(item.nama)}
-              </span>
-              <div>
-                <strong>{item.nama}</strong>
-                <div className="muted">{item.jabatan}</div>
+      <PageHeader
+        title="Data Account Representative (AR)"
+        description="Direktori AR beserta OPD pengampu, wilayah, dan kontak."
+        actions={
+          <button className="btn btn-primary" type="button">
+            <Plus size={16} />
+            Tambah AR
+          </button>
+        }
+      />
+
+      <div className="card">
+        <div style={{ padding: 0 }}>
+          {rows.length === 0 ? (
+            <div className="user-row">
+              <div className="muted">Belum ada akun AR.</div>
+            </div>
+          ) : (
+            rows.map((item) => (
+              <div className="user-row" key={item.id}>
+                <span className="user-avatar" style={{ background: item.avatar_color ?? "var(--teal)" }}>
+                  {initials(item.nama)}
+                </span>
+                <div>
+                  <div className="user-name2">{item.nama}</div>
+                  <div className="user-meta">
+                    NIP: {item.nip ?? "-"} - {item.jabatan ?? "Account Representative"}
+                  </div>
+                </div>
+                <div className="user-actions">
+                  <Badge tone="teal">{formatNumber(item.opd_count)} OPD</Badge>
+                  <Badge tone="navy">{item.avg_kepatuhan === null ? "-" : formatPercent(item.avg_kepatuhan)}</Badge>
+                  <Badge tone={statusTone(item.status)}>{item.status}</Badge>
+                  <button className="btn btn-ghost btn-sm" type="button">
+                    Detail
+                  </button>
+                </div>
               </div>
-            </div>
-            <div className="metric-row">
-              <span>OPD ampuan</span>
-              <strong>{formatNumber(item.opd_count)}</strong>
-            </div>
-            <div className="metric-row">
-              <span>Rata-rata kepatuhan</span>
-              <strong>{item.avg_kepatuhan ? formatPercent(item.avg_kepatuhan) : "-"}</strong>
-            </div>
-            <div className="toolbar">
-              <a className="btn btn-secondary btn-sm" href={`mailto:${item.email}`}>
-                <Mail size={14} />
-                Email
-              </a>
-              <a className="btn btn-secondary btn-sm" href={toWaLink(item.phone)} target="_blank">
-                <Phone size={14} />
-                WA
-              </a>
-              <Badge tone={item.status === "aktif" ? "green" : "amber"}>{item.status}</Badge>
-            </div>
-          </article>
-        ))}
-      </section>
+            ))
+          )}
+        </div>
+      </div>
     </>
   );
 }

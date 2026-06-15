@@ -1,4 +1,4 @@
-import { Download, Search, UsersRound } from "lucide-react";
+import { Download, Search, Send, UsersRound } from "lucide-react";
 import { getServerSession } from "next-auth";
 import Link from "next/link";
 
@@ -9,20 +9,19 @@ import { Pagination } from "@/components/ui/Pagination";
 import { authOptions } from "@/lib/auth";
 import { getWilayah, listAr, listPegawai } from "@/lib/queries";
 import { firstParam, keepQuery, numericParam, queryString, type PageSearchParams } from "@/lib/search";
-import { formatNumber, toWaLink } from "@/lib/utils";
+import { formatNumber, formatPercent } from "@/lib/utils";
 
 const statusLabel: Record<string, string> = {
-  sudah_lapor: "Sudah Lapor",
-  aktif_belum_lapor: "Belum Lapor",
-  belum_aktivasi: "Belum Aktivasi",
+  aktif_belum_lapor: "Belum lapor",
+  belum_aktivasi: "Belum aktivasi",
+  sudah_lapor: "Sudah lapor",
 };
 
-function statusTone(status: string): "green" | "amber" | "red" | "teal" {
-  if (status === "sudah_lapor") return "green";
-  if (status === "belum_aktivasi") return "amber";
-  if (status === "aktif_belum_lapor") return "red";
-  return "teal";
-}
+const statusTone: Record<string, "green" | "amber" | "red" | "teal"> = {
+  aktif_belum_lapor: "red",
+  belum_aktivasi: "amber",
+  sudah_lapor: "green",
+};
 
 export default async function PegawaiBelumLaporPage({ searchParams }: { searchParams?: PageSearchParams }) {
   const session = await getServerSession(authOptions);
@@ -34,7 +33,11 @@ export default async function PegawaiBelumLaporPage({ searchParams }: { searchPa
   const result = listPegawai({ q, wilayah, status, ar, page, pageSize: 12, includeSudah: true });
   const wilayahOptions = getWilayah();
   const arOptions = listAr();
-  const count = (key: string) => result.summary.find((item) => item.status === key)?.total ?? 0;
+  const statusCount = (key: string) => result.summary.find((item) => item.status === key)?.total ?? 0;
+  const sudah = statusCount("sudah_lapor");
+  const belum = statusCount("aktif_belum_lapor") + statusCount("belum_aktivasi");
+  const totalPegawai = sudah + belum;
+  const kepatuhan = totalPegawai === 0 ? 0 : (sudah * 100) / totalPegawai;
   const exportQuery = queryString({ q, wilayah, status, ar });
   const exportHref = exportQuery ? `/api/export/pegawai?${exportQuery}` : "/api/export/pegawai";
 
@@ -42,32 +45,32 @@ export default async function PegawaiBelumLaporPage({ searchParams }: { searchPa
     <>
       <PageHeader
         title="Rincian Pegawai SPT Tahunan OP"
-        description="Daftar ASN dan PPPK per OPD berdasarkan status pelaporan SPT di Coretax."
+        description="Daftar ASN & PPPK per OPD berdasarkan data pegawai yang diimport."
         actions={
-          <Link className="btn btn-primary" href={exportHref} target="_blank">
-            <Download size={16} />
-            Export CSV
-          </Link>
+          <>
+            <Link className="btn btn-secondary" href={exportHref} target="_blank">
+              <Download size={16} />
+              Ekspor CSV
+            </Link>
+            <Link className="btn btn-primary" href="/action-log/input">
+              <Send size={16} />
+              Imbauan Massal
+            </Link>
+          </>
         }
       />
 
       <section className="kpi-grid">
-        <KpiCard label="Pegawai Ditampilkan" value={formatNumber(result.total)} sub="Sesuai filter aktif" accent="navy" icon={<UsersRound size={18} />} />
-        <KpiCard label="Sudah Lapor" value={formatNumber(count("sudah_lapor"))} sub="Sudah terekam di Coretax" accent="green" icon={<UsersRound size={18} />} />
-        <KpiCard label="Belum Lapor" value={formatNumber(count("aktif_belum_lapor"))} sub="Aktif tetapi belum menyampaikan SPT" accent="red" icon={<UsersRound size={18} />} />
-        <KpiCard label="Belum Aktivasi" value={formatNumber(count("belum_aktivasi"))} sub="Perlu aktivasi akun Coretax" accent="gold" icon={<UsersRound size={18} />} />
+        <KpiCard label="Total Pegawai" value={formatNumber(totalPegawai)} sub="ASN & PPPK pada basis data" accent="navy" icon={<UsersRound size={18} />} />
+        <KpiCard label="Sudah Lapor" value={formatNumber(sudah)} sub="Terekam sampai periode berjalan" accent="green" icon={<UsersRound size={18} />} />
+        <KpiCard label="Belum Lapor" value={formatNumber(belum)} sub="Perlu imbauan OPD/pegawai" accent="red" icon={<UsersRound size={18} />} />
+        <KpiCard label="Kepatuhan" value={formatPercent(kepatuhan)} sub="Rata-rata seluruh pegawai" accent="teal" icon={<UsersRound size={18} />} />
       </section>
 
       <div className="card">
         <div className="card-header">
-          <div>
-            <div className="card-title">Daftar Pegawai per OPD</div>
-            <div className="card-subtitle">Pencarian nama, NIP, OPD, wilayah, status, dan AR pengampu.</div>
-          </div>
-        </div>
-        <div className="card-body">
           <form className="filter-bar">
-            <input className="search-input" name="q" placeholder="Cari nama, NIP, OPD, atau AR" defaultValue={q} style={{ maxWidth: 300 }} />
+            <input className="search-input" name="q" placeholder="Cari nama, NIP, OPD, atau AR" defaultValue={q} style={{ maxWidth: 280 }} />
             <select className="search-input" name="wilayah" defaultValue={wilayah} style={{ maxWidth: 220 }}>
               <option value="all">Semua wilayah</option>
               {wilayahOptions.map((item) => (
@@ -95,47 +98,50 @@ export default async function PegawaiBelumLaporPage({ searchParams }: { searchPa
               Filter
             </button>
           </form>
+          <div className="toolbar">
+            <Badge tone="green">{formatNumber(sudah)} Sudah</Badge>
+            <Badge tone="red">{formatNumber(belum)} Belum</Badge>
+          </div>
         </div>
         <div className="table-wrap">
           <table className="data-table">
             <thead>
               <tr>
-                <th>Nama</th>
+                <th>Nama Pegawai</th>
                 <th>NIP</th>
+                <th>NIK</th>
                 <th>Jabatan</th>
                 <th>OPD</th>
                 <th>Wilayah</th>
-                <th>Status</th>
+                <th>Status SPT</th>
                 <th>Kontak</th>
-                <th>AR</th>
               </tr>
             </thead>
             <tbody>
-              {result.data.map((item) => (
-                <tr key={item.id}>
-                  <td>
-                    <strong>{item.nama}</strong>
-                    <div className="muted">{item.jenis_kepegawaian ?? "-"}</div>
+              {result.data.length === 0 ? (
+                <tr>
+                  <td colSpan={8} className="muted">
+                    Belum ada data pegawai.
                   </td>
-                  <td className="td-mono">{item.nip}</td>
-                  <td>{item.jabatan}</td>
-                  <td>{item.opd_nama}</td>
-                  <td>{item.wilayah_nama}</td>
-                  <td>
-                    <Badge tone={statusTone(item.status_coretax)}>{statusLabel[item.status_coretax] ?? item.status_coretax}</Badge>
-                  </td>
-                  <td>
-                    {item.phone ? (
-                      <a className="wa-link" href={toWaLink(item.phone)} target="_blank">
-                        {item.phone}
-                      </a>
-                    ) : (
-                      "-"
-                    )}
-                  </td>
-                  <td>{item.ar_nama ?? "-"}</td>
                 </tr>
-              ))}
+              ) : (
+                result.data.map((item) => (
+                  <tr key={item.id}>
+                    <td>
+                      <strong>{item.nama}</strong>
+                    </td>
+                    <td className="td-mono">{item.nip}</td>
+                    <td className="td-mono">{item.nik ?? "-"}</td>
+                    <td>{item.jabatan}</td>
+                    <td>{item.opd_nama}</td>
+                    <td className="td-mono">{item.wilayah_nama}</td>
+                    <td>
+                      <Badge tone={statusTone[item.status_coretax]}>{statusLabel[item.status_coretax]}</Badge>
+                    </td>
+                    <td>{item.phone ?? item.email ?? "-"}</td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>

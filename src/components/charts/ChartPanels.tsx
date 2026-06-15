@@ -75,6 +75,56 @@ export function SptTrendChart({
   );
 }
 
+export function SptVolumeTrendChart({
+  current,
+  previous,
+  labels,
+  currentLabel,
+  previousLabel,
+}: {
+  labels: string[];
+  current: number[];
+  previous: number[];
+  currentLabel: string;
+  previousLabel: string;
+}) {
+  return (
+    <Line
+      data={{
+        labels,
+        datasets: [
+          {
+            label: currentLabel,
+            data: current,
+            borderColor: palette.teal,
+            backgroundColor: palette.tealFaint,
+            fill: true,
+            tension: 0.4,
+          },
+          {
+            label: previousLabel,
+            data: previous,
+            borderColor: palette.navy,
+            backgroundColor: palette.navyFaint,
+            fill: true,
+            borderDash: [5, 3],
+            tension: 0.4,
+          },
+        ],
+      }}
+      options={{
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { position: "bottom" } },
+        scales: {
+          x: { grid: { display: false } },
+          y: { beginAtZero: true, grid: { color: "rgba(0,0,0,.04)" } },
+        },
+      }}
+    />
+  );
+}
+
 export function DoughnutPanel({ labels, data }: { labels: string[]; data: number[] }) {
   return (
     <Doughnut
@@ -99,6 +149,23 @@ export function DoughnutPanel({ labels, data }: { labels: string[]; data: number
   );
 }
 
+export function SingleBarChart({ labels, values, label }: { labels: string[]; values: number[]; label: string }) {
+  return (
+    <Bar
+      data={{
+        labels,
+        datasets: [{ label, data: values, backgroundColor: palette.teal, borderRadius: 6 }],
+      }}
+      options={{
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { position: "bottom" } },
+        scales: { x: { grid: { display: false } }, y: { beginAtZero: true, grid: { color: "rgba(0,0,0,.04)" } } },
+      }}
+    />
+  );
+}
+
 export function PphBarChart({ labels, tepat, terlambat }: { labels: string[]; tepat: number[]; terlambat: number[] }) {
   return (
     <Bar
@@ -114,6 +181,34 @@ export function PphBarChart({ labels, tepat, terlambat }: { labels: string[]; te
         maintainAspectRatio: false,
         plugins: { legend: { position: "bottom" } },
         scales: { x: { grid: { display: false } }, y: { beginAtZero: true } },
+      }}
+    />
+  );
+}
+
+export function SosialisasiScatterChart({
+  sudah,
+  belum,
+}: {
+  sudah: Array<{ x: number; y: number }>;
+  belum: Array<{ x: number; y: number }>;
+}) {
+  return (
+    <Scatter
+      data={{
+        datasets: [
+          { label: "Sudah Disosialisasi", data: sudah, backgroundColor: palette.teal },
+          { label: "Belum Disosialisasi", data: belum, backgroundColor: palette.red },
+        ],
+      }}
+      options={{
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { position: "bottom" } },
+        scales: {
+          x: { title: { display: true, text: "Sesi Sosialisasi" }, grid: { display: false } },
+          y: { title: { display: true, text: "Kepatuhan SPT (%)" }, min: 0, max: 100 },
+        },
       }}
     />
   );
