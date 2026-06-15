@@ -157,7 +157,7 @@ const IMPORT_LABELS: Record<ImportTemplateKey, string> = {
   masterfile: "Masterfile Wajib Pajak",
   penerimaan: "Data Penerimaan",
   pelaporan_pph21: "Pelaporan SPT Masa PPh Pasal 21",
-  pelaporan_unifikasi: "Pelaporan SPT Masa Unifikasi",
+  pelaporan_unifikasi: "Pelaporan SPT Masa Unifikasi/PPN",
   pegawai: "Daftar Pegawai Instansi",
   sosialisasi: "Rekam Sosialisasi",
 };
@@ -1639,6 +1639,26 @@ export function listSettings() {
     .all() as Array<{ key: string; value: string }>;
 }
 
+export function getImportStatus() {
+  const database = db();
+  const lastAt = readSetting(database, "import_last_at");
+  const rawLastTemplate = readSetting(database, "import_last_template");
+  const lastTemplate =
+    rawLastTemplate && (IMPORT_ORDER as string[]).includes(rawLastTemplate)
+      ? (rawLastTemplate as ImportTemplateKey)
+      : null;
+
+  return {
+    lastAt,
+    lastTemplate,
+    templates: IMPORT_ORDER.map((template) => ({
+      key: template,
+      label: IMPORT_LABELS[template],
+      lastAt: readSetting(database, `import_last_at_${template}`) ?? (lastTemplate === template ? lastAt : null),
+    })),
+  };
+}
+
 function readSetting(database: ReturnType<typeof getDb>, key: string) {
   return (database.prepare("SELECT value FROM settings WHERE key = ?").get(key) as { value: string } | undefined)?.value ?? null;
 }
@@ -1668,7 +1688,42 @@ function importSlug(value: string) {
 }
 
 function importLookup(value: string | null | undefined) {
-  return String(value ?? "").trim().toLowerCase().replace(/\s+/g, " ");
+  return String(value ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/&/g, " dan ")
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function opdLookupAliases(value: string | null | undefined) {
+  const clean = importLookup(value);
+  const aliases = new Set<string>();
+  const add = (candidate: string) => {
+    const normalized = importLookup(candidate);
+    if (normalized) aliases.add(normalized);
+  };
+
+  add(clean);
+  add(clean.replace(/\bkab\b/g, "kabupaten").replace(/\bprov\b/g, "provinsi"));
+
+  [...aliases].forEach((alias) => {
+    add(alias.replace(/\s+(?:kota|kabupaten|kab|provinsi|prov)\s+[a-z0-9 ]+$/, ""));
+    add(alias.replace(/^pemerintah(?: daerah)?\s+(?:kota|kabupaten|kab|provinsi|prov)\s+[a-z0-9 ]+\s+/, ""));
+  });
+
+  return aliases;
+}
+
+export class ImportCommitError extends Error {
+  result: ImportCommitResult;
+
+  constructor(message: string, result: ImportCommitResult) {
+    super(message);
+    this.name = "ImportCommitError";
+    this.result = result;
+  }
 }
 
 function sptStatusLevel(status: string | null | undefined): "hijau" | "kuning" | "merah" | null {
@@ -1739,7 +1794,7 @@ function importTemplateHasSourceData(database: ReturnType<typeof getDb>, templat
       return (
         database
           .prepare(
-            "SELECT 1 FROM spt_masa_monitoring WHERE pph23_status IS NOT NULL OR ppn_put_status IS NOT NULL LIMIT 1",
+            "SELECT 1 FROM spt_masa_monitoring WHERE pph22_status IS NOT NULL OR pph23_status IS NOT NULL OR ppn_put_status IS NOT NULL LIMIT 1",
           )
           .get() !== undefined
       );
@@ -1765,42 +1820,18 @@ function completedImportTemplates(database: ReturnType<typeof getDb>) {
   return new Set(IMPORT_ORDER.filter((template) => importTemplateHasSourceData(database, template)));
 }
 
-function validateImportOrder(database: ReturnType<typeof getDb>, template: ImportTemplateKey) {
-  const completed = completedImportTemplates(database);
-  const index = IMPORT_ORDER.indexOf(template);
-
-  if (template === "masterfile") {
-    const later = IMPORT_ORDER.slice(1).filter((item) => completed.has(item));
-    if (later.length > 0) {
-      throw new Error(
-        `Masterfile harus diimpor paling awal. Data template berikut sudah masuk: ${later
-          .map((item) => IMPORT_LABELS[item])
-          .join(", ")}. Ulangi dari database kosong atau reset data terlebih dahulu agar relasi OPD tidak terhapus.`,
-      );
-    }
-    return;
-  }
-
-  const missing = IMPORT_ORDER.slice(0, index).filter((item) => !completed.has(item));
-  if (missing.length > 0) {
-    throw new Error(
-      `Urutan import belum terpenuhi. Sebelum ${IMPORT_LABELS[template]}, impor dulu: ${missing
-        .map((item) => IMPORT_LABELS[item])
-        .join(" -> ")}.`,
-    );
-  }
-}
-
 function markImportCompleted(database: ReturnType<typeof getDb>, template: ImportTemplateKey) {
   const completed = completedImportTemplates(database);
   completed.add(template);
+  const now = new Date().toISOString();
   writeSetting(
     database,
     "import_completed_templates",
     IMPORT_ORDER.filter((item) => completed.has(item)).join(","),
   );
   writeSetting(database, "import_last_template", template);
-  writeSetting(database, "import_last_at", new Date().toISOString());
+  writeSetting(database, "import_last_at", now);
+  writeSetting(database, `import_last_at_${template}`, now);
 }
 
 function importedRowCountForTemplate(result: ImportCommitResult, template: ImportTemplateKey) {
@@ -2014,6 +2045,7 @@ function deriveSptMasaStatuses(database: ReturnType<typeof getDb>, periods: stri
     UPDATE spt_masa_monitoring
     SET
       pph21_status = COALESCE(pph21_status, 'Belum Lapor'),
+      pph22_status = COALESCE(pph22_status, 'Belum Lapor'),
       pph23_status = COALESCE(pph23_status, 'Belum Lapor'),
       ppn_put_status = COALESCE(
         ppn_put_status,
@@ -2124,11 +2156,21 @@ function clearImportDataForTemplate(database: ReturnType<typeof getDb>, template
   switch (template) {
     case "masterfile":
       return database.prepare("DELETE FROM opd").run().changes;
-    case "penerimaan":
-      return (
+    case "penerimaan": {
+      const cleared =
         database.prepare("DELETE FROM pph21_monitoring").run().changes +
-        database.prepare("DELETE FROM deposit_monitoring").run().changes
-      );
+        database.prepare("DELETE FROM deposit_monitoring").run().changes +
+        database
+          .prepare(
+            `UPDATE spt_masa_monitoring
+             SET pph22_nominal = 0, pph23_nominal = 0, ppn_put_nominal = 0
+             WHERE pph22_nominal <> 0 OR pph23_nominal <> 0 OR ppn_put_nominal <> 0`,
+          )
+          .run().changes;
+      deleteEmptySptMasaRows(database);
+      refreshSptMasaOverall(database);
+      return cleared;
+    }
     case "pelaporan_pph21": {
       const cleared = database.prepare("UPDATE spt_masa_monitoring SET pph21_status = NULL WHERE pph21_status IS NOT NULL").run().changes;
       deleteEmptySptMasaRows(database);
@@ -2137,7 +2179,11 @@ function clearImportDataForTemplate(database: ReturnType<typeof getDb>, template
     }
     case "pelaporan_unifikasi": {
       const cleared = database
-        .prepare("UPDATE spt_masa_monitoring SET pph23_status = NULL, pph23_nominal = 0 WHERE pph23_status IS NOT NULL OR pph23_nominal <> 0")
+        .prepare(
+          `UPDATE spt_masa_monitoring
+           SET pph22_status = NULL, pph23_status = NULL, ppn_put_status = NULL
+           WHERE pph22_status IS NOT NULL OR pph23_status IS NOT NULL OR ppn_put_status IS NOT NULL`,
+        )
         .run().changes;
       deleteEmptySptMasaRows(database);
       refreshSptMasaOverall(database);
@@ -2153,7 +2199,6 @@ function clearImportDataForTemplate(database: ReturnType<typeof getDb>, template
 export async function commitImportData(template: ImportTemplateKey, payload: ImportPayload, actor?: AuditActor): Promise<ImportCommitResult> {
   const database = db();
   const today = new Date().toISOString().slice(0, 10);
-  validateImportOrder(database, template);
 
   const run = database.transaction((): ImportCommitResult => {
     const result: ImportCommitResult = {
@@ -2228,9 +2273,21 @@ export async function commitImportData(template: ImportTemplateKey, payload: Imp
 
     // --- Registry OPD -----------------------------------------------------
     const opdByNpwp = new Map<string, number>();
-    const opdByName = new Map<string, number>();
+    const opdByName = new Map<string, number | null>();
+    const opdNameAliases: Array<{ key: string; id: number }> = [];
+    const registerOpdName = (nama: string, id: number) => {
+      opdLookupAliases(nama).forEach((key) => {
+        const existing = opdByName.get(key);
+        if (existing === undefined) {
+          opdByName.set(key, id);
+        } else if (existing !== id) {
+          opdByName.set(key, null);
+        }
+        opdNameAliases.push({ key, id });
+      });
+    };
     (database.prepare("SELECT id, nama, npwp_opd FROM opd").all() as Array<{ id: number; nama: string; npwp_opd: string | null }>).forEach((o) => {
-      opdByName.set(importLookup(o.nama), o.id);
+      registerOpdName(o.nama, o.id);
       if (o.npwp_opd) opdByNpwp.set(o.npwp_opd.replace(/\D/g, ""), o.id);
     });
     const resolveOpd = (npwp: string | null, nama: string | null): number | null => {
@@ -2239,8 +2296,24 @@ export async function commitImportData(template: ImportTemplateKey, payload: Imp
         if (hit) return hit;
       }
       if (nama) {
-        const hit = opdByName.get(importLookup(nama));
-        if (hit) return hit;
+        const aliases = [...opdLookupAliases(nama)];
+        for (const alias of aliases) {
+          const hit = opdByName.get(alias);
+          if (typeof hit === "number") return hit;
+        }
+
+        const looseHits = new Set<number>();
+        for (const alias of aliases) {
+          if (alias.length < 8) continue;
+          for (const candidate of opdNameAliases) {
+            if (candidate.key.length < 8) continue;
+            if (candidate.key.includes(alias) || alias.includes(candidate.key)) {
+              looseHits.add(candidate.id);
+              if (looseHits.size > 1) return null;
+            }
+          }
+        }
+        if (looseHits.size === 1) return [...looseHits][0];
       }
       return null;
     };
@@ -2256,7 +2329,7 @@ export async function commitImportData(template: ImportTemplateKey, payload: Imp
       const npwpDigits = npwp ? npwp.replace(/\D/g, "") : null;
       const wilayahId = ensureWilayah(wilayah);
       const id = Number(insertOpd.run(cleanNama, wilayahId, "OPD", npwp, null, today, today).lastInsertRowid);
-      opdByName.set(importLookup(cleanNama), id);
+      registerOpdName(cleanNama, id);
       if (npwpDigits) opdByNpwp.set(npwpDigits, id);
       result.opd_created += 1;
       return id;
@@ -2277,7 +2350,7 @@ export async function commitImportData(template: ImportTemplateKey, payload: Imp
         const id = Number(
           insertOpd.run(row.nama, wilayahId, row.jenis_instansi, row.npwp, arId, row.tanggal_input ?? today, today).lastInsertRowid,
         );
-        opdByName.set(importLookup(row.nama), id);
+        registerOpdName(row.nama, id);
         if (npwpDigits) opdByNpwp.set(npwpDigits, id);
         result.opd_created += 1;
       }
@@ -2324,11 +2397,18 @@ export async function commitImportData(template: ImportTemplateKey, payload: Imp
 
     // --- 4. SPT Masa (pelaporan) -----------------------------------------
     const upsertSptMasa = database.prepare(
-      `INSERT INTO spt_masa_monitoring (opd_id, masa_pajak, pph21_status, pph23_status, ppn_put_status, status_keseluruhan)
-       VALUES (?, ?, ?, ?, ?, NULL)
+      `INSERT INTO spt_masa_monitoring (
+         opd_id, masa_pajak, pph21_status, pph22_nominal, pph22_status,
+         pph23_nominal, pph23_status, ppn_put_nominal, ppn_put_status, status_keseluruhan
+       )
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)
        ON CONFLICT(opd_id, masa_pajak) DO UPDATE SET
          pph21_status = COALESCE(excluded.pph21_status, pph21_status),
+         pph22_nominal = CASE WHEN excluded.pph22_nominal <> 0 THEN excluded.pph22_nominal ELSE pph22_nominal END,
+         pph22_status = COALESCE(excluded.pph22_status, pph22_status),
+         pph23_nominal = CASE WHEN excluded.pph23_nominal <> 0 THEN excluded.pph23_nominal ELSE pph23_nominal END,
          pph23_status = COALESCE(excluded.pph23_status, pph23_status),
+         ppn_put_nominal = CASE WHEN excluded.ppn_put_nominal <> 0 THEN excluded.ppn_put_nominal ELSE ppn_put_nominal END,
          ppn_put_status = COALESCE(excluded.ppn_put_status, ppn_put_status)`,
     );
     payload.sptMasa.forEach((row) => {
@@ -2337,7 +2417,17 @@ export async function commitImportData(template: ImportTemplateKey, payload: Imp
         addSkip("SPT Masa: OPD tidak ditemukan.");
         return;
       }
-      upsertSptMasa.run(opdId, row.masa_pajak, row.pph21_status, row.pph23_status, row.ppn_put_status);
+      upsertSptMasa.run(
+        opdId,
+        row.masa_pajak,
+        row.pph21_status,
+        Math.round(row.pph22_nominal),
+        row.pph22_status,
+        Math.round(row.pph23_nominal),
+        row.pph23_status,
+        Math.round(row.ppn_put_nominal),
+        row.ppn_put_status,
+      );
       result.spt_masa += 1;
     });
     if (payload.sptMasa.length > 0) refreshSptMasaOverall(database);
@@ -2401,8 +2491,9 @@ export async function commitImportData(template: ImportTemplateKey, payload: Imp
     });
 
     if (importedRowCountForTemplate(result, template) === 0) {
-      throw new Error(
+      throw new ImportCommitError(
         `${IMPORT_LABELS[template]} tidak menyimpan baris apa pun. Periksa hasil pratinjau dan alasan baris dilewati.`,
+        result,
       );
     }
 

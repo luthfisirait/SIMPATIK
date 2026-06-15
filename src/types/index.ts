@@ -231,7 +231,11 @@ export type ImportSptMasaRow = {
   npwp: string | null;
   nama_opd: string | null;
   masa_pajak: string; // YYYY-MM
+  pph22_nominal: number;
+  pph22_status: string | null; // dari SPT Unifikasi
+  pph23_nominal: number;
   pph23_status: string | null; // dari SPT Unifikasi
+  ppn_put_nominal: number;
   ppn_put_status: string | null; // dari SPT PPN
   pph21_status: string | null; // dari SPT PPh 21
 };

@@ -2,12 +2,13 @@ import { NextResponse } from "next/server";
 
 import { requireApiPermission } from "@/lib/api-auth";
 import { analyzeSheets, buildTemplateBuffer, isTemplateKey, parseWorkbook } from "@/lib/import-data";
-import { commitImportData } from "@/lib/queries";
+import { commitImportData, ImportCommitError } from "@/lib/queries";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const MAX_BYTES = 10 * 1024 * 1024; // 10 MB
+const MAX_UPLOAD_MB = 50;
+const MAX_BYTES = MAX_UPLOAD_MB * 1024 * 1024;
 
 export async function GET(request: Request) {
   const auth = await requireApiPermission(request);
@@ -54,7 +55,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ message: "File kosong." }, { status: 400 });
   }
   if (file.size > MAX_BYTES) {
-    return NextResponse.json({ message: "Ukuran file melebihi 10 MB." }, { status: 413 });
+    return NextResponse.json({ message: `Ukuran file melebihi ${MAX_UPLOAD_MB} MB.` }, { status: 413 });
   }
   if (!/\.xlsx$/i.test(file.name)) {
     return NextResponse.json({ message: "Format harus .xlsx." }, { status: 415 });
@@ -91,14 +92,10 @@ export async function POST(request: Request) {
     return NextResponse.json({ mode: "commit", analysis, result });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Gagal menyimpan data import.";
-    const status =
-      message.startsWith("Urutan import belum terpenuhi") || message.startsWith("Masterfile harus diimpor")
-        ? 409
-        : message.includes("tidak menyimpan baris apa pun")
-          ? 422
-          : 500;
+    const skippedReasons = error instanceof ImportCommitError ? error.result.skipped_reasons : undefined;
+    const status = message.includes("tidak menyimpan baris apa pun") ? 422 : 500;
     return NextResponse.json(
-      { message },
+      { message, skipped_reasons: skippedReasons },
       { status },
     );
   }

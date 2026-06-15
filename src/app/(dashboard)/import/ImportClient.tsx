@@ -1,21 +1,22 @@
 "use client";
 
 import { CheckCircle2, Download, FileUp, Loader2, UploadCloud } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 
 import { Badge } from "@/components/ui/Badge";
-import type { ImportAnalysis, ImportCommitResult, ImportTemplateKey } from "@/types";
+import type { ImportAnalysis, ImportCommitResult, ImportSkipReason, ImportTemplateKey } from "@/types";
 
 type PreviewResponse = { mode: "preview"; analysis: ImportAnalysis };
 type CommitResponse = { mode: "commit"; analysis: ImportAnalysis; result: ImportCommitResult };
-type ApiResponse = Partial<PreviewResponse> & Partial<CommitResponse> & { message?: string };
+type ApiResponse = Partial<PreviewResponse> & Partial<CommitResponse> & { message?: string; skipped_reasons?: ImportSkipReason[] };
 type NumericResultKey = Exclude<keyof ImportCommitResult, "skipped_reasons">;
 
 const TEMPLATE_OPTIONS: Array<{ key: ImportTemplateKey; label: string }> = [
   { key: "masterfile", label: "Masterfile Wajib Pajak" },
   { key: "penerimaan", label: "Data Penerimaan" },
   { key: "pelaporan_pph21", label: "Pelaporan SPT Masa PPh Pasal 21" },
-  { key: "pelaporan_unifikasi", label: "Pelaporan SPT Masa Unifikasi" },
+  { key: "pelaporan_unifikasi", label: "Pelaporan SPT Masa Unifikasi/PPN" },
   { key: "pegawai", label: "Daftar Pegawai Instansi" },
   { key: "sosialisasi", label: "Rekam Sosialisasi" },
 ];
@@ -37,18 +38,21 @@ const RESULT_LABELS: Array<{ key: NumericResultKey; label: string }> = [
 ];
 
 export function ImportClient() {
+  const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
   const [template, setTemplate] = useState<ImportTemplateKey | "">("");
   const [file, setFile] = useState<File | null>(null);
   const [analysis, setAnalysis] = useState<ImportAnalysis | null>(null);
   const [result, setResult] = useState<ImportCommitResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [skippedReasons, setSkippedReasons] = useState<ImportSkipReason[]>([]);
   const [busy, setBusy] = useState<"preview" | "commit" | null>(null);
 
   function reset(keepFile = false) {
     setAnalysis(null);
     setResult(null);
     setError(null);
+    setSkippedReasons([]);
     if (!keepFile) {
       setFile(null);
       if (inputRef.current) inputRef.current.value = "";
@@ -83,12 +87,15 @@ export function ImportClient() {
       const data = (await response.json()) as ApiResponse;
       if (!response.ok) {
         setError(data.message ?? "Gagal memproses file.");
+        setSkippedReasons(data.skipped_reasons ?? []);
         if (data.analysis) setAnalysis(data.analysis);
         return;
       }
+      setSkippedReasons([]);
       if (data.analysis) setAnalysis(data.analysis);
       if (mode === "commit" && data.result) {
         setResult(data.result);
+        router.refresh();
       }
     } catch {
       setError("Tidak dapat terhubung ke server.");
@@ -103,7 +110,7 @@ export function ImportClient() {
         <div>
           <div className="card-title">Unggah file</div>
           <div className="card-subtitle">
-            Pilih jenis template terlebih dahulu, lalu unggah file .xlsx (maks. 10 MB). Data lama dengan kunci sama akan diperbarui.
+            Pilih jenis template terlebih dahulu, lalu unggah file .xlsx (maks. 50 MB). Data lama untuk jenis template yang sama akan diganti.
           </div>
         </div>
       </div>
@@ -171,6 +178,15 @@ export function ImportClient() {
         {error ? (
           <div className="alert" style={{ marginTop: 16, borderColor: "var(--red)", color: "var(--red)" }}>
             {error}
+            {skippedReasons.length > 0 ? (
+              <ul style={{ margin: "8px 0 0", paddingLeft: 18 }}>
+                {skippedReasons.map((item) => (
+                  <li key={item.reason}>
+                    {item.reason} ({item.count} baris)
+                  </li>
+                ))}
+              </ul>
+            ) : null}
           </div>
         ) : null}
 

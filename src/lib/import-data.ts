@@ -27,7 +27,7 @@ const TEMPLATE_LABEL: Record<ImportTemplateKey, string> = {
   masterfile: "Masterfile Wajib Pajak",
   penerimaan: "Data Penerimaan",
   pelaporan_pph21: "Pelaporan SPT Masa PPh Pasal 21",
-  pelaporan_unifikasi: "Pelaporan SPT Masa Unifikasi",
+  pelaporan_unifikasi: "Pelaporan SPT Masa Unifikasi/PPN",
   pegawai: "Daftar Pegawai Instansi",
   sosialisasi: "Rekam Sosialisasi",
 };
@@ -59,6 +59,17 @@ const PELAPORAN_HEADERS = [
   "KPP ADMINISTRASI",
   "UNIT PENERIMA",
 ];
+
+type PenerimaanKind = "pph21" | "pph22" | "pph23" | "ppn" | "deposit" | "pph_final";
+
+const PENERIMAAN_KIND_BY_MAP: Record<string, PenerimaanKind> = {
+  "411121": "pph21",
+  "411122": "pph22",
+  "411124": "pph23",
+  "411211": "ppn",
+  "411618": "deposit",
+  "411128": "pph_final",
+};
 
 const MASTERFILE_HEADERS = [
   "NPWP16",
@@ -193,6 +204,11 @@ const TEMPLATE_SPECS: Record<ImportTemplateKey, TemplateSpec> = {
     headerRows: [["NO", "NPWP", "NAMA WAJIB PAJAK", "MASA PAJAK", "KD MAP", "KD SETOR", "NILAI SETOR", "TGL SETOR", "NTPN", "NO SK", "NOP", "ID BILLING", "SUMBER DATA"]],
     samples: [
       [1, "5091031123456780", "Instansi Pemerintah", "05052026", "411121", "100", 10000000, "2026-05-09", "360100123456789", "", "", "0", "SPM"],
+      [2, "5091031123456780", "Instansi Pemerintah", "05052026", "411122", "100", 2500000, "2026-05-09", "360100123456790", "", "", "0", "SPM"],
+      [3, "5091031123456780", "Instansi Pemerintah", "05052026", "411124", "100", 1500000, "2026-05-09", "360100123456791", "", "", "0", "SPM"],
+      [4, "5091031123456780", "Instansi Pemerintah", "05052026", "411211", "910", 3000000, "2026-05-09", "360100123456792", "", "", "0", "SPM"],
+      [5, "5091031123456780", "Instansi Pemerintah", "05052026", "411618", "100", 500000, "2026-05-09", "360100123456793", "", "", "0", "SPM"],
+      [6, "5091031123456780", "Instansi Pemerintah", "05052026", "411128", "100", 750000, "2026-05-09", "360100123456794", "", "", "0", "SPM"],
     ],
   },
   pelaporan_pph21: {
@@ -209,6 +225,7 @@ const TEMPLATE_SPECS: Record<ImportTemplateKey, TemplateSpec> = {
     headerRows: [PELAPORAN_HEADERS],
     samples: [
       [1, "1000000000912729", "BBPMP DIREKTORAT JENDERAL PENDIDIKAN ANAK USIA DINI, PENDIDIKAN DASAR, DAN PENDIDIKAN MENENGAH KEMENTERIAN PENDIDIKAN DASAR DAN MENENGAH", "05052025", "SPT Masa PPh Unifikasi", "BPE-09759/CT/KPP.2704/2026", "02-01-2026", "", "Submitted", "Normal", "Portal Wajib Pajak", "201-KPP Pratama Padang Satu", "201-KPP Pratama Padang Satu"],
+      [2, "1000000000912729", "BBPMP DIREKTORAT JENDERAL PENDIDIKAN ANAK USIA DINI, PENDIDIKAN DASAR, DAN PENDIDIKAN MENENGAH KEMENTERIAN PENDIDIKAN DASAR DAN MENENGAH", "05052025", "SPT Masa PPN bagi Pemungut PPN dan Pihak Lain yang Bukan Merupakan PKP", "BPE-09760/CT/KPP.2704/2026", "02-01-2026", "", "Submitted", "Normal", "Portal Wajib Pajak", "201-KPP Pratama Padang Satu", "201-KPP Pratama Padang Satu"],
     ],
   },
   pegawai: {
@@ -309,8 +326,16 @@ export async function parseWorkbook(buffer: ArrayBuffer | Buffer): Promise<Parse
     const allRows: Array<Array<string | number | Date | null>> = [];
     worksheet.eachRow({ includeEmpty: false }, (row) => {
       const values: Array<string | number | Date | null> = [];
-      for (let index = 1; index <= row.cellCount; index += 1) {
-        values.push(cellValue(row.getCell(index).value));
+      let lastColumn = 0;
+      row.eachCell({ includeEmpty: false }, (cell, columnNumber) => {
+        const value = cellValue(cell.value);
+        if (isBlank(value)) return;
+        values[columnNumber - 1] = value;
+        lastColumn = Math.max(lastColumn, columnNumber);
+      });
+      values.length = lastColumn;
+      for (let index = 0; index < values.length; index += 1) {
+        values[index] ??= null;
       }
       allRows.push(values);
     });
@@ -427,17 +452,19 @@ function detectSheet(sheet: ParsedSheet, expected?: ImportTemplateKey | null): I
 function detectPelaporanSheet(sheet: ParsedSheet, expected?: ImportTemplateKey | null): ImportTemplateKey {
   let hasPph21 = false;
   let hasUnifikasi = false;
+  let hasPpn = false;
 
   forEachRow(sheet, (row) => {
-    const jenis = textValue(row.pick("jenis_spt")).toLowerCase();
-    if (jenis.includes("unifikasi")) hasUnifikasi = true;
-    if (jenis.includes("21") || jenis.includes("26")) hasPph21 = true;
+    const kind = pelaporanKindFromJenisSpt(row.pick("jenis_spt"));
+    if (kind === "unifikasi") hasUnifikasi = true;
+    if (kind === "ppn") hasPpn = true;
+    if (kind === "pph21") hasPph21 = true;
   });
 
-  if (hasUnifikasi && !hasPph21) return "pelaporan_unifikasi";
-  if (hasPph21 && !hasUnifikasi) return "pelaporan_pph21";
+  if ((hasUnifikasi || hasPpn) && !hasPph21) return "pelaporan_unifikasi";
+  if (hasPph21 && !hasUnifikasi && !hasPpn) return "pelaporan_pph21";
   if (expected === "pelaporan_pph21" || expected === "pelaporan_unifikasi") return expected;
-  return hasUnifikasi ? "pelaporan_unifikasi" : "pelaporan_pph21";
+  return hasUnifikasi || hasPpn ? "pelaporan_unifikasi" : "pelaporan_pph21";
 }
 
 // ---------------------------------------------------------------------------
@@ -467,7 +494,17 @@ function normalizePenerimaan(sheet: ParsedSheet, payload: ImportPayload, warning
   // Agregasi setoran per (npwp|nama, masa) menurut KD MAP.
   const bucket = new Map<
     string,
-    { npwp: string | null; nama: string | null; masa: string; pph21: number; unifikasi: number; ppn: number }
+    {
+      npwp: string | null;
+      nama: string | null;
+      masa: string;
+      pph21: number;
+      pph22: number;
+      pph23: number;
+      pphFinal: number;
+      ppn: number;
+      depositUmum: number;
+    }
   >();
 
   forEachRow(sheet, (row) => {
@@ -481,23 +518,48 @@ function normalizePenerimaan(sheet: ParsedSheet, payload: ImportPayload, warning
     }
     const map = textValue(row.pick("kd_map")).replace(/\D/g, "");
     const nilai = numberValue(row.pick("nilai_setor"));
+    const kind = penerimaanKindFromMap(map);
+    if (!kind) {
+      warnings.push(`Penerimaan: KD MAP ${map || "(kosong)"} untuk ${nama ?? npwp} belum dipetakan dan dilewati.`);
+      return;
+    }
     const key = `${npwp ?? nama}__${masa}`;
-    const entry = bucket.get(key) ?? { npwp, nama, masa, pph21: 0, unifikasi: 0, ppn: 0 };
-    if (map === "411121") entry.pph21 += nilai;
-    else if (map.startsWith("4112")) entry.ppn += nilai;
-    else entry.unifikasi += nilai;
+    const entry = bucket.get(key) ?? {
+      npwp,
+      nama,
+      masa,
+      pph21: 0,
+      pph22: 0,
+      pph23: 0,
+      pphFinal: 0,
+      ppn: 0,
+      depositUmum: 0,
+    };
+    if (kind === "pph21") entry.pph21 += nilai;
+    else if (kind === "pph22") entry.pph22 += nilai;
+    else if (kind === "pph23") entry.pph23 += nilai;
+    else if (kind === "pph_final") entry.pphFinal += nilai;
+    else if (kind === "ppn") entry.ppn += nilai;
+    else entry.depositUmum += nilai;
     bucket.set(key, entry);
   });
 
   bucket.forEach((entry) => {
+    const unifikasi = entry.pph22 + entry.pph23 + entry.pphFinal + entry.depositUmum;
     payload.deposit.push({
       npwp: entry.npwp,
       nama_opd: entry.nama,
       masa_pajak: entry.masa,
       deposit_pph21: entry.pph21,
-      deposit_pph_unifikasi: entry.unifikasi,
+      deposit_pph_unifikasi: unifikasi,
       deposit_ppn_put: entry.ppn,
     });
+    if (entry.pph22 > 0 || entry.pph23 > 0 || entry.pphFinal > 0 || entry.ppn > 0) {
+      const sptMasa = ensureSptMasaRow(payload, entry.npwp, entry.nama, entry.masa);
+      sptMasa.pph22_nominal += entry.pph22;
+      sptMasa.pph23_nominal += entry.pph23 + entry.pphFinal;
+      sptMasa.ppn_put_nominal += entry.ppn;
+    }
     if (entry.pph21 > 0) {
       payload.pph21.push({
         npwp: entry.npwp,
@@ -521,12 +583,14 @@ function normalizePelaporan(sheet: ParsedSheet, payload: ImportPayload, fallback
       if (!npwp && !nama) return;
       const masa = parseMasaPajak(row.pick("masa_pajak"));
       if (!masa) return;
-      const jenis = textValue(row.pick("jenis_spt")).toLowerCase();
+      const kind = pelaporanKindFromJenisSpt(row.pick("jenis_spt"));
       const status = textValue(row.pick("status_pelaporan")) || null;
       const target = ensureSptMasaRow(payload, npwp, nama, masa);
-      if (jenis.includes("ppn")) target.ppn_put_status = status;
-      else if (jenis.includes("unifikasi") || fallbackKind === "unifikasi") target.pph23_status = status;
-      else if (jenis.includes("21") || jenis.includes("26") || fallbackKind === "pph21") target.pph21_status = status;
+      if (kind === "ppn") target.ppn_put_status = status;
+      else if (kind === "unifikasi") setUnifikasiStatus(target, status);
+      else if (kind === "pph21") target.pph21_status = status;
+      else if (fallbackKind === "unifikasi") setUnifikasiStatus(target, status);
+      else target.pph21_status = status;
     });
   });
 }
@@ -621,12 +685,33 @@ function ensureSptMasaRow(payload: ImportPayload, npwp: string | null, nama: str
     npwp,
     nama_opd: nama,
     masa_pajak: masa,
+    pph22_nominal: 0,
+    pph22_status: null,
+    pph23_nominal: 0,
     pph23_status: null,
+    ppn_put_nominal: 0,
     ppn_put_status: null,
     pph21_status: null,
   };
   payload.sptMasa.push(created);
   return created;
+}
+
+function penerimaanKindFromMap(kdMap: string): PenerimaanKind | null {
+  return PENERIMAAN_KIND_BY_MAP[kdMap] ?? null;
+}
+
+function pelaporanKindFromJenisSpt(value: unknown): "pph21" | "unifikasi" | "ppn" | null {
+  const jenis = textValue(value).toLowerCase();
+  if (jenis.includes("ppn")) return "ppn";
+  if (jenis.includes("unifikasi")) return "unifikasi";
+  if (jenis.includes("21") || jenis.includes("26")) return "pph21";
+  return null;
+}
+
+function setUnifikasiStatus(row: ImportPayload["sptMasa"][number], status: string | null) {
+  row.pph22_status = status;
+  row.pph23_status = status;
 }
 
 // ---------------------------------------------------------------------------
