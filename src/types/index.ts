@@ -67,12 +67,26 @@ export type Pph21Record = {
   opd_nama: string;
   wilayah_nama: string;
   ar_nama: string | null;
+  nama_bendahara: string;
   bulan: string;
   jumlah_dipotong: number;
   nominal_setor: number;
   estimasi_wajar: number;
   ketepatan: "tepat_waktu" | "terlambat" | "belum_setor";
   status: "normal" | "under_reporting" | "kritis";
+  status_lapor: string | null;
+};
+
+export type PphMasaJenisSummary = {
+  jenis: string;
+  keterangan: string;
+  wajib_bayar: number;
+  sudah_bayar: number;
+  belum_bayar: number;
+  wajib_lapor: number;
+  sudah_lapor: number;
+  belum_lapor: number;
+  kepatuhan: number;
 };
 
 export type SptMasaRecord = {

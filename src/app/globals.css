@@ -725,6 +725,19 @@ textarea {
   transition: var(--transition);
 }
 
+button.kpi-card {
+  width: 100%;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.kpi-card-clickable:focus-visible {
+  outline: 3px solid rgba(20, 184, 166, 0.28);
+  outline-offset: 3px;
+}
+
 .kpi-card:hover {
   box-shadow: var(--shadow-lg);
   transform: translateY(-1px);

@@ -52,6 +52,12 @@ export function monthLabel(period: string) {
   return date.toLocaleDateString("id-ID", { month: "short", year: "2-digit" });
 }
 
+export function monthFullLabel(period: string) {
+  const [year, month] = period.split("-");
+  const date = new Date(Number(year), Number(month) - 1, 1);
+  return date.toLocaleDateString("id-ID", { month: "long", year: "numeric" });
+}
+
 export function trafficFromPercent(percent: number): TrafficLight {
   if (percent >= 70) return "hijau";
   if (percent >= 40) return "kuning";

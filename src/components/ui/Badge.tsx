@@ -1,6 +1,6 @@
 import { cn } from "@/lib/utils";
 
-type BadgeTone = "green" | "red" | "amber" | "teal" | "navy";
+export type BadgeTone = "green" | "red" | "amber" | "teal" | "navy";
 
 export function Badge({ children, tone = "teal" }: { children: React.ReactNode; tone?: BadgeTone }) {
   return <span className={cn("badge", `badge-${tone}`)}>{children}</span>;

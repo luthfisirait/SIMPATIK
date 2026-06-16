@@ -1,12 +1,12 @@
-import { CalendarPlus, Plus, Presentation, Search } from "lucide-react";
+import { CalendarPlus, Plus, Search } from "lucide-react";
 import { getServerSession } from "next-auth";
 
 import { Badge } from "@/components/ui/Badge";
-import { KpiCard } from "@/components/ui/KpiCard";
+import { KpiListDialog, type KpiDialogCard, type KpiDialogColumn } from "@/components/ui/KpiListDialog";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Pagination } from "@/components/ui/Pagination";
 import { authOptions } from "@/lib/auth";
-import { getWilayah, listAr, listSosialisasi } from "@/lib/queries";
+import { getWilayah, listAr, listSosialisasi, listSosialisasiDialogData } from "@/lib/queries";
 import { firstParam, keepQuery, numericParam, type PageSearchParams } from "@/lib/search";
 import { formatNumber } from "@/lib/utils";
 
@@ -30,8 +30,91 @@ export default async function ModulSosialisasiPage({ searchParams }: { searchPar
   const ar = session?.user.role === "ar" ? session.user.id : firstParam(searchParams, "ar", "all");
   const page = numericParam(searchParams, "page");
   const result = listSosialisasi({ q, wilayah, status, ar, page, pageSize: 12 });
+  const dialogData = listSosialisasiDialogData({ q, wilayah, ar });
   const wilayahOptions = getWilayah();
   const arOptions = listAr();
+  const opdColumns: KpiDialogColumn[] = [
+    { key: "opd", label: "Nama OPD" },
+    { key: "wilayah", label: "Wilayah", className: "td-mono" },
+    { key: "sesi", label: "Sesi" },
+    { key: "peserta", label: "Peserta" },
+    { key: "asn", label: "ASN" },
+    { key: "ar", label: "AR" },
+  ];
+  const sessionColumns: KpiDialogColumn[] = [
+    { key: "opd", label: "Nama OPD" },
+    { key: "tanggal", label: "Tanggal", className: "td-mono" },
+    { key: "peserta", label: "Peserta" },
+    { key: "tema", label: "Tema" },
+    { key: "penyuluh", label: "Penyuluh" },
+    { key: "status", label: "Status" },
+  ];
+  const opdRow = (item: (typeof dialogData.sudah)[number]) => ({
+    id: item.id,
+    cells: {
+      opd: { value: item.nama, strong: true },
+      wilayah: item.wilayah_nama,
+      sesi: formatNumber(item.sesi),
+      peserta: formatNumber(item.peserta),
+      asn: formatNumber(item.jumlah_asn),
+      ar: item.ar_nama ?? "-",
+    },
+  });
+  const sessionRow = (item: (typeof dialogData.sessions)[number]) => ({
+    id: item.id,
+    cells: {
+      opd: { value: item.opd_nama, strong: true },
+      tanggal: item.tanggal,
+      peserta: formatNumber(item.jumlah_peserta),
+      tema: item.tema ?? "-",
+      penyuluh: item.penyuluh_nama ?? "-",
+      status: { value: statusLabel[item.status], tone: statusTone[item.status] },
+    },
+  });
+  const totalPeserta = dialogData.sessions.reduce((sum, item) => sum + item.jumlah_peserta, 0);
+  const sosialisasiDialogCards: KpiDialogCard[] = [
+    {
+      key: "sudah",
+      label: "Sudah Disosialisasi",
+      value: formatNumber(dialogData.sudah.length),
+      sub: "OPD unik",
+      accent: "green",
+      icon: "presentation",
+      columns: opdColumns,
+      rows: dialogData.sudah.map(opdRow),
+    },
+    {
+      key: "belum",
+      label: "Belum Disosialisasi",
+      value: formatNumber(dialogData.belum.length),
+      sub: "Prioritas jadwal berikutnya",
+      accent: "red",
+      icon: "presentation",
+      columns: opdColumns,
+      rows: dialogData.belum.map(opdRow),
+    },
+    {
+      key: "peserta",
+      label: "Total Peserta",
+      value: formatNumber(totalPeserta),
+      sub: "ASN & PPPK terlatih",
+      accent: "teal",
+      icon: "presentation",
+      columns: sessionColumns,
+      rows: dialogData.sessions.map(sessionRow),
+      description: `${formatNumber(totalPeserta)} peserta dari ${formatNumber(dialogData.sessions.length)} sesi`,
+    },
+    {
+      key: "sesi",
+      label: "Sesi Terlaksana",
+      value: formatNumber(dialogData.sessions.length),
+      sub: "Sosialisasi & asistensi",
+      accent: "gold",
+      icon: "presentation",
+      columns: sessionColumns,
+      rows: dialogData.sessions.map(sessionRow),
+    },
+  ];
 
   return (
     <>
@@ -52,12 +135,7 @@ export default async function ModulSosialisasiPage({ searchParams }: { searchPar
         }
       />
 
-      <section className="kpi-grid">
-        <KpiCard label="Sudah Disosialisasi" value={formatNumber(result.summary.sudah)} sub="OPD unik" accent="green" icon={<Presentation size={18} />} />
-        <KpiCard label="Belum Disosialisasi" value={formatNumber(result.summary.belum)} sub="Prioritas jadwal berikutnya" accent="red" icon={<Presentation size={18} />} />
-        <KpiCard label="Total Peserta" value={formatNumber(result.summary.peserta)} sub="ASN & PPPK terlatih" accent="teal" icon={<Presentation size={18} />} />
-        <KpiCard label="Sesi Terlaksana" value={formatNumber(result.summary.sesi)} sub="Sosialisasi & asistensi" accent="gold" icon={<Presentation size={18} />} />
-      </section>
+      <KpiListDialog cards={sosialisasiDialogCards} />
 
       <div className="card">
         <div className="card-header">

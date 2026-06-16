@@ -1,13 +1,13 @@
-import { Download, FileCheck2, Search, Send } from "lucide-react";
+import { Download, Search, Send } from "lucide-react";
 import { getServerSession } from "next-auth";
 import Link from "next/link";
 
 import { Badge, toneForTraffic } from "@/components/ui/Badge";
-import { KpiCard } from "@/components/ui/KpiCard";
+import { KpiListDialog, type KpiDialogCard, type KpiDialogColumn } from "@/components/ui/KpiListDialog";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Pagination } from "@/components/ui/Pagination";
 import { authOptions } from "@/lib/auth";
-import { getWilayah, listAr, listSpt } from "@/lib/queries";
+import { getWilayah, listAr, listSpt, listSptDialogRows } from "@/lib/queries";
 import { firstParam, keepQuery, numericParam, queryString, type PageSearchParams } from "@/lib/search";
 import { formatNumber, formatPercent, monthLabel, trafficLabel } from "@/lib/utils";
 
@@ -19,18 +19,90 @@ export default async function ModulSptPage({ searchParams }: { searchParams?: Pa
   const ar = session?.user.role === "ar" ? session.user.id : firstParam(searchParams, "ar", "all");
   const page = numericParam(searchParams, "page");
   const result = listSpt({ q, wilayah, traffic, ar, page, pageSize: 12 });
+  const dialogRows = listSptDialogRows({ q, wilayah, ar, periode: result.periode });
   const wilayahOptions = getWilayah();
   const arOptions = listAr();
-  const count = (key: string) => result.summary.find((item) => item.status === key)?.total ?? 0;
-  const totalBelum = result.summary.reduce((sum, item) => sum + item.belum_lapor, 0);
   const exportQuery = queryString({ q, wilayah, traffic, ar, periode: result.periode });
   const exportHref = exportQuery ? `/api/export/spt?${exportQuery}` : "/api/export/spt";
+  const sptColumns: KpiDialogColumn[] = [
+    { key: "opd", label: "Nama OPD" },
+    { key: "wilayah", label: "Wilayah", className: "td-mono" },
+    { key: "wajib", label: "Wajib Lapor" },
+    { key: "sudah", label: "Sudah Lapor" },
+    { key: "belum", label: "Belum Lapor" },
+    { key: "persen", label: "%" },
+    { key: "status", label: "Status" },
+    { key: "ar", label: "AR" },
+  ];
+  const sptRow = (item: (typeof dialogRows)[number]) => {
+    const belum = item.jumlah_wajib_lapor - item.jumlah_sudah_lapor;
+
+    return {
+      id: item.id,
+      cells: {
+        opd: { value: item.opd_nama, strong: true },
+        wilayah: item.wilayah_nama,
+        wajib: formatNumber(item.jumlah_wajib_lapor),
+        sudah: formatNumber(item.jumlah_sudah_lapor),
+        belum: formatNumber(belum),
+        persen: { value: formatPercent(item.persen_kepatuhan), strong: true },
+        status: { value: trafficLabel(item.traffic_light), tone: toneForTraffic(item.traffic_light) },
+        ar: item.ar_nama ?? "-",
+      },
+    };
+  };
+  const byTraffic = (key: string) => dialogRows.filter((item) => item.traffic_light === key);
+  const belumRows = dialogRows.filter((item) => item.jumlah_wajib_lapor > item.jumlah_sudah_lapor);
+  const totalBelum = belumRows.reduce((sum, item) => sum + item.jumlah_wajib_lapor - item.jumlah_sudah_lapor, 0);
+  const sptDialogCards: KpiDialogCard[] = [
+    {
+      key: "hijau",
+      label: "OPD Hijau (>70%)",
+      value: formatNumber(byTraffic("hijau").length),
+      sub: "Sesuai filter aktif",
+      accent: "green",
+      icon: "file-check",
+      columns: sptColumns,
+      rows: byTraffic("hijau").map(sptRow),
+    },
+    {
+      key: "kuning",
+      label: "OPD Kuning (40-70%)",
+      value: formatNumber(byTraffic("kuning").length),
+      sub: "Perlu perhatian AR",
+      accent: "gold",
+      icon: "file-check",
+      columns: sptColumns,
+      rows: byTraffic("kuning").map(sptRow),
+    },
+    {
+      key: "merah",
+      label: "OPD Merah (<40%)",
+      value: formatNumber(byTraffic("merah").length),
+      sub: "Prioritas tindak lanjut",
+      accent: "red",
+      icon: "file-check",
+      columns: sptColumns,
+      rows: byTraffic("merah").map(sptRow),
+    },
+    {
+      key: "belum_lapor",
+      label: "Total Belum Lapor",
+      value: formatNumber(totalBelum),
+      sub: `${formatNumber(dialogRows.length)} OPD termonitor`,
+      accent: "teal",
+      icon: "file-check",
+      columns: sptColumns,
+      rows: belumRows.map(sptRow),
+      description: `${formatNumber(totalBelum)} wajib lapor belum menyampaikan SPT pada ${formatNumber(belumRows.length)} OPD`,
+    },
+  ];
 
   return (
     <>
       <PageHeader
         title="Monitoring SPT Tahunan OP ASN & PPPK"
-        description={`Status kepatuhan pelaporan SPT Tahunan PPh OP per OPD untuk ${monthLabel(result.periode)}.`}
+        description="Status kepatuhan pelaporan SPT Tahunan PPh OP per OPD"
         actions={
           <>
             <Link className="btn btn-secondary" href="/action-log/input">
@@ -45,12 +117,7 @@ export default async function ModulSptPage({ searchParams }: { searchParams?: Pa
         }
       />
 
-      <section className="kpi-grid">
-        <KpiCard label="OPD Hijau (>70%)" value={formatNumber(count("hijau"))} sub="Sesuai filter aktif" accent="green" icon={<FileCheck2 size={18} />} />
-        <KpiCard label="OPD Kuning (40-70%)" value={formatNumber(count("kuning"))} sub="Perlu perhatian AR" accent="gold" icon={<FileCheck2 size={18} />} />
-        <KpiCard label="OPD Merah (<40%)" value={formatNumber(count("merah"))} sub="Prioritas tindak lanjut" accent="red" icon={<FileCheck2 size={18} />} />
-        <KpiCard label="Total Belum Lapor" value={formatNumber(totalBelum)} sub={`${formatNumber(result.total)} OPD termonitor`} accent="teal" icon={<FileCheck2 size={18} />} />
-      </section>
+      <KpiListDialog cards={sptDialogCards} />
 
       <div className="card">
         <div className="card-header">

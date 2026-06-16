@@ -8,6 +8,7 @@ import type {
   ImportPayload,
   ImportTemplateKey,
   Notification,
+  PphMasaJenisSummary,
   Opd,
   PegawaiRecord,
   Pph21Record,
@@ -98,6 +99,25 @@ function latestPphMonth() {
     (db().prepare("SELECT MAX(bulan) AS bulan FROM pph21_monitoring").get() as { bulan: string | null }).bulan ??
     "2026-03"
   );
+}
+
+export function listPphMasaPeriods() {
+  const rows = db()
+    .prepare(
+      `
+      SELECT period
+      FROM (
+        SELECT bulan AS period FROM pph21_monitoring
+        UNION
+        SELECT masa_pajak AS period FROM spt_masa_monitoring
+      )
+      WHERE period IS NOT NULL AND period <> ''
+      ORDER BY period DESC
+    `,
+    )
+    .all() as Array<{ period: string }>;
+
+  return rows.length > 0 ? rows.map((row) => row.period) : [latestPphMonth()];
 }
 
 function latestSptMasaPeriod() {
@@ -677,11 +697,56 @@ export function listSpt(params: ListParams & { periode?: string; traffic?: strin
   return { data, summary, total, page, pageSize, pages: Math.ceil(total / pageSize) || 1, periode };
 }
 
+export function listSptDialogRows(params: ListParams & { periode?: string; traffic?: string } = {}) {
+  const database = db();
+  const periode = params.periode ?? latestPeriod();
+  const where = ["s.tahun_pajak = 2025", "s.periode = ?"];
+  const values: Array<string | number> = [periode];
+
+  if (params.q) {
+    where.push("(LOWER(o.nama) LIKE ? OR LOWER(u.nama) LIKE ?)");
+    const q = `%${params.q.toLowerCase()}%`;
+    values.push(q, q);
+  }
+  if (params.wilayah && params.wilayah !== "all") {
+    where.push("w.kode = ?");
+    values.push(params.wilayah);
+  }
+  if (params.traffic && params.traffic !== "all") {
+    where.push("s.traffic_light = ?");
+    values.push(params.traffic);
+  }
+  if (params.ar && params.ar !== "all") {
+    where.push("o.ar_id = ?");
+    values.push(Number(params.ar));
+  }
+
+  return database
+    .prepare(
+      `
+      SELECT s.id, o.id AS opd_id, o.nama AS opd_nama, w.nama AS wilayah_nama, u.nama AS ar_nama,
+        s.tahun_pajak, s.periode, s.jumlah_wajib_lapor, s.jumlah_sudah_lapor,
+        s.persen_kepatuhan, s.traffic_light
+      FROM spt_monitoring s
+      JOIN opd o ON o.id = s.opd_id
+      JOIN wilayah w ON w.id = o.wilayah_id
+      LEFT JOIN users u ON u.id = o.ar_id
+      WHERE ${where.join(" AND ")}
+      ORDER BY s.persen_kepatuhan ASC, o.nama ASC
+      LIMIT 500
+    `,
+    )
+    .all(...values) as SptRecord[];
+}
+
 export function listPph21(params: ListParams & { bulan?: string; pphStatus?: string } = {}) {
   const database = db();
   const bulan = params.bulan ?? latestPphMonth();
   const where = ["p.bulan = ?"];
   const values: Array<string | number> = [bulan];
+  const laporValue = "LOWER(COALESCE(m.pph21_status, ''))";
+  const laporTepat = `(${laporValue} LIKE '%tepat%' OR ${laporValue} LIKE '%normal%' OR ${laporValue} LIKE '%submitted%')`;
+  const laporSudah = `(${laporTepat} OR ${laporValue} LIKE '%terlambat%')`;
 
   if (params.q) {
     where.push("LOWER(o.nama) LIKE ?");
@@ -693,8 +758,24 @@ export function listPph21(params: ListParams & { bulan?: string; pphStatus?: str
     values.push(params.wilayah);
   }
   if (params.pphStatus && params.pphStatus !== "all") {
-    where.push("p.status = ?");
-    values.push(params.pphStatus);
+    switch (params.pphStatus) {
+      case "lengkap":
+        where.push(`p.ketepatan = 'tepat_waktu' AND ${laporTepat}`);
+        break;
+      case "terlambat":
+        where.push(`(p.ketepatan = 'terlambat' OR ${laporValue} LIKE '%terlambat%')`);
+        break;
+      case "belum_bayar":
+        where.push("p.ketepatan = 'belum_setor'");
+        break;
+      case "belum_lapor":
+        where.push(`NOT ${laporSudah}`);
+        break;
+      default:
+        where.push("p.status = ?");
+        values.push(params.pphStatus);
+        break;
+    }
   }
   if (params.ar && params.ar !== "all") {
     where.push("o.ar_id = ?");
@@ -713,6 +794,7 @@ export function listPph21(params: ListParams & { bulan?: string; pphStatus?: str
         FROM pph21_monitoring p
         JOIN opd o ON o.id = p.opd_id
         JOIN wilayah w ON w.id = o.wilayah_id
+        LEFT JOIN spt_masa_monitoring m ON m.opd_id = p.opd_id AND m.masa_pajak = p.bulan
         ${clause}
       `,
       )
@@ -723,13 +805,22 @@ export function listPph21(params: ListParams & { bulan?: string; pphStatus?: str
     .prepare(
       `
       SELECT p.id, o.id AS opd_id, o.nama AS opd_nama, w.nama AS wilayah_nama, u.nama AS ar_nama,
-        p.bulan, p.jumlah_dipotong, p.nominal_setor, p.estimasi_wajar, p.ketepatan, p.status
+        o.nama_bendahara, p.bulan, p.jumlah_dipotong, p.nominal_setor, p.estimasi_wajar,
+        p.ketepatan, p.status, m.pph21_status AS status_lapor
       FROM pph21_monitoring p
       JOIN opd o ON o.id = p.opd_id
       JOIN wilayah w ON w.id = o.wilayah_id
       LEFT JOIN users u ON u.id = o.ar_id
+      LEFT JOIN spt_masa_monitoring m ON m.opd_id = p.opd_id AND m.masa_pajak = p.bulan
       ${clause}
-      ORDER BY CASE p.status WHEN 'kritis' THEN 1 WHEN 'under_reporting' THEN 2 ELSE 3 END, o.nama
+      ORDER BY
+        CASE
+          WHEN p.ketepatan = 'belum_setor' OR NOT ${laporSudah} THEN 1
+          WHEN p.ketepatan = 'terlambat' OR ${laporValue} LIKE '%terlambat%' THEN 2
+          WHEN p.status = 'under_reporting' THEN 3
+          ELSE 4
+        END,
+        o.nama
       LIMIT ? OFFSET ?
     `,
     )
@@ -740,18 +831,146 @@ export function listPph21(params: ListParams & { bulan?: string; pphStatus?: str
     .prepare(
       `
       SELECT
-        COALESCE(SUM(CASE WHEN p.ketepatan = 'tepat_waktu' THEN 1 ELSE 0 END), 0) AS tepat,
-        COALESCE(SUM(CASE WHEN p.ketepatan != 'tepat_waktu' THEN 1 ELSE 0 END), 0) AS belum,
+        COALESCE(SUM(CASE WHEN p.ketepatan = 'tepat_waktu' AND ${laporTepat} THEN 1 ELSE 0 END), 0) AS lengkap,
+        COALESCE(SUM(CASE WHEN p.ketepatan != 'tepat_waktu' THEN 1 ELSE 0 END), 0) AS bayar_bermasalah,
+        COALESCE(SUM(CASE WHEN p.ketepatan != 'belum_setor' AND NOT ${laporSudah} THEN 1 ELSE 0 END), 0) AS sudah_bayar_belum_lapor,
         COALESCE(SUM(CASE WHEN p.status = 'under_reporting' THEN 1 ELSE 0 END), 0) AS under_reporting,
-        COALESCE(SUM(p.nominal_setor), 0) AS total_setor
+        COALESCE(SUM(p.nominal_setor), 0) AS total_setor,
+        COALESCE(SUM(p.estimasi_wajar), 0) AS total_estimasi,
+        COUNT(*) AS total_opd
       FROM pph21_monitoring p
       JOIN opd o ON o.id = p.opd_id
+      LEFT JOIN spt_masa_monitoring m ON m.opd_id = p.opd_id AND m.masa_pajak = p.bulan
       WHERE p.bulan = ? AND (? IS NULL OR o.ar_id = ?)
     `,
     )
-    .get(bulan, arFilter, arFilter) as { tepat: number; belum: number; under_reporting: number; total_setor: number };
+    .get(bulan, arFilter, arFilter) as {
+    lengkap: number;
+    bayar_bermasalah: number;
+    sudah_bayar_belum_lapor: number;
+    under_reporting: number;
+    total_setor: number;
+    total_estimasi: number;
+    total_opd: number;
+  };
 
-  return { data, summary, total, page, pageSize, pages: Math.ceil(total / pageSize) || 1, bulan };
+  const pph21Jenis = database
+    .prepare(
+      `
+      SELECT
+        'PPh Pasal 21' AS jenis,
+        'Pemotongan gaji ASN/PPPK' AS keterangan,
+        COUNT(*) AS wajib_bayar,
+        COALESCE(SUM(CASE WHEN p.ketepatan != 'belum_setor' THEN 1 ELSE 0 END), 0) AS sudah_bayar,
+        COALESCE(SUM(CASE WHEN p.ketepatan = 'belum_setor' THEN 1 ELSE 0 END), 0) AS belum_bayar,
+        COUNT(*) AS wajib_lapor,
+        COALESCE(SUM(CASE WHEN ${laporSudah} THEN 1 ELSE 0 END), 0) AS sudah_lapor,
+        COALESCE(SUM(CASE WHEN NOT ${laporSudah} THEN 1 ELSE 0 END), 0) AS belum_lapor,
+        COALESCE(
+          ROUND(
+            100.0 * SUM(CASE WHEN p.ketepatan != 'belum_setor' AND ${laporSudah} THEN 1 ELSE 0 END) / NULLIF(COUNT(*), 0),
+            1
+          ),
+          0
+        ) AS kepatuhan
+      FROM pph21_monitoring p
+      JOIN opd o ON o.id = p.opd_id
+      LEFT JOIN spt_masa_monitoring m ON m.opd_id = p.opd_id AND m.masa_pajak = p.bulan
+      WHERE p.bulan = ? AND (? IS NULL OR o.ar_id = ?)
+    `,
+    )
+    .get(bulan, arFilter, arFilter) as PphMasaJenisSummary;
+
+  function sptMasaJenisSummary(
+    jenis: string,
+    keterangan: string,
+    nominalColumn: "pph22_nominal" | "pph23_nominal" | "ppn_put_nominal",
+    statusColumn: "pph22_status" | "pph23_status" | "ppn_put_status",
+  ) {
+    const statusValue = `LOWER(COALESCE(m.${statusColumn}, ''))`;
+    const statusSudah = `(${statusValue} LIKE '%tepat%' OR ${statusValue} LIKE '%normal%' OR ${statusValue} LIKE '%submitted%' OR ${statusValue} LIKE '%terlambat%')`;
+    const paid = `(COALESCE(m.${nominalColumn}, 0) > 0 OR ${statusSudah})`;
+
+    return database
+      .prepare(
+        `
+        SELECT
+          ? AS jenis,
+          ? AS keterangan,
+          COUNT(*) AS wajib_bayar,
+          COALESCE(SUM(CASE WHEN ${paid} THEN 1 ELSE 0 END), 0) AS sudah_bayar,
+          COALESCE(SUM(CASE WHEN NOT ${paid} THEN 1 ELSE 0 END), 0) AS belum_bayar,
+          COUNT(*) AS wajib_lapor,
+          COALESCE(SUM(CASE WHEN ${statusSudah} THEN 1 ELSE 0 END), 0) AS sudah_lapor,
+          COALESCE(SUM(CASE WHEN NOT ${statusSudah} THEN 1 ELSE 0 END), 0) AS belum_lapor,
+          COALESCE(
+            ROUND(
+              100.0 * SUM(CASE WHEN ${paid} AND ${statusSudah} THEN 1 ELSE 0 END) / NULLIF(COUNT(*), 0),
+              1
+            ),
+            0
+          ) AS kepatuhan
+        FROM spt_masa_monitoring m
+        JOIN opd o ON o.id = m.opd_id
+        WHERE m.masa_pajak = ? AND (? IS NULL OR o.ar_id = ?)
+      `,
+      )
+      .get(jenis, keterangan, bulan, arFilter, arFilter) as PphMasaJenisSummary;
+  }
+
+  const jenisSummary = [
+    pph21Jenis,
+    sptMasaJenisSummary("PPh Pasal 22", "Pengadaan barang/jasa", "pph22_nominal", "pph22_status"),
+    sptMasaJenisSummary("PPh Pasal 23/26", "Jasa dan sewa", "pph23_nominal", "pph23_status"),
+    sptMasaJenisSummary("PPN 1107 PUT", "Pemungutan PPN oleh OPD pemungut", "ppn_put_nominal", "ppn_put_status"),
+  ];
+
+  return { data, summary, jenisSummary, total, page, pageSize, pages: Math.ceil(total / pageSize) || 1, bulan };
+}
+
+export function listPph21DialogRows(params: ListParams & { bulan?: string } = {}) {
+  const database = db();
+  const bulan = params.bulan ?? latestPphMonth();
+  const where = ["p.bulan = ?"];
+  const values: Array<string | number> = [bulan];
+
+  if (params.q) {
+    where.push("LOWER(o.nama) LIKE ?");
+    values.push(`%${params.q.toLowerCase()}%`);
+  }
+  if (params.wilayah && params.wilayah !== "all") {
+    where.push("w.kode = ?");
+    values.push(params.wilayah);
+  }
+  if (params.ar && params.ar !== "all") {
+    where.push("o.ar_id = ?");
+    values.push(Number(params.ar));
+  }
+
+  return database
+    .prepare(
+      `
+      SELECT p.id, o.id AS opd_id, o.nama AS opd_nama, w.nama AS wilayah_nama, u.nama AS ar_nama,
+        o.nama_bendahara, p.bulan, p.jumlah_dipotong, p.nominal_setor, p.estimasi_wajar,
+        p.ketepatan, p.status, m.pph21_status AS status_lapor
+      FROM pph21_monitoring p
+      JOIN opd o ON o.id = p.opd_id
+      JOIN wilayah w ON w.id = o.wilayah_id
+      LEFT JOIN users u ON u.id = o.ar_id
+      LEFT JOIN spt_masa_monitoring m ON m.opd_id = p.opd_id AND m.masa_pajak = p.bulan
+      WHERE ${where.join(" AND ")}
+      ORDER BY
+        CASE
+          WHEN p.ketepatan = 'belum_setor' THEN 1
+          WHEN p.ketepatan = 'terlambat' THEN 2
+          WHEN p.status = 'under_reporting' THEN 3
+          ELSE 4
+        END,
+        o.nama
+      LIMIT 500
+    `,
+    )
+    .all(...values) as Pph21Record[];
 }
 
 export function listSptMasa(params: ListParams & { masa?: string; overallStatus?: string } = {}) {
@@ -834,6 +1053,50 @@ export function listSptMasa(params: ListParams & { masa?: string; overallStatus?
   return { data, summary, total, page, pageSize, pages: Math.ceil(total / pageSize) || 1, masa };
 }
 
+export function listSptMasaDialogRows(params: ListParams & { masa?: string; overallStatus?: string } = {}) {
+  const database = db();
+  const masa = params.masa ?? latestSptMasaPeriod();
+  const where = ["m.masa_pajak = ?"];
+  const values: Array<string | number> = [masa];
+
+  if (params.q) {
+    where.push("(LOWER(o.nama) LIKE ? OR LOWER(u.nama) LIKE ?)");
+    const q = `%${params.q.toLowerCase()}%`;
+    values.push(q, q);
+  }
+  if (params.wilayah && params.wilayah !== "all") {
+    where.push("w.kode = ?");
+    values.push(params.wilayah);
+  }
+  if (params.overallStatus && params.overallStatus !== "all") {
+    where.push("LOWER(m.status_keseluruhan) = ?");
+    values.push(params.overallStatus.toLowerCase());
+  }
+  if (params.ar && params.ar !== "all") {
+    where.push("o.ar_id = ?");
+    values.push(Number(params.ar));
+  }
+
+  return database
+    .prepare(
+      `
+      SELECT m.id, o.id AS opd_id, o.nama AS opd_nama, w.nama AS wilayah_nama, u.nama AS ar_nama,
+        m.masa_pajak, m.pph21_status, m.pph22_nominal, m.pph22_status, m.pph23_nominal, m.pph23_status,
+        m.ppn_put_nominal, m.ppn_put_status, m.status_opd_pemungut,
+        LOWER(COALESCE(m.status_keseluruhan, 'merah')) AS status_keseluruhan,
+        m.catatan_ar
+      FROM spt_masa_monitoring m
+      JOIN opd o ON o.id = m.opd_id
+      JOIN wilayah w ON w.id = o.wilayah_id
+      LEFT JOIN users u ON u.id = o.ar_id
+      WHERE ${where.join(" AND ")}
+      ORDER BY CASE LOWER(m.status_keseluruhan) WHEN 'merah' THEN 1 WHEN 'kuning' THEN 2 ELSE 3 END, o.nama
+      LIMIT 500
+    `,
+    )
+    .all(...values) as SptMasaRecord[];
+}
+
 export function listDeposit(params: ListParams & { masa?: string; overallStatus?: string } = {}) {
   const database = db();
   const masa = params.masa ?? latestDepositPeriod();
@@ -911,6 +1174,49 @@ export function listDeposit(params: ListParams & { masa?: string; overallStatus?
     .all(masa, arFilter, arFilter) as Array<{ status: string; total: number; nominal: number }>;
 
   return { data, summary, total, page, pageSize, pages: Math.ceil(total / pageSize) || 1, masa };
+}
+
+export function listDepositDialogRows(params: ListParams & { masa?: string; overallStatus?: string } = {}) {
+  const database = db();
+  const masa = params.masa ?? latestDepositPeriod();
+  const where = ["d.masa_pajak = ?"];
+  const values: Array<string | number> = [masa];
+
+  if (params.q) {
+    where.push("(LOWER(o.nama) LIKE ? OR LOWER(u.nama) LIKE ?)");
+    const q = `%${params.q.toLowerCase()}%`;
+    values.push(q, q);
+  }
+  if (params.wilayah && params.wilayah !== "all") {
+    where.push("w.kode = ?");
+    values.push(params.wilayah);
+  }
+  if (params.overallStatus && params.overallStatus !== "all") {
+    where.push("LOWER(d.status_deposit_overall) = ?");
+    values.push(params.overallStatus.toLowerCase());
+  }
+  if (params.ar && params.ar !== "all") {
+    where.push("o.ar_id = ?");
+    values.push(Number(params.ar));
+  }
+
+  return database
+    .prepare(
+      `
+      SELECT d.id, o.id AS opd_id, o.nama AS opd_nama, w.nama AS wilayah_nama, u.nama AS ar_nama,
+        d.masa_pajak, d.deposit_pph21, d.status_pph21, d.deposit_pph_unifikasi, d.status_unifikasi,
+        d.deposit_ppn_put, d.status_ppn_put, d.total_deposit,
+        LOWER(COALESCE(d.status_deposit_overall, 'merah')) AS status_deposit_overall
+      FROM deposit_monitoring d
+      JOIN opd o ON o.id = d.opd_id
+      JOIN wilayah w ON w.id = o.wilayah_id
+      LEFT JOIN users u ON u.id = o.ar_id
+      WHERE ${where.join(" AND ")}
+      ORDER BY CASE LOWER(d.status_deposit_overall) WHEN 'merah' THEN 1 WHEN 'kuning' THEN 2 ELSE 3 END, d.total_deposit ASC, o.nama
+      LIMIT 500
+    `,
+    )
+    .all(...values) as DepositRecord[];
 }
 
 export function listScoring(params: ListParams & { bulan?: string; kategori?: string; statusRp?: string } = {}) {
@@ -1175,6 +1481,98 @@ export function listSosialisasi(params: ListParams = {}) {
     pageSize,
     pages: Math.ceil(total / pageSize) || 1,
   };
+}
+
+export type SosialisasiOpdDialogRow = {
+  id: number;
+  nama: string;
+  wilayah_nama: string;
+  ar_nama: string | null;
+  jumlah_asn: number;
+  sesi: number;
+  peserta: number;
+};
+
+export function listSosialisasiDialogData(params: ListParams = {}) {
+  const database = db();
+  const sessionWhere: string[] = [];
+  const sessionValues: Array<string | number> = [];
+  const opdWhere: string[] = [];
+  const opdValues: Array<string | number> = [];
+
+  if (params.q) {
+    const q = `%${params.q.toLowerCase()}%`;
+    sessionWhere.push("(LOWER(o.nama) LIKE ? OR LOWER(p.nama) LIKE ?)");
+    sessionValues.push(q, q);
+    opdWhere.push("(LOWER(o.nama) LIKE ? OR LOWER(ar.nama) LIKE ?)");
+    opdValues.push(q, q);
+  }
+  if (params.wilayah && params.wilayah !== "all") {
+    sessionWhere.push("w.kode = ?");
+    sessionValues.push(params.wilayah);
+    opdWhere.push("w.kode = ?");
+    opdValues.push(params.wilayah);
+  }
+  if (params.ar && params.ar !== "all") {
+    sessionWhere.push("o.ar_id = ?");
+    sessionValues.push(Number(params.ar));
+    opdWhere.push("o.ar_id = ?");
+    opdValues.push(Number(params.ar));
+  }
+
+  const sessionClause = sessionWhere.length ? `WHERE ${sessionWhere.join(" AND ")}` : "";
+  const opdBaseClause = opdWhere.length ? `AND ${opdWhere.join(" AND ")}` : "";
+
+  const sessions = database
+    .prepare(
+      `
+      SELECT s.id, o.id AS opd_id, o.nama AS opd_nama, w.nama AS wilayah_nama,
+        s.tanggal, s.jumlah_peserta, s.penyuluh_id, p.nama AS penyuluh_nama, s.status,
+        s.tempat, s.tema
+      FROM sosialisasi s
+      JOIN opd o ON o.id = s.opd_id
+      JOIN wilayah w ON w.id = o.wilayah_id
+      LEFT JOIN users p ON p.id = s.penyuluh_id
+      ${sessionClause}
+      ORDER BY s.tanggal DESC, o.nama
+      LIMIT 500
+    `,
+    )
+    .all(...sessionValues) as SosialisasiRecord[];
+
+  const sudah = database
+    .prepare(
+      `
+      SELECT o.id, o.nama, w.nama AS wilayah_nama, ar.nama AS ar_nama, o.jumlah_asn,
+        COUNT(s.id) AS sesi, COALESCE(SUM(s.jumlah_peserta), 0) AS peserta
+      FROM opd o
+      JOIN wilayah w ON w.id = o.wilayah_id
+      LEFT JOIN users ar ON ar.id = o.ar_id
+      JOIN sosialisasi s ON s.opd_id = o.id
+      WHERE 1 = 1 ${opdBaseClause}
+      GROUP BY o.id, o.nama, w.nama, ar.nama, o.jumlah_asn
+      ORDER BY sesi DESC, peserta DESC, o.nama
+      LIMIT 500
+    `,
+    )
+    .all(...opdValues) as SosialisasiOpdDialogRow[];
+
+  const belum = database
+    .prepare(
+      `
+      SELECT o.id, o.nama, w.nama AS wilayah_nama, ar.nama AS ar_nama, o.jumlah_asn,
+        0 AS sesi, 0 AS peserta
+      FROM opd o
+      JOIN wilayah w ON w.id = o.wilayah_id
+      LEFT JOIN users ar ON ar.id = o.ar_id
+      WHERE NOT EXISTS (SELECT 1 FROM sosialisasi s WHERE s.opd_id = o.id) ${opdBaseClause}
+      ORDER BY o.jumlah_asn DESC, o.nama
+      LIMIT 500
+    `,
+    )
+    .all(...opdValues) as SosialisasiOpdDialogRow[];
+
+  return { sessions, sudah, belum };
 }
 
 export function createSosialisasi(payload: {
