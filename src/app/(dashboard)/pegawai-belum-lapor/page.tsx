@@ -7,7 +7,7 @@ import { KpiCard } from "@/components/ui/KpiCard";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Pagination } from "@/components/ui/Pagination";
 import { authOptions } from "@/lib/auth";
-import { getWilayah, listAr, listPegawai } from "@/lib/queries";
+import { getWilayah, listAr, listOpdOptions, listPegawai } from "@/lib/queries";
 import { firstParam, keepQuery, numericParam, queryString, type PageSearchParams } from "@/lib/search";
 import { formatNumber, formatPercent } from "@/lib/utils";
 
@@ -29,16 +29,19 @@ export default async function PegawaiBelumLaporPage({ searchParams }: { searchPa
   const wilayah = firstParam(searchParams, "wilayah", "all");
   const status = firstParam(searchParams, "status", "all");
   const ar = session?.user.role === "ar" ? session.user.id : firstParam(searchParams, "ar", "all");
+  const opd = firstParam(searchParams, "opd", "all");
   const page = numericParam(searchParams, "page");
-  const result = listPegawai({ q, wilayah, status, ar, page, pageSize: 12, includeSudah: true });
+  const result = listPegawai({ q, wilayah, status, ar, opd, page, pageSize: 12, includeSudah: true });
   const wilayahOptions = getWilayah();
   const arOptions = listAr();
+  const opdOptions = listOpdOptions(session?.user.role === "ar" ? { ar } : {});
+  const selectedOpd = opdOptions.find((item) => String(item.id) === opd);
   const statusCount = (key: string) => result.summary.find((item) => item.status === key)?.total ?? 0;
   const sudah = statusCount("sudah_lapor");
   const belum = statusCount("aktif_belum_lapor") + statusCount("belum_aktivasi");
   const totalPegawai = sudah + belum;
   const kepatuhan = totalPegawai === 0 ? 0 : (sudah * 100) / totalPegawai;
-  const exportQuery = queryString({ q, wilayah, status, ar });
+  const exportQuery = queryString({ q, wilayah, status, ar, opd });
   const exportHref = exportQuery ? `/api/export/pegawai?${exportQuery}` : "/api/export/pegawai";
 
   return (
@@ -71,6 +74,14 @@ export default async function PegawaiBelumLaporPage({ searchParams }: { searchPa
         <div className="card-header">
           <form className="filter-bar">
             <input className="search-input" name="q" placeholder="Cari nama, NIP, OPD, atau AR" defaultValue={q} style={{ maxWidth: 280 }} />
+            <select className="search-input" name="opd" defaultValue={opd} style={{ maxWidth: 280 }}>
+              <option value="all">Semua OPD</option>
+              {opdOptions.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.nama}
+                </option>
+              ))}
+            </select>
             <select className="search-input" name="wilayah" defaultValue={wilayah} style={{ maxWidth: 220 }}>
               <option value="all">Semua wilayah</option>
               {wilayahOptions.map((item) => (
@@ -99,6 +110,7 @@ export default async function PegawaiBelumLaporPage({ searchParams }: { searchPa
             </button>
           </form>
           <div className="toolbar">
+            {selectedOpd ? <Badge tone="teal">OPD: {selectedOpd.nama}</Badge> : null}
             <Badge tone="green">{formatNumber(sudah)} Sudah</Badge>
             <Badge tone="red">{formatNumber(belum)} Belum</Badge>
           </div>
@@ -149,7 +161,7 @@ export default async function PegawaiBelumLaporPage({ searchParams }: { searchPa
           <span className="muted">
             Menampilkan {formatNumber(result.data.length)} dari {formatNumber(result.total)} pegawai
           </span>
-          <Pagination page={result.page} pages={result.pages} basePath="/pegawai-belum-lapor" query={keepQuery({ q, wilayah, status, ar })} />
+          <Pagination page={result.page} pages={result.pages} basePath="/pegawai-belum-lapor" query={keepQuery({ q, wilayah, status, ar, opd })} />
         </div>
       </div>
     </>

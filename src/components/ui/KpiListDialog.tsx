@@ -1,6 +1,7 @@
 "use client";
 
 import { ClipboardCheck, FileCheck2, Presentation, ReceiptText, X } from "lucide-react";
+import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import { Badge, type BadgeTone } from "@/components/ui/Badge";
@@ -19,6 +20,8 @@ export type KpiDialogCell = {
   tone?: BadgeTone;
   strong?: boolean;
   className?: string;
+  href?: string;
+  buttonLabel?: string;
 };
 
 export type KpiDialogRow = {
@@ -121,7 +124,17 @@ export function KpiListDialog({ cards }: { cards: KpiDialogCard[] }) {
                         <tr key={row.id}>
                           {activeCard.columns.map((column) => {
                             const cell = cellValue(row.cells[column.key] ?? "-");
-                            const content = cell.tone ? <Badge tone={cell.tone}>{cell.value}</Badge> : cell.strong ? <strong>{cell.value}</strong> : cell.value;
+                            const content = cell.href ? (
+                              <Link className="btn btn-ghost btn-sm" href={cell.href}>
+                                {cell.buttonLabel ?? cell.value}
+                              </Link>
+                            ) : cell.tone ? (
+                              <Badge tone={cell.tone}>{cell.value}</Badge>
+                            ) : cell.strong ? (
+                              <strong>{cell.value}</strong>
+                            ) : (
+                              cell.value
+                            );
 
                             return (
                               <td key={column.key} className={cell.className ?? column.className}>

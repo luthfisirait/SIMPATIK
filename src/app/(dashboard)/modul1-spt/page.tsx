@@ -1,4 +1,4 @@
-import { Download, Search, Send } from "lucide-react";
+import { Download, Eye, Search, Send } from "lucide-react";
 import { getServerSession } from "next-auth";
 import Link from "next/link";
 
@@ -9,7 +9,11 @@ import { Pagination } from "@/components/ui/Pagination";
 import { authOptions } from "@/lib/auth";
 import { getWilayah, listAr, listSpt, listSptDialogRows } from "@/lib/queries";
 import { firstParam, keepQuery, numericParam, queryString, type PageSearchParams } from "@/lib/search";
-import { formatNumber, formatPercent, monthLabel, trafficLabel } from "@/lib/utils";
+import { formatNumber, formatPercent, trafficLabel } from "@/lib/utils";
+
+function pegawaiDetailHref(opdId: number) {
+  return `/pegawai-belum-lapor?opd=${opdId}`;
+}
 
 export default async function ModulSptPage({ searchParams }: { searchParams?: PageSearchParams }) {
   const session = await getServerSession(authOptions);
@@ -33,6 +37,7 @@ export default async function ModulSptPage({ searchParams }: { searchParams?: Pa
     { key: "persen", label: "%" },
     { key: "status", label: "Status" },
     { key: "ar", label: "AR" },
+    { key: "aksi", label: "Aksi" },
   ];
   const sptRow = (item: (typeof dialogRows)[number]) => {
     const belum = item.jumlah_wajib_lapor - item.jumlah_sudah_lapor;
@@ -48,6 +53,7 @@ export default async function ModulSptPage({ searchParams }: { searchParams?: Pa
         persen: { value: formatPercent(item.persen_kepatuhan), strong: true },
         status: { value: trafficLabel(item.traffic_light), tone: toneForTraffic(item.traffic_light) },
         ar: item.ar_nama ?? "-",
+        aksi: { value: "Lihat detail", buttonLabel: "Detail", href: pegawaiDetailHref(item.opd_id) },
       },
     };
   };
@@ -200,8 +206,9 @@ export default async function ModulSptPage({ searchParams }: { searchParams?: Pa
                       </td>
                       <td>{item.ar_nama ?? "-"}</td>
                       <td>
-                        <Link className="btn btn-ghost btn-sm" href="/pegawai-belum-lapor">
-                          Rincian
+                        <Link className="btn btn-ghost btn-sm" href={pegawaiDetailHref(item.opd_id)}>
+                          <Eye size={14} />
+                          Detail
                         </Link>
                       </td>
                     </tr>

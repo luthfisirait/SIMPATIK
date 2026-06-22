@@ -49,6 +49,8 @@ const apiRules: ApiRule[] = [
   { prefix: "/api/pegawai", roles: OPERATIONAL_ROLES },
   { prefix: "/api/action-log", methods: ["GET"], roles: ALL_ROLES },
   { prefix: "/api/action-log", methods: ["POST"], roles: ["kasiwas", "ar", "teknisi"] },
+  { prefix: "/api/users/", methods: ["GET", "PUT", "DELETE"], roles: ["kasiwas"] },
+  { prefix: "/api/users", methods: ["GET", "POST"], roles: ["kasiwas"] },
   { prefix: "/api/ar", methods: ["GET"], roles: ALL_ROLES },
   { prefix: "/api/ar", methods: ["POST"], roles: ["kasiwas"] },
   { prefix: "/api/export/pegawai", roles: OPERATIONAL_ROLES },

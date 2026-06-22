@@ -26,6 +26,7 @@ type ListParams = {
   wilayah?: string;
   status?: string;
   ar?: string;
+  opd?: string;
   page?: number;
   pageSize?: number;
   includeSudah?: boolean;
@@ -1601,15 +1602,21 @@ export function listPegawai(params: ListParams = {}) {
   const offset = (page - 1) * pageSize;
   const where = params.includeSudah ? [] : ["p.status_coretax != 'sudah_lapor'"];
   const values: Array<string | number> = [];
+  const summaryWhere: string[] = [];
+  const summaryValues: Array<string | number> = [];
 
   if (params.q) {
     where.push("(LOWER(p.nama) LIKE ? OR p.nip LIKE ? OR LOWER(o.nama) LIKE ? OR LOWER(u.nama) LIKE ?)");
+    summaryWhere.push("(LOWER(p.nama) LIKE ? OR p.nip LIKE ? OR LOWER(o.nama) LIKE ? OR LOWER(u.nama) LIKE ?)");
     const q = `%${params.q.toLowerCase()}%`;
     values.push(q, `%${params.q}%`, q, q);
+    summaryValues.push(q, `%${params.q}%`, q, q);
   }
   if (params.wilayah && params.wilayah !== "all") {
     where.push("w.kode = ?");
+    summaryWhere.push("w.kode = ?");
     values.push(params.wilayah);
+    summaryValues.push(params.wilayah);
   }
   if (params.status && params.status !== "all") {
     where.push("p.status_coretax = ?");
@@ -1617,10 +1624,22 @@ export function listPegawai(params: ListParams = {}) {
   }
   if (params.ar && params.ar !== "all") {
     where.push("o.ar_id = ?");
+    summaryWhere.push("o.ar_id = ?");
     values.push(Number(params.ar));
+    summaryValues.push(Number(params.ar));
+  }
+  if (params.opd && params.opd !== "all") {
+    const opdId = Number(params.opd);
+    if (Number.isFinite(opdId) && opdId > 0) {
+      where.push("o.id = ?");
+      summaryWhere.push("o.id = ?");
+      values.push(opdId);
+      summaryValues.push(opdId);
+    }
   }
 
   const clause = where.length > 0 ? `WHERE ${where.join(" AND ")}` : "";
+  const summaryClause = summaryWhere.length > 0 ? `WHERE ${summaryWhere.join(" AND ")}` : "";
   const total = (
     database
       .prepare(
@@ -1660,11 +1679,13 @@ export function listPegawai(params: ListParams = {}) {
       SELECT p.status_coretax AS status, COUNT(*) AS total
       FROM pegawai p
       JOIN opd o ON o.id = p.opd_id
-      WHERE (? IS NULL OR o.ar_id = ?)
+      JOIN wilayah w ON w.id = o.wilayah_id
+      LEFT JOIN users u ON u.id = o.ar_id
+      ${summaryClause}
       GROUP BY p.status_coretax
     `,
     )
-    .all(arFilter, arFilter) as Array<{ status: string; total: number }>;
+    .all(...summaryValues) as Array<{ status: string; total: number }>;
 
   return { data, summary, total, page, pageSize, pages: Math.ceil(total / pageSize) || 1 };
 }

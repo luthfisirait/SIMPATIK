@@ -18,6 +18,7 @@ export async function GET(request: Request) {
       wilayah: searchParams.get("wilayah") ?? undefined,
       status: searchParams.get("status") ?? undefined,
       ar,
+      opd: searchParams.get("opd") ?? undefined,
       page: Number(searchParams.get("page") ?? 1),
       pageSize: Number(searchParams.get("pageSize") ?? 12),
     }),

@@ -132,11 +132,14 @@ export type UserWritePayload = {
 export function validateUserPayload(input: unknown, options: { requirePassword?: boolean } = {}): ValidationResult<UserWritePayload> {
   const source = record(input);
   const errors: string[] = [];
-  const email = requiredText(source, "email", "Email", errors).toLowerCase();
+  const email = requiredText(source, "email", "Username / email", errors).toLowerCase();
   const password = text(source.password);
 
-  if (email && !validEmail(email)) {
+  if (email && email.includes("@") && !validEmail(email)) {
     errors.push("Email tidak valid.");
+  }
+  if (email && !email.includes("@") && !/^[a-z0-9._-]{3,40}$/.test(email)) {
+    errors.push("Username hanya boleh berisi huruf kecil, angka, titik, garis bawah, atau tanda hubung; minimal 3 karakter.");
   }
   if (options.requirePassword && password.length < 8) {
     errors.push("Password minimal 8 karakter.");

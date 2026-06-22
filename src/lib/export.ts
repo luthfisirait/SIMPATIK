@@ -221,8 +221,7 @@ export function exportDataset(dataset: string, params: URLSearchParams) {
   }
 
   if (dataset === "pegawai") {
-    const { clause, values } = filteredClause(params, { wilayah: "w.kode", status: "p.status_coretax", ar: "o.ar_id" });
-    const prefix = clause ? `${clause} AND` : "WHERE";
+    const { clause, values } = filteredClause(params, { wilayah: "w.kode", status: "p.status_coretax", ar: "o.ar_id", opd: "o.id" });
     return db
       .prepare(
         `
@@ -232,7 +231,7 @@ export function exportDataset(dataset: string, params: URLSearchParams) {
         JOIN opd o ON o.id = p.opd_id
         JOIN wilayah w ON w.id = o.wilayah_id
         LEFT JOIN users u ON u.id = o.ar_id
-        ${prefix} p.status_coretax != 'sudah_lapor'
+        ${clause}
         ORDER BY w.id, o.nama, p.nama
       `,
       )
