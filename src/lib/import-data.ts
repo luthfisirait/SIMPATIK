@@ -129,6 +129,7 @@ const MASTERFILE_HEADERS = [
   "NO_PROD_NE",
   "FLAG_WP_TUNGGAL",
   "DW_PROCESS_DATE",
+  "WILAYAH_OPD",
 ];
 
 const TEMPLATE_SPECS: Record<ImportTemplateKey, TemplateSpec> = {
@@ -195,6 +196,7 @@ const TEMPLATE_SPECS: Record<ImportTemplateKey, TemplateSpec> = {
         "",
         "TUNGGAL",
         "2026/06/03 00:00:00.000",
+        "Kabupaten Padang Pariaman",
       ],
     ],
   },
@@ -482,11 +484,12 @@ function normalizeMasterfile(sheet: ParsedSheet, payload: ImportPayload, warning
     const nama = textValue(row.pick("nama_wp"));
     if (!nama) return;
     const npwp = textValue(row.pick("npwp16", "npwp15"));
+    const wilayahOpd = textValue(row.pick("wilayah_opd", "wilayah"));
     const kota = textValue(row.pick("kota", "kabupaten", "propinsi"));
     payload.opd.push({
       npwp: npwp || null,
       nama,
-      wilayah: kota || null,
+      wilayah: wilayahOpd || kota || null,
       jenis_instansi: textValue(row.pick("jenis_wp", "kategori")) || null,
       ar_nama: textValue(row.pick("nama_ar")) || null,
       ar_nip: textValue(row.pick("nip_ar")) || null,
@@ -580,14 +583,13 @@ function normalizePenerimaan(sheet: ParsedSheet, payload: ImportPayload, warning
   });
 
   bucket.forEach((entry) => {
-    const unifikasi = entry.pph22 + entry.pph23 + entry.pphFinal + entry.depositUmum;
     payload.deposit.push({
       npwp: entry.npwp,
       nama_opd: entry.nama,
       masa_pajak: entry.masa,
-      deposit_pph21: entry.pph21,
-      deposit_pph_unifikasi: unifikasi,
-      deposit_ppn_put: entry.ppn,
+      deposit_pph21: 0,
+      deposit_pph_unifikasi: entry.depositUmum,
+      deposit_ppn_put: 0,
     });
     if (entry.pph22 > 0 || entry.pph23 > 0 || entry.pphFinal > 0 || entry.ppn > 0) {
       const sptMasa = ensureSptMasaRow(payload, entry.npwp, entry.nama, entry.masa);

@@ -21,8 +21,8 @@ function safeCallbackUrl(value: string | null) {
 }
 
 export default function LoginPage() {
-  const [email, setEmail] = useState("demo");
-  const [password, setPassword] = useState("demo");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -74,7 +74,14 @@ export default function LoginPage() {
             <span>Username / Email</span>
             <span style={{ position: "relative" }}>
               <Mail size={16} style={{ position: "absolute", left: 12, top: 13, color: "var(--text-3)" }} />
-              <input value={email} onChange={(event) => setEmail(event.target.value)} style={{ paddingLeft: 38 }} />
+              <input
+                name="email"
+                autoComplete="username"
+                required
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                style={{ paddingLeft: 38 }}
+              />
             </span>
           </label>
           <label className="field">
@@ -83,6 +90,9 @@ export default function LoginPage() {
               <LockKeyhole size={16} style={{ position: "absolute", left: 12, top: 13, color: "var(--text-3)" }} />
               <input
                 type="password"
+                name="password"
+                autoComplete="current-password"
+                required
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
                 style={{ paddingLeft: 38 }}
@@ -96,9 +106,6 @@ export default function LoginPage() {
           </button>
         </form>
 
-        <div className="login-hint">
-          Default: <strong>demo</strong> / <strong>demo</strong>.
-        </div>
       </section>
     </main>
   );

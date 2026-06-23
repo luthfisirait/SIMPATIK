@@ -190,16 +190,6 @@ textarea {
   box-shadow: 0 0 0 3px rgba(10, 128, 144, 0.1);
 }
 
-.login-hint {
-  border: 1px solid var(--border);
-  background: var(--bg);
-  border-radius: 8px;
-  padding: 12px;
-  color: var(--text-2);
-  font-size: 12px;
-  margin-top: 18px;
-}
-
 .shell {
   min-height: 100vh;
 }

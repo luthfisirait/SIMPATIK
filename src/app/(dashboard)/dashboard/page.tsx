@@ -9,7 +9,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 
-import { DoughnutPanel, SptVolumeTrendChart } from "@/components/charts/ChartPanels";
+import { DoughnutPanel, SingleBarChart } from "@/components/charts/ChartPanels";
 import { Badge, toneForTraffic } from "@/components/ui/Badge";
 import { KpiCard } from "@/components/ui/KpiCard";
 import { ProgressBar } from "@/components/ui/ProgressBar";
@@ -28,9 +28,7 @@ const kpiIcon = [TrendingUp, FileCheck2, ReceiptText, Landmark, Building2];
 
 export default function DashboardPage() {
   const data = getDashboardData();
-  const currentTrend = data.trend.filter((item) => item.tahun_pajak === 2025);
-  const previousTrend = data.trend.filter((item) => item.tahun_pajak === 2024);
-  const trendLabels = (currentTrend.length > 0 ? currentTrend : previousTrend).map((item) => monthLabel(item.periode));
+  const trendLabels = data.trend.map((item) => monthLabel(item.periode));
   const totalDepositKritis = data.trafficCounts.find((item) => item.status === "merah")?.total ?? 0;
 
   const quickCards = [
@@ -122,12 +120,10 @@ export default function DashboardPage() {
               <span className="muted">Belum ada data tren SPT.</span>
             ) : (
               <div className="chart-wrap-lg">
-                <SptVolumeTrendChart
+                <SingleBarChart
                   labels={trendLabels}
-                  current={currentTrend.map((item) => item.sudah)}
-                  previous={previousTrend.map((item) => item.sudah)}
-                  currentLabel="SPT 2025"
-                  previousLabel="SPT 2024"
+                  values={data.trend.map((item) => item.sudah)}
+                  label="SPT masuk per bulan"
                 />
               </div>
             )}

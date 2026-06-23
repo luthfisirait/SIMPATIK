@@ -98,9 +98,6 @@ export default async function ModulDepositPage({ searchParams }: { searchParams?
               <tr>
                 <th>Nama OPD</th>
                 <th>Wilayah</th>
-                <th>PPh 21</th>
-                <th>Unifikasi</th>
-                <th>PPN PUT</th>
                 <th>Saldo Deposit</th>
                 <th>Status</th>
                 <th>AR</th>
@@ -109,7 +106,7 @@ export default async function ModulDepositPage({ searchParams }: { searchParams?
             <tbody>
               {result.data.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="muted">
+                  <td colSpan={5} className="muted">
                     Belum ada data deposit.
                   </td>
                 </tr>
@@ -120,9 +117,6 @@ export default async function ModulDepositPage({ searchParams }: { searchParams?
                       <strong>{item.opd_nama}</strong>
                     </td>
                     <td className="td-mono">{item.wilayah_nama}</td>
-                    <td className="td-mono">{formatCompactRupiah(item.deposit_pph21)}</td>
-                    <td className="td-mono">{formatCompactRupiah(item.deposit_pph_unifikasi)}</td>
-                    <td className="td-mono">{formatCompactRupiah(item.deposit_ppn_put)}</td>
                     <td className="td-mono">
                       <strong>{formatCompactRupiah(item.total_deposit)}</strong>
                     </td>

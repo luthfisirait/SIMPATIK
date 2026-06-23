@@ -4,7 +4,6 @@ import {
   DoughnutPanel,
   ScatterPanel,
   SingleBarChart,
-  SptVolumeTrendChart,
 } from "@/components/charts/ChartPanels";
 import { KpiCard } from "@/components/ui/KpiCard";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -13,9 +12,7 @@ import { formatNumber, formatPercent, monthLabel } from "@/lib/utils";
 
 export default function AnalitikPage() {
   const { dashboard, pphTrend, scatter } = getAnalyticsData();
-  const currentTrend = dashboard.trend.filter((item) => item.tahun_pajak === 2025);
-  const previousTrend = dashboard.trend.filter((item) => item.tahun_pajak === 2024);
-  const trendLabels = (currentTrend.length > 0 ? currentTrend : previousTrend).map((item) => monthLabel(item.periode));
+  const trendLabels = dashboard.trend.map((item) => monthLabel(item.periode));
   const opdMerah = dashboard.trafficCounts.find((item) => item.status === "merah")?.total ?? 0;
 
   return (
@@ -35,19 +32,17 @@ export default function AnalitikPage() {
       <section className="grid-2">
         <div className="card">
           <div className="card-header">
-            <div className="card-title">SPT Tahunan OP 2024 vs 2025</div>
+            <div className="card-title">Tren SPT Tahunan OP per Bulan</div>
           </div>
           <div className="card-body">
             {trendLabels.length === 0 ? (
               <span className="muted">Belum ada data tren SPT.</span>
             ) : (
               <div className="chart-wrap">
-                <SptVolumeTrendChart
+                <SingleBarChart
                   labels={trendLabels}
-                  current={currentTrend.map((item) => item.sudah)}
-                  previous={previousTrend.map((item) => item.sudah)}
-                  currentLabel="SPT 2025"
-                  previousLabel="SPT 2024"
+                  values={dashboard.trend.map((item) => item.sudah)}
+                  label="SPT masuk per bulan"
                 />
               </div>
             )}

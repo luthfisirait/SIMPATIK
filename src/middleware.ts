@@ -4,7 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { canAccessApi, canAccessPage } from "@/lib/rbac";
 import type { Role } from "@/types";
 
-const PUBLIC_PATH_PREFIXES = ["/login", "/api/auth", "/_next", "/favicon.ico"];
+const PUBLIC_PATH_PREFIXES = ["/api/auth", "/_next", "/favicon.ico"];
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -17,6 +17,14 @@ export async function middleware(request: NextRequest) {
     req: request,
     secret: process.env.NEXTAUTH_SECRET ?? "simpatik-local-development-secret",
   });
+
+  if (pathname.startsWith("/login")) {
+    if (token) {
+      return NextResponse.redirect(new URL("/dashboard", request.url));
+    }
+
+    return NextResponse.next();
+  }
 
   if (!token) {
     if (pathname.startsWith("/api/")) {

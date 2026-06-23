@@ -294,16 +294,16 @@ export function getDashboardData() {
   const trend = database
     .prepare(
       `
-      SELECT periode, tahun_pajak,
+      SELECT periode, 2025 AS tahun_pajak,
         CASE
           WHEN COALESCE(SUM(jumlah_wajib_lapor), 0) = 0 THEN 0
           ELSE ROUND(SUM(jumlah_sudah_lapor) * 100.0 / SUM(jumlah_wajib_lapor), 1)
         END AS persen,
         COALESCE(SUM(jumlah_sudah_lapor), 0) AS sudah
       FROM spt_monitoring
-      WHERE tahun_pajak IN (2024, 2025)
-      GROUP BY tahun_pajak, periode
-      ORDER BY tahun_pajak, periode
+      WHERE tahun_pajak = 2025
+      GROUP BY periode
+      ORDER BY periode
     `,
     )
     .all() as Array<{ periode: string; tahun_pajak: number; persen: number; sudah: number }>;
@@ -2423,8 +2423,8 @@ function deriveDepositStatuses(database: ReturnType<typeof getDb>, periods: stri
       status_unifikasi = CASE WHEN COALESCE(deposit_pph_unifikasi, 0) > 0 THEN 'TEPAT WAKTU' ELSE 'NIHIL' END,
       status_ppn_put = CASE WHEN COALESCE(deposit_ppn_put, 0) > 0 THEN 'TEPAT WAKTU' ELSE 'NIHIL' END,
       status_deposit_overall = CASE
-        WHEN COALESCE(deposit_pph21, 0) + COALESCE(deposit_pph_unifikasi, 0) + COALESCE(deposit_ppn_put, 0) > 0
-        THEN 'hijau'
+        WHEN COALESCE(deposit_pph21, 0) + COALESCE(deposit_pph_unifikasi, 0) + COALESCE(deposit_ppn_put, 0) > 10000000 THEN 'hijau'
+        WHEN COALESCE(deposit_pph21, 0) + COALESCE(deposit_pph_unifikasi, 0) + COALESCE(deposit_ppn_put, 0) >= 2000000 THEN 'kuning'
         ELSE 'merah'
       END
     WHERE masa_pajak = ?

@@ -160,9 +160,8 @@ export function exportDataset(dataset: string, params: URLSearchParams) {
     return db
       .prepare(
         `
-        SELECT o.nama AS opd, w.nama AS wilayah, u.nama AS ar_pengampu, d.masa_pajak,
-          d.deposit_pph21, d.status_pph21, d.deposit_pph_unifikasi, d.status_unifikasi,
-          d.deposit_ppn_put, d.status_ppn_put, d.total_deposit, d.status_deposit_overall
+        SELECT o.nama AS opd, w.nama AS wilayah, d.masa_pajak,
+          d.total_deposit AS saldo_deposit, d.status_deposit_overall AS status, u.nama AS ar_pengampu
         FROM deposit_monitoring d
         JOIN opd o ON o.id = d.opd_id
         JOIN wilayah w ON w.id = o.wilayah_id
