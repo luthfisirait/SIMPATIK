@@ -119,6 +119,7 @@ function initSchema(database: Database.Database) {
       status_unifikasi TEXT,
       deposit_ppn_put INTEGER NOT NULL DEFAULT 0,
       status_ppn_put TEXT,
+      deposit_kd_411618 INTEGER NOT NULL DEFAULT 0,
       total_deposit INTEGER NOT NULL DEFAULT 0,
       status_deposit_overall TEXT,
       UNIQUE(opd_id, masa_pajak)
@@ -248,6 +249,9 @@ function ensureExistingSchema(database: Database.Database) {
     ],
     spt_masa_monitoring: [
       "pph21_status TEXT",
+    ],
+    deposit_monitoring: [
+      "deposit_kd_411618 INTEGER NOT NULL DEFAULT 0",
     ],
     sosialisasi: [
       "tempat TEXT",

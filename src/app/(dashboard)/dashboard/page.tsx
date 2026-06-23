@@ -1,20 +1,17 @@
 import {
-  Building2,
   FileCheck2,
   Landmark,
   Presentation,
   ReceiptText,
   Send,
-  TrendingUp,
 } from "lucide-react";
 import Link from "next/link";
 
 import { DoughnutPanel, SingleBarChart } from "@/components/charts/ChartPanels";
 import { Badge, toneForTraffic } from "@/components/ui/Badge";
-import { KpiCard } from "@/components/ui/KpiCard";
 import { ProgressBar } from "@/components/ui/ProgressBar";
 import { getDashboardData } from "@/lib/queries";
-import { formatCompactRupiah, formatNumber, formatPercent, monthLabel, trafficLabel } from "@/lib/utils";
+import { formatNumber, formatPercent, monthLabel, trafficLabel } from "@/lib/utils";
 
 const quickIcon = {
   "/modul1-spt": FileCheck2,
@@ -23,8 +20,6 @@ const quickIcon = {
   "/modul5-deposit": Landmark,
   "/action-log/input": Send,
 };
-
-const kpiIcon = [TrendingUp, FileCheck2, ReceiptText, Landmark, Building2];
 
 export default function DashboardPage() {
   const data = getDashboardData();
@@ -37,39 +32,6 @@ export default function DashboardPage() {
     { href: "/modul3-sosialisasi", label: "Sosialisasi", sub: `${formatNumber(data.kpis.belumSosialisasi)} OPD belum`, accent: "gold" },
     { href: "/modul5-deposit", label: "Deposit Pajak", sub: `${formatNumber(totalDepositKritis)} OPD kritis`, accent: "navy" },
     { href: "/action-log/input", label: "Kirim Imbauan", sub: "WA / Surat resmi", accent: "green" },
-  ] as const;
-
-  const kpis = [
-    {
-      label: "Kepatuhan SPT Tahunan OP",
-      value: formatPercent(data.kpis.kepatuhanSpt),
-      sub: monthLabel(data.period),
-      accent: "teal",
-    },
-    {
-      label: "SPT Masuk",
-      value: formatNumber(data.kpis.sptMasuk),
-      sub: `dari ${formatNumber(data.kpis.sptWajib)}`,
-      accent: "green",
-    },
-    {
-      label: "OPD Masalah PPh Masa",
-      value: formatNumber(data.kpis.pphBelumSetor + data.kpis.pphUnderReporting),
-      sub: monthLabel(data.pphMonth),
-      accent: "red",
-    },
-    {
-      label: "Total Setoran PPh",
-      value: formatCompactRupiah(data.kpis.totalSetorPph),
-      sub: monthLabel(data.pphMonth),
-      accent: "gold",
-    },
-    {
-      label: "Total OPD Dipantau",
-      value: formatNumber(data.kpis.totalOpd),
-      sub: "Sesuai database aktif",
-      accent: "navy",
-    },
   ] as const;
 
   return (
@@ -87,22 +49,6 @@ export default function DashboardPage() {
                 <span className="quick-card-sub">{item.sub}</span>
               </span>
             </Link>
-          );
-        })}
-      </section>
-
-      <section className="kpi-grid">
-        {kpis.map((item, index) => {
-          const Icon = kpiIcon[index];
-          return (
-            <KpiCard
-              key={item.label}
-              label={item.label}
-              value={item.value}
-              sub={item.sub}
-              accent={item.accent}
-              icon={<Icon size={18} />}
-            />
           );
         })}
       </section>

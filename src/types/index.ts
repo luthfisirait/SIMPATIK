@@ -121,6 +121,7 @@ export type DepositRecord = {
   status_unifikasi: string | null;
   deposit_ppn_put: number;
   status_ppn_put: string | null;
+  deposit_kd_411618: number;
   total_deposit: number;
   status_deposit_overall: TrafficLight | string | null;
 };
@@ -251,9 +252,7 @@ export type ImportDepositRow = {
   npwp: string | null;
   nama_opd: string | null;
   masa_pajak: string; // YYYY-MM
-  deposit_pph21: number;
-  deposit_pph_unifikasi: number;
-  deposit_ppn_put: number;
+  deposit_kd_411618: number;
 };
 
 export type ImportSptMasaRow = {

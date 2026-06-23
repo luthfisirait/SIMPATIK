@@ -58,7 +58,7 @@ export default async function ModulDepositPage({ searchParams }: { searchParams?
         <div className="card-header">
           <div>
             <div className="card-title">Saldo Deposit Pajak per OPD</div>
-            <div className="card-subtitle">Sumber: Coretax DJP - Update harian 07.00 WIB</div>
+            <div className="card-subtitle">Sumber: Data Penerimaan KD MAP 411618</div>
           </div>
         </div>
         <div className="card-body">

@@ -128,9 +128,23 @@ function latestSptMasaPeriod() {
   );
 }
 
+function depositAmountSql(alias = "d") {
+  const prefix = alias ? `${alias}.` : "";
+  return `COALESCE(${prefix}deposit_kd_411618, 0)`;
+}
+
+function depositStatusSql(alias = "d") {
+  const amount = depositAmountSql(alias);
+  return `CASE WHEN ${amount} > 10000000 THEN 'hijau' WHEN ${amount} >= 2000000 THEN 'kuning' ELSE 'merah' END`;
+}
+
 function latestDepositPeriod() {
   return (
-    (db().prepare("SELECT MAX(masa_pajak) AS period FROM deposit_monitoring").get() as { period: string | null }).period ??
+    (
+      db()
+        .prepare("SELECT MAX(masa_pajak) AS period FROM deposit_monitoring WHERE COALESCE(deposit_kd_411618, 0) > 0")
+        .get() as { period: string | null }
+    ).period ??
     latestSptMasaPeriod()
   );
 }
@@ -196,7 +210,11 @@ export function getDataStatus() {
     spt: tableCount(database, "spt_monitoring"),
     pph21: tableCount(database, "pph21_monitoring"),
     sptMasa: tableCount(database, "spt_masa_monitoring"),
-    deposit: tableCount(database, "deposit_monitoring"),
+    deposit: (
+      database
+        .prepare("SELECT COUNT(*) AS total FROM deposit_monitoring WHERE COALESCE(deposit_kd_411618, 0) > 0")
+        .get() as { total: number }
+    ).total,
     scoring: tableCount(database, "scoring_opd"),
     sosialisasi: tableCount(database, "sosialisasi"),
     pegawai: tableCount(database, "pegawai"),
@@ -1101,6 +1119,8 @@ export function listSptMasaDialogRows(params: ListParams & { masa?: string; over
 export function listDeposit(params: ListParams & { masa?: string; overallStatus?: string } = {}) {
   const database = db();
   const masa = params.masa ?? latestDepositPeriod();
+  const depositAmount = depositAmountSql();
+  const depositStatus = depositStatusSql();
   const where = ["d.masa_pajak = ?"];
   const values: Array<string | number> = [masa];
 
@@ -1114,7 +1134,7 @@ export function listDeposit(params: ListParams & { masa?: string; overallStatus?
     values.push(params.wilayah);
   }
   if (params.overallStatus && params.overallStatus !== "all") {
-    where.push("LOWER(d.status_deposit_overall) = ?");
+    where.push(`${depositStatus} = ?`);
     values.push(params.overallStatus.toLowerCase());
   }
   if (params.ar && params.ar !== "all") {
@@ -1147,14 +1167,15 @@ export function listDeposit(params: ListParams & { masa?: string; overallStatus?
       `
       SELECT d.id, o.id AS opd_id, o.nama AS opd_nama, w.nama AS wilayah_nama, u.nama AS ar_nama,
         d.masa_pajak, d.deposit_pph21, d.status_pph21, d.deposit_pph_unifikasi, d.status_unifikasi,
-        d.deposit_ppn_put, d.status_ppn_put, d.total_deposit,
-        LOWER(COALESCE(d.status_deposit_overall, 'merah')) AS status_deposit_overall
+        d.deposit_ppn_put, d.status_ppn_put, d.deposit_kd_411618,
+        ${depositAmount} AS total_deposit,
+        ${depositStatus} AS status_deposit_overall
       FROM deposit_monitoring d
       JOIN opd o ON o.id = d.opd_id
       JOIN wilayah w ON w.id = o.wilayah_id
       LEFT JOIN users u ON u.id = o.ar_id
       ${clause}
-      ORDER BY CASE LOWER(d.status_deposit_overall) WHEN 'merah' THEN 1 WHEN 'kuning' THEN 2 ELSE 3 END, d.total_deposit ASC, o.nama
+      ORDER BY CASE ${depositStatus} WHEN 'merah' THEN 1 WHEN 'kuning' THEN 2 ELSE 3 END, ${depositAmount} ASC, o.nama
       LIMIT ? OFFSET ?
     `,
     )
@@ -1164,12 +1185,12 @@ export function listDeposit(params: ListParams & { masa?: string; overallStatus?
   const summary = database
     .prepare(
       `
-      SELECT LOWER(COALESCE(d.status_deposit_overall, 'merah')) AS status, COUNT(*) AS total,
-        COALESCE(SUM(d.total_deposit), 0) AS nominal
+      SELECT ${depositStatus} AS status, COUNT(*) AS total,
+        COALESCE(SUM(${depositAmount}), 0) AS nominal
       FROM deposit_monitoring d
       JOIN opd o ON o.id = d.opd_id
       WHERE d.masa_pajak = ? AND (? IS NULL OR o.ar_id = ?)
-      GROUP BY LOWER(COALESCE(d.status_deposit_overall, 'merah'))
+      GROUP BY ${depositStatus}
     `,
     )
     .all(masa, arFilter, arFilter) as Array<{ status: string; total: number; nominal: number }>;
@@ -1180,6 +1201,8 @@ export function listDeposit(params: ListParams & { masa?: string; overallStatus?
 export function listDepositDialogRows(params: ListParams & { masa?: string; overallStatus?: string } = {}) {
   const database = db();
   const masa = params.masa ?? latestDepositPeriod();
+  const depositAmount = depositAmountSql();
+  const depositStatus = depositStatusSql();
   const where = ["d.masa_pajak = ?"];
   const values: Array<string | number> = [masa];
 
@@ -1193,7 +1216,7 @@ export function listDepositDialogRows(params: ListParams & { masa?: string; over
     values.push(params.wilayah);
   }
   if (params.overallStatus && params.overallStatus !== "all") {
-    where.push("LOWER(d.status_deposit_overall) = ?");
+    where.push(`${depositStatus} = ?`);
     values.push(params.overallStatus.toLowerCase());
   }
   if (params.ar && params.ar !== "all") {
@@ -1206,14 +1229,15 @@ export function listDepositDialogRows(params: ListParams & { masa?: string; over
       `
       SELECT d.id, o.id AS opd_id, o.nama AS opd_nama, w.nama AS wilayah_nama, u.nama AS ar_nama,
         d.masa_pajak, d.deposit_pph21, d.status_pph21, d.deposit_pph_unifikasi, d.status_unifikasi,
-        d.deposit_ppn_put, d.status_ppn_put, d.total_deposit,
-        LOWER(COALESCE(d.status_deposit_overall, 'merah')) AS status_deposit_overall
+        d.deposit_ppn_put, d.status_ppn_put, d.deposit_kd_411618,
+        ${depositAmount} AS total_deposit,
+        ${depositStatus} AS status_deposit_overall
       FROM deposit_monitoring d
       JOIN opd o ON o.id = d.opd_id
       JOIN wilayah w ON w.id = o.wilayah_id
       LEFT JOIN users u ON u.id = o.ar_id
       WHERE ${where.join(" AND ")}
-      ORDER BY CASE LOWER(d.status_deposit_overall) WHEN 'merah' THEN 1 WHEN 'kuning' THEN 2 ELSE 3 END, d.total_deposit ASC, o.nama
+      ORDER BY CASE ${depositStatus} WHEN 'merah' THEN 1 WHEN 'kuning' THEN 2 ELSE 3 END, ${depositAmount} ASC, o.nama
       LIMIT 500
     `,
     )
@@ -2206,7 +2230,20 @@ function importTemplateHasSourceData(database: ReturnType<typeof getDb>, templat
     case "masterfile":
       return tableCount(database, "opd") > 0;
     case "penerimaan":
-      return tableCount(database, "pph21_monitoring") > 0 || tableCount(database, "deposit_monitoring") > 0;
+      return (
+        tableCount(database, "pph21_monitoring") > 0 ||
+        database.prepare("SELECT 1 FROM deposit_monitoring WHERE COALESCE(deposit_kd_411618, 0) > 0 LIMIT 1").get() !==
+          undefined ||
+        database
+          .prepare(
+            `SELECT 1 FROM spt_masa_monitoring
+             WHERE COALESCE(pph22_nominal, 0) > 0
+                OR COALESCE(pph23_nominal, 0) > 0
+                OR COALESCE(ppn_put_nominal, 0) > 0
+             LIMIT 1`,
+          )
+          .get() !== undefined
+      );
     case "pelaporan_pph21":
       return (
         database.prepare("SELECT 1 FROM spt_masa_monitoring WHERE pph21_status IS NOT NULL LIMIT 1").get() !== undefined
@@ -2260,7 +2297,7 @@ function importedRowCountForTemplate(result: ImportCommitResult, template: Impor
     case "masterfile":
       return result.opd_created + result.opd_updated;
     case "penerimaan":
-      return result.pph21 + result.deposit;
+      return result.pph21 + result.deposit + result.spt_masa;
     case "pelaporan_pph21":
     case "pelaporan_unifikasi":
       return result.spt_masa;
@@ -2284,6 +2321,21 @@ function collectFiscalPeriods(database: ReturnType<typeof getDb>) {
       SELECT masa_pajak AS period FROM deposit_monitoring
       UNION
       SELECT masa_pajak AS period FROM spt_masa_monitoring
+      ORDER BY period
+    `,
+    )
+    .all() as Array<{ period: string | null }>;
+
+  return rows.map((row) => row.period).filter((period): period is string => Boolean(period));
+}
+
+function collectDepositPeriods(database: ReturnType<typeof getDb>) {
+  const rows = database
+    .prepare(
+      `
+      SELECT masa_pajak AS period
+      FROM deposit_monitoring
+      WHERE COALESCE(deposit_kd_411618, 0) > 0
       ORDER BY period
     `,
     )
@@ -2404,8 +2456,8 @@ function deriveDepositStatuses(database: ReturnType<typeof getDb>, periods: stri
 
   const insert = database.prepare(
     `
-    INSERT INTO deposit_monitoring (opd_id, masa_pajak, deposit_pph21, deposit_pph_unifikasi, deposit_ppn_put, total_deposit)
-    SELECT o.id, ?, 0, 0, 0, 0
+    INSERT INTO deposit_monitoring (opd_id, masa_pajak, deposit_kd_411618, total_deposit)
+    SELECT o.id, ?, 0, 0
     FROM opd o
     WHERE NOT EXISTS (
       SELECT 1 FROM deposit_monitoring d WHERE d.opd_id = o.id AND d.masa_pajak = ?
@@ -2414,19 +2466,16 @@ function deriveDepositStatuses(database: ReturnType<typeof getDb>, periods: stri
   );
   periods.forEach((period) => insert.run(period, period));
 
+  const depositStatus = depositStatusSql("");
   const update = database.prepare(
     `
     UPDATE deposit_monitoring
     SET
-      total_deposit = COALESCE(deposit_pph21, 0) + COALESCE(deposit_pph_unifikasi, 0) + COALESCE(deposit_ppn_put, 0),
-      status_pph21 = CASE WHEN COALESCE(deposit_pph21, 0) > 0 THEN 'TEPAT WAKTU' ELSE 'NIHIL' END,
-      status_unifikasi = CASE WHEN COALESCE(deposit_pph_unifikasi, 0) > 0 THEN 'TEPAT WAKTU' ELSE 'NIHIL' END,
-      status_ppn_put = CASE WHEN COALESCE(deposit_ppn_put, 0) > 0 THEN 'TEPAT WAKTU' ELSE 'NIHIL' END,
-      status_deposit_overall = CASE
-        WHEN COALESCE(deposit_pph21, 0) + COALESCE(deposit_pph_unifikasi, 0) + COALESCE(deposit_ppn_put, 0) > 10000000 THEN 'hijau'
-        WHEN COALESCE(deposit_pph21, 0) + COALESCE(deposit_pph_unifikasi, 0) + COALESCE(deposit_ppn_put, 0) >= 2000000 THEN 'kuning'
-        ELSE 'merah'
-      END
+      total_deposit = COALESCE(deposit_kd_411618, 0),
+      status_pph21 = NULL,
+      status_unifikasi = CASE WHEN COALESCE(deposit_kd_411618, 0) > 0 THEN 'TEPAT WAKTU' ELSE 'NIHIL' END,
+      status_ppn_put = NULL,
+      status_deposit_overall = ${depositStatus}
     WHERE masa_pajak = ?
   `,
   );
@@ -2483,6 +2532,7 @@ function deriveSptMasaStatuses(database: ReturnType<typeof getDb>, periods: stri
 
 function deriveScoring(database: ReturnType<typeof getDb>, periods: string[]) {
   if (periods.length === 0) return 0;
+  const depositStatus = depositStatusSql();
 
   const selectRows = database.prepare(
     `
@@ -2491,7 +2541,7 @@ function deriveScoring(database: ReturnType<typeof getDb>, periods: string[]) {
       p.ketepatan AS pph21_ketepatan,
       COALESCE(p.nominal_setor, 0) AS pph21_nominal,
       LOWER(COALESCE(m.status_keseluruhan, 'merah')) AS spt_masa_status,
-      LOWER(COALESCE(d.status_deposit_overall, 'merah')) AS deposit_status
+      ${depositStatus} AS deposit_status
     FROM opd o
     LEFT JOIN spt_monitoring s ON s.opd_id = o.id AND s.tahun_pajak = 2025 AND s.periode = ?
     LEFT JOIN pph21_monitoring p ON p.opd_id = o.id AND p.bulan = ?
@@ -2558,10 +2608,11 @@ function deriveScoring(database: ReturnType<typeof getDb>, periods: string[]) {
 function deriveImportedMonitoring(database: ReturnType<typeof getDb>) {
   deriveOpdPegawaiCounts(database);
   const fiscalPeriods = collectFiscalPeriods(database);
+  const depositPeriods = collectDepositPeriods(database);
 
   ensurePph21Rows(database, fiscalPeriods);
   const derivedSpt = deriveSptMonitoring(database, fiscalPeriods);
-  const derivedDeposit = deriveDepositStatuses(database, fiscalPeriods);
+  const derivedDeposit = deriveDepositStatuses(database, depositPeriods);
   const derivedSptMasa = deriveSptMasaStatuses(database, fiscalPeriods);
   const derivedScoring = deriveScoring(database, fiscalPeriods);
 
@@ -2867,12 +2918,13 @@ export async function commitImportData(template: ImportTemplateKey, payload: Imp
 
     // --- 3. Deposit -------------------------------------------------------
     const upsertDeposit = database.prepare(
-      `INSERT INTO deposit_monitoring (opd_id, masa_pajak, deposit_pph21, deposit_pph_unifikasi, deposit_ppn_put, total_deposit)
-       VALUES (?, ?, ?, ?, ?, ?)
+      `INSERT INTO deposit_monitoring (opd_id, masa_pajak, deposit_kd_411618, total_deposit)
+       VALUES (?, ?, ?, ?)
        ON CONFLICT(opd_id, masa_pajak) DO UPDATE SET
-         deposit_pph21 = excluded.deposit_pph21,
-         deposit_pph_unifikasi = excluded.deposit_pph_unifikasi,
-         deposit_ppn_put = excluded.deposit_ppn_put,
+         deposit_pph21 = 0,
+         deposit_pph_unifikasi = 0,
+         deposit_ppn_put = 0,
+         deposit_kd_411618 = excluded.deposit_kd_411618,
          total_deposit = excluded.total_deposit`,
     );
     payload.deposit.forEach((row) => {
@@ -2881,10 +2933,8 @@ export async function commitImportData(template: ImportTemplateKey, payload: Imp
         addSkip("Deposit: OPD tidak ditemukan.");
         return;
       }
-      const pph21 = Math.round(row.deposit_pph21);
-      const unifikasi = Math.round(row.deposit_pph_unifikasi);
-      const ppn = Math.round(row.deposit_ppn_put);
-      upsertDeposit.run(opdId, row.masa_pajak, pph21, unifikasi, ppn, pph21 + unifikasi + ppn);
+      const deposit = Math.round(row.deposit_kd_411618);
+      upsertDeposit.run(opdId, row.masa_pajak, deposit, deposit);
       result.deposit += 1;
     });
 

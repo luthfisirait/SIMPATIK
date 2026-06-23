@@ -402,9 +402,9 @@ export function seedDatabase(options: { force?: boolean } = {}): SeedResult {
     const insertDeposit = database.prepare(`
       INSERT INTO deposit_monitoring (
         opd_id, masa_pajak, deposit_pph21, status_pph21, deposit_pph_unifikasi,
-        status_unifikasi, deposit_ppn_put, status_ppn_put, total_deposit, status_deposit_overall
+        status_unifikasi, deposit_ppn_put, status_ppn_put, deposit_kd_411618, total_deposit, status_deposit_overall
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     const insertScore = database.prepare(`
@@ -434,10 +434,9 @@ export function seedDatabase(options: { force?: boolean } = {}): SeedResult {
 
       const pph = latestPph.get(opd.id) as { ketepatan: string; nominal_setor: number };
       const statusPph21 = pph.ketepatan === "belum_setor" ? "NIHIL" : pph.ketepatan === "terlambat" ? "TERLAMBAT" : "TEPAT WAKTU";
-      const statusUnifikasi = statusKeseluruhan === "merah" ? "NIHIL" : statusKeseluruhan === "kuning" ? "TERLAMBAT" : "TEPAT WAKTU";
-      const statusDepositOverall = statusPph21 === "NIHIL" || statusUnifikasi === "NIHIL" || ppnStatus === "NIHIL" ? "merah" : statusPph21 === "TERLAMBAT" || statusUnifikasi === "TERLAMBAT" || ppnStatus === "TERLAMBAT" ? "kuning" : "hijau";
-      const totalDeposit = pph.nominal_setor + pph22 + pph23 + ppn;
-      insertDeposit.run(opd.id, "2026-03", pph.nominal_setor, statusPph21, pph22 + pph23, statusUnifikasi, ppn, ppnStatus, totalDeposit, statusDepositOverall);
+      const depositKd411618 = opd.index % 17 === 0 ? 0 : Math.round(opd.jumlahAsn * (55_000 + (opd.index % 7) * 12_000));
+      const statusDepositOverall = depositKd411618 > 10_000_000 ? "hijau" : depositKd411618 >= 2_000_000 ? "kuning" : "merah";
+      insertDeposit.run(opd.id, "2026-03", 0, null, 0, depositKd411618 > 0 ? "TEPAT WAKTU" : "NIHIL", 0, null, depositKd411618, depositKd411618, statusDepositOverall);
 
       const spt = latestSpt.get(opd.id) as { persen_kepatuhan: number };
       const skorSpt = Math.min(100, spt.persen_kepatuhan);

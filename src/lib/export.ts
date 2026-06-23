@@ -152,22 +152,29 @@ export function exportDataset(dataset: string, params: URLSearchParams) {
   }
 
   if (dataset === "deposit") {
+    const depositAmount = "COALESCE(d.deposit_kd_411618, 0)";
+    const depositStatus = `CASE WHEN ${depositAmount} > 10000000 THEN 'hijau' WHEN ${depositAmount} >= 2000000 THEN 'kuning' ELSE 'merah' END`;
     const masa =
       params.get("masa") ??
-      ((db.prepare("SELECT MAX(masa_pajak) AS masa FROM deposit_monitoring").get() as { masa: string }).masa);
-    const { clause, values } = filteredClause(params, { wilayah: "w.kode", status: "LOWER(d.status_deposit_overall)", ar: "o.ar_id" });
+      (
+        db
+          .prepare("SELECT MAX(masa_pajak) AS masa FROM deposit_monitoring WHERE COALESCE(deposit_kd_411618, 0) > 0")
+          .get() as { masa: string | null }
+      ).masa ??
+      "";
+    const { clause, values } = filteredClause(params, { wilayah: "w.kode", status: depositStatus, ar: "o.ar_id" });
     const prefix = clause ? `${clause} AND` : "WHERE";
     return db
       .prepare(
         `
         SELECT o.nama AS opd, w.nama AS wilayah, d.masa_pajak,
-          d.total_deposit AS saldo_deposit, d.status_deposit_overall AS status, u.nama AS ar_pengampu
+          ${depositAmount} AS saldo_deposit, ${depositStatus} AS status, u.nama AS ar_pengampu
         FROM deposit_monitoring d
         JOIN opd o ON o.id = d.opd_id
         JOIN wilayah w ON w.id = o.wilayah_id
         LEFT JOIN users u ON u.id = o.ar_id
         ${prefix} d.masa_pajak = ?
-        ORDER BY d.status_deposit_overall, d.total_deposit ASC, o.nama
+        ORDER BY ${depositStatus}, ${depositAmount} ASC, o.nama
       `,
       )
       .all(...values, masa) as CsvRow[];

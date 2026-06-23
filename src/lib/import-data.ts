@@ -583,14 +583,14 @@ function normalizePenerimaan(sheet: ParsedSheet, payload: ImportPayload, warning
   });
 
   bucket.forEach((entry) => {
-    payload.deposit.push({
-      npwp: entry.npwp,
-      nama_opd: entry.nama,
-      masa_pajak: entry.masa,
-      deposit_pph21: 0,
-      deposit_pph_unifikasi: entry.depositUmum,
-      deposit_ppn_put: 0,
-    });
+    if (entry.depositUmum > 0) {
+      payload.deposit.push({
+        npwp: entry.npwp,
+        nama_opd: entry.nama,
+        masa_pajak: entry.masa,
+        deposit_kd_411618: entry.depositUmum,
+      });
+    }
     if (entry.pph22 > 0 || entry.pph23 > 0 || entry.pphFinal > 0 || entry.ppn > 0) {
       const sptMasa = ensureSptMasaRow(payload, entry.npwp, entry.nama, entry.masa);
       sptMasa.pph22_nominal += entry.pph22;
