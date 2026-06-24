@@ -265,6 +265,7 @@ function ensureExistingSchema(database: Database.Database) {
       "email_bendahara TEXT",
       "nama_bendahara_penerimaan TEXT",
       "hp_bendahara_penerimaan TEXT",
+      "nama_ar TEXT",
       "tanggal_input TEXT",
       "tanggal_update_kontak TEXT",
     ],
@@ -278,6 +279,7 @@ function ensureExistingSchema(database: Database.Database) {
     ],
     pegawai: [
       "npwp TEXT",
+      "npwp_satker TEXT",
       "nik TEXT",
       "email TEXT",
       "jenis_kepegawaian TEXT",

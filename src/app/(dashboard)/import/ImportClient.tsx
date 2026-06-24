@@ -149,6 +149,13 @@ export function ImportClient() {
           </label>
         </div>
 
+        {template === "masterfile" ? (
+          <div className="alert" style={{ marginTop: 12, borderColor: "var(--amber)", color: "var(--amber)" }}>
+            Perhatian: Import Masterfile akan menghapus seluruh data hasil import (daftar pegawai instansi, pelaporan,
+            penerimaan, deposit, sosialisasi) sebelum menulis ulang data OPD.
+          </div>
+        ) : null}
+
         <div style={{ marginTop: 8 }}>
           <button className="btn btn-ghost" type="button" onClick={downloadTemplate} disabled={!template}>
             <Download size={16} />

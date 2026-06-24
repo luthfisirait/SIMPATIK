@@ -31,6 +31,12 @@ export function formatRupiah(value: number | null | undefined) {
 export function formatCompactRupiah(value: number | null | undefined) {
   const safeValue = safeNumber(value);
 
+  if (safeValue >= 1_000_000_000_000) {
+    return `Rp ${(safeValue / 1_000_000_000_000).toLocaleString("id-ID", {
+      maximumFractionDigits: 1,
+    })} T`;
+  }
+
   if (safeValue >= 1_000_000_000) {
     return `Rp ${(safeValue / 1_000_000_000).toLocaleString("id-ID", {
       maximumFractionDigits: 1,
@@ -40,7 +46,7 @@ export function formatCompactRupiah(value: number | null | undefined) {
   if (safeValue >= 1_000_000) {
     return `Rp ${(safeValue / 1_000_000).toLocaleString("id-ID", {
       maximumFractionDigits: 1,
-    })} jt`;
+    })} Jt`;
   }
 
   return formatRupiah(safeValue);

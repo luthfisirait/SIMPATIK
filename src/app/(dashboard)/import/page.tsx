@@ -15,7 +15,7 @@ const templateInfo: Array<{ key: ImportTemplateKey; nama: string; kolom: string;
     key: "masterfile",
     nama: "Masterfile Wajib Pajak",
     kolom: "NPWP16, NAMA_WP, SEKSI, NIP_AR, NAMA_AR, KOTA, TANGGAL_DAFTAR",
-    modul: "Direktori OPD & Bendahara (buat/perbarui OPD, AR, wilayah)",
+    modul: "Reset penuh: hapus semua data import (pegawai, pelaporan, penerimaan, deposit, sosialisasi) lalu buat/perbarui OPD, AR, wilayah",
   },
   {
     key: "penerimaan",

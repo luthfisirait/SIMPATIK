@@ -180,19 +180,23 @@ function depositSaldoScoredSql(whereClause: string) {
 // Tahunan OP (spt_tahunan_op.npwp_pegawai = NPWP pegawai).
 function sptTahunanScoredSql(whereClause: string) {
   const pegawaiNpwp = npwpDigitsSql("p.npwp");
+  const pegawaiSatker = npwpDigitsSql("p.npwp_satker");
+  const opdNpwp = npwpDigitsSql("o.npwp_opd");
   return `
     WITH base AS (
       SELECT o.id AS id, o.id AS opd_id, o.nama AS opd_nama,
-        w.nama AS wilayah_nama, u.nama AS ar_nama,
+        w.nama AS wilayah_nama,
+        COALESCE(NULLIF(TRIM(o.nama_ar), ''), u.nama) AS ar_nama,
         COUNT(DISTINCT p.id) AS jumlah_wajib_lapor,
         COUNT(DISTINCT CASE WHEN sto.id IS NOT NULL THEN p.id END) AS jumlah_sudah_lapor
       FROM opd o
       JOIN wilayah w ON w.id = o.wilayah_id
       LEFT JOIN users u ON u.id = o.ar_id
       LEFT JOIN pegawai p ON p.opd_id = o.id
+        OR (${pegawaiSatker} <> '' AND ${pegawaiSatker} = ${opdNpwp})
       LEFT JOIN spt_tahunan_op sto ON ${pegawaiNpwp} <> '' AND sto.npwp_pegawai = ${pegawaiNpwp}
       ${whereClause}
-      GROUP BY o.id, o.nama, w.nama, u.nama
+      GROUP BY o.id, o.nama, w.nama, u.nama, o.nama_ar
     ),
     scored AS (
       SELECT base.*,
@@ -3022,8 +3026,23 @@ function deriveImportedMonitoring(database: ReturnType<typeof getDb>) {
 
 function clearImportDataForTemplate(database: ReturnType<typeof getDb>, template: ImportTemplateKey): number {
   switch (template) {
-    case "masterfile":
-      return database.prepare("DELETE FROM opd").run().changes;
+    case "masterfile": {
+      // Masterfile = titik awal data: reset penuh semua data hasil import
+      // (daftar pegawai instansi, pelaporan, penerimaan, deposit, sosialisasi, scoring)
+      // sebelum OPD ditulis ulang. Data pengguna/wilayah/action_log tetap dipertahankan.
+      return (
+        database.prepare("DELETE FROM spt_tahunan_op").run().changes +
+        database.prepare("DELETE FROM spt_monitoring").run().changes +
+        database.prepare("DELETE FROM pph21_monitoring").run().changes +
+        database.prepare("DELETE FROM spt_masa_monitoring").run().changes +
+        database.prepare("DELETE FROM deposit_penerimaan").run().changes +
+        database.prepare("DELETE FROM deposit_monitoring").run().changes +
+        database.prepare("DELETE FROM scoring_opd").run().changes +
+        database.prepare("DELETE FROM sosialisasi").run().changes +
+        database.prepare("DELETE FROM pegawai").run().changes +
+        database.prepare("DELETE FROM opd").run().changes
+      );
+    }
     case "penerimaan": {
       const cleared =
         database.prepare("DELETE FROM pph21_monitoring").run().changes +
@@ -3164,7 +3183,11 @@ export async function commitImportData(template: ImportTemplateKey, payload: Imp
     });
     const resolveOpd = (npwp: string | null, nama: string | null): number | null => {
       if (npwp) {
-        const hit = opdByNpwp.get(npwp.replace(/\D/g, ""));
+        const digits = npwp.replace(/\D/g, "");
+        const hit =
+          opdByNpwp.get(digits) ??
+          (digits.length === 15 ? opdByNpwp.get(`0${digits}`) : undefined) ??
+          (digits.length === 16 && digits.startsWith("0") ? opdByNpwp.get(digits.slice(1)) : undefined);
         if (hit) return hit;
       }
       if (nama) {
@@ -3211,15 +3234,16 @@ export async function commitImportData(template: ImportTemplateKey, payload: Imp
          nama, wilayah_id, jenis_instansi, npwp_opd, status_pemungut_ppn,
          nama_bendahara, nip_bendahara, hp_bendahara, email_bendahara,
          nama_bendahara_penerimaan, hp_bendahara_penerimaan,
-         nama_pic_kepeg, hp_pic_kepeg, ar_id, status, tanggal_input, tanggal_update_kontak
+         nama_pic_kepeg, hp_pic_kepeg, ar_id, nama_ar, status, tanggal_input, tanggal_update_kontak
        )
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     );
     const updateOpdMaster = database.prepare(
       `UPDATE opd SET
          wilayah_id = ?,
          jenis_instansi = COALESCE(?, jenis_instansi),
          ar_id = COALESCE(?, ar_id),
+         nama_ar = COALESCE(?, nama_ar),
          status_pemungut_ppn = COALESCE(?, status_pemungut_ppn),
          nama_bendahara = COALESCE(?, nama_bendahara),
          nip_bendahara = COALESCE(?, nip_bendahara),
@@ -3244,6 +3268,7 @@ export async function commitImportData(template: ImportTemplateKey, payload: Imp
           wilayahId,
           row.jenis_instansi,
           arId,
+          row.ar_nama,
           row.status_pemungut_ppn,
           row.nama_bendahara,
           row.nip_bendahara,
@@ -3276,6 +3301,7 @@ export async function commitImportData(template: ImportTemplateKey, payload: Imp
             row.nama_pic_kepeg ?? "Belum diisi",
             row.hp_pic_kepeg ?? "-",
             arId,
+            row.ar_nama ?? null,
             row.status ?? "aktif",
             row.tanggal_input ?? today,
             row.tanggal_update_kontak ?? today,
@@ -3440,12 +3466,12 @@ export async function commitImportData(template: ImportTemplateKey, payload: Imp
 
     // --- 6. Pegawai -------------------------------------------------------
     const upsertPegawai = database.prepare(
-      `INSERT INTO pegawai (nama, nip, opd_id, jabatan, status_coretax, phone, npwp, nik, email, jenis_kepegawaian)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `INSERT INTO pegawai (nama, nip, opd_id, jabatan, status_coretax, phone, npwp, npwp_satker, nik, email, jenis_kepegawaian)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(nip) DO UPDATE SET
          nama = excluded.nama, opd_id = excluded.opd_id, jabatan = excluded.jabatan,
          status_coretax = excluded.status_coretax,
-         phone = excluded.phone, npwp = excluded.npwp, nik = excluded.nik,
+         phone = excluded.phone, npwp = excluded.npwp, npwp_satker = excluded.npwp_satker, nik = excluded.nik,
          email = excluded.email, jenis_kepegawaian = excluded.jenis_kepegawaian`,
     );
     payload.pegawai.forEach((row) => {
@@ -3463,6 +3489,7 @@ export async function commitImportData(template: ImportTemplateKey, payload: Imp
           row.status_coretax ?? "belum_aktivasi",
           row.phone,
           row.npwp,
+          row.npwp_satker,
           row.nik,
           row.email,
           row.jenis_kepegawaian,
