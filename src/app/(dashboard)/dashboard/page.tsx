@@ -11,7 +11,7 @@ import { DoughnutPanel, SingleBarChart } from "@/components/charts/ChartPanels";
 import { Badge, toneForTraffic } from "@/components/ui/Badge";
 import { ProgressBar } from "@/components/ui/ProgressBar";
 import { getDashboardData } from "@/lib/queries";
-import { formatNumber, formatPercent, monthLabel, trafficLabel } from "@/lib/utils";
+import { formatCompactRupiah, formatNumber, formatPercent, monthLabel, trafficLabel } from "@/lib/utils";
 
 const quickIcon = {
   "/modul1-spt": FileCheck2,
@@ -24,13 +24,12 @@ const quickIcon = {
 export default function DashboardPage() {
   const data = getDashboardData();
   const trendLabels = data.trend.map((item) => monthLabel(item.periode));
-  const totalDepositKritis = data.trafficCounts.find((item) => item.status === "merah")?.total ?? 0;
 
   const quickCards = [
-    { href: "/modul1-spt", label: "SPT Tahunan OP", sub: `${formatPercent(data.kpis.kepatuhanSpt)} terkini`, accent: "teal" },
-    { href: "/modul2-pph21", label: "PPh Masa", sub: `${formatNumber(data.kpis.pphBelumSetor)} OPD bermasalah`, accent: "red" },
-    { href: "/modul3-sosialisasi", label: "Sosialisasi", sub: `${formatNumber(data.kpis.belumSosialisasi)} OPD belum`, accent: "gold" },
-    { href: "/modul5-deposit", label: "Deposit Pajak", sub: `${formatNumber(totalDepositKritis)} OPD kritis`, accent: "navy" },
+    { href: "/modul1-spt", label: "SPT Tahunan OP", sub: `${formatNumber(data.kpis.sptOpdSudahLapor)} OPD sudah melapor`, accent: "teal" },
+    { href: "/modul2-pph21", label: "PPh Masa", sub: `${formatNumber(data.kpis.pphMasaSudahLapor)} OPD sudah lapor`, accent: "green" },
+    { href: "/modul3-sosialisasi", label: "Sosialisasi", sub: `${formatNumber(data.kpis.sudahSosialisasi)} OPD sudah sosialisasi`, accent: "gold" },
+    { href: "/modul5-deposit", label: "Deposit Pajak", sub: `Total ${formatCompactRupiah(data.kpis.totalDeposit)}`, accent: "navy" },
     { href: "/action-log/input", label: "Kirim Imbauan", sub: "WA / Surat resmi", accent: "green" },
   ] as const;
 
@@ -58,7 +57,7 @@ export default function DashboardPage() {
           <div className="card-header">
             <div>
               <div className="card-title">Tren SPT Tahunan OP</div>
-              <div className="card-subtitle">Akumulasi laporan per bulan</div>
+              <div className="card-subtitle">Jumlah sudah lapor per Masa Pajak</div>
             </div>
           </div>
           <div className="card-body">
@@ -69,7 +68,7 @@ export default function DashboardPage() {
                 <SingleBarChart
                   labels={trendLabels}
                   values={data.trend.map((item) => item.sudah)}
-                  label="SPT masuk per bulan"
+                  label="Sudah lapor per Masa Pajak"
                 />
               </div>
             )}
