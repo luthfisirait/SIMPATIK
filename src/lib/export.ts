@@ -87,25 +87,58 @@ export function exportDataset(dataset: string, params: URLSearchParams) {
   }
 
   if (dataset === "spt") {
-    const period =
-      params.get("periode") ??
-      ((db.prepare("SELECT MAX(periode) AS periode FROM spt_monitoring WHERE tahun_pajak = 2025").get() as { periode: string }).periode);
-    const { clause, values } = filteredClause(params, { wilayah: "w.kode", status: "s.traffic_light", ar: "o.ar_id" });
-    const prefix = clause ? `${clause} AND` : "WHERE";
+    const pegawaiNpwp = npwpDigitsSql("p.npwp");
+    const baseWhere: string[] = [];
+    const baseValues: Array<string | number> = [];
+    const wilayah = params.get("wilayah");
+    if (wilayah && wilayah !== "all") {
+      baseWhere.push("w.kode = ?");
+      baseValues.push(wilayah);
+    }
+    const ar = params.get("ar");
+    if (ar && ar !== "all") {
+      baseWhere.push("o.ar_id = ?");
+      baseValues.push(ar);
+    }
+    const q = params.get("q");
+    if (q) {
+      baseWhere.push("(LOWER(o.nama) LIKE ? OR LOWER(w.nama) LIKE ?)");
+      baseValues.push(`%${q.toLowerCase()}%`, `%${q.toLowerCase()}%`);
+    }
+    const whereClause = baseWhere.length ? `WHERE ${baseWhere.join(" AND ")}` : "";
+    const status = params.get("status");
+    const trafficClause = status && status !== "all" ? "WHERE traffic_light = ?" : "";
+    const trafficValues = status && status !== "all" ? [status] : [];
     return db
       .prepare(
         `
-        SELECT o.nama AS opd, w.nama AS wilayah, u.nama AS ar_pengampu, s.tahun_pajak, s.periode,
-          s.jumlah_wajib_lapor, s.jumlah_sudah_lapor, s.persen_kepatuhan, s.traffic_light
-        FROM spt_monitoring s
-        JOIN opd o ON o.id = s.opd_id
-        JOIN wilayah w ON w.id = o.wilayah_id
-        LEFT JOIN users u ON u.id = o.ar_id
-        ${prefix} s.tahun_pajak = 2025 AND s.periode = ?
-        ORDER BY s.persen_kepatuhan ASC, o.nama
+        WITH base AS (
+          SELECT o.nama AS opd, w.nama AS wilayah, u.nama AS ar_pengampu,
+            COUNT(DISTINCT p.id) AS asn_pppk,
+            COUNT(DISTINCT CASE WHEN sto.id IS NOT NULL THEN p.id END) AS sudah_lapor
+          FROM opd o
+          JOIN wilayah w ON w.id = o.wilayah_id
+          LEFT JOIN users u ON u.id = o.ar_id
+          LEFT JOIN pegawai p ON p.opd_id = o.id
+          LEFT JOIN spt_tahunan_op sto ON ${pegawaiNpwp} <> '' AND sto.npwp_pegawai = ${pegawaiNpwp}
+          ${whereClause}
+          GROUP BY o.id, o.nama, w.nama, u.nama
+        ),
+        scored AS (
+          SELECT base.*, (asn_pppk - sudah_lapor) AS belum_lapor,
+            CASE WHEN asn_pppk = 0 THEN 0 ELSE ROUND(sudah_lapor * 100.0 / asn_pppk, 1) END AS persen_kepatuhan,
+            CASE
+              WHEN asn_pppk > 0 AND sudah_lapor * 100.0 / asn_pppk >= 70 THEN 'hijau'
+              WHEN asn_pppk > 0 AND sudah_lapor * 100.0 / asn_pppk >= 40 THEN 'kuning'
+              ELSE 'merah' END AS traffic_light
+          FROM base
+        )
+        SELECT opd, wilayah, ar_pengampu, asn_pppk, sudah_lapor, belum_lapor, persen_kepatuhan, traffic_light
+        FROM scored ${trafficClause}
+        ORDER BY persen_kepatuhan ASC, opd
       `,
       )
-      .all(...values, period) as CsvRow[];
+      .all(...baseValues, ...trafficValues) as CsvRow[];
   }
 
   if (dataset === "pph21") {
@@ -170,33 +203,51 @@ export function exportDataset(dataset: string, params: URLSearchParams) {
   }
 
   if (dataset === "deposit") {
-    const depositAmount = "COALESCE(d.nilai_setor, 0)";
-    const depositStatus = `CASE WHEN ${depositAmount} > 10000000 THEN 'hijau' WHEN ${depositAmount} >= 2000000 THEN 'kuning' ELSE 'merah' END`;
-    const masa =
-      params.get("masa") ??
-      (
-        db
-          .prepare("SELECT MAX(masa_pajak) AS masa FROM deposit_penerimaan WHERE kd_map = '411618'")
-          .get() as { masa: string | null }
-      ).masa ??
-      "";
-    const { clause, values } = filteredClause(params, { wilayah: "w.kode", status: depositStatus, ar: "o.ar_id" });
-    const prefix = clause ? `${clause} AND` : "WHERE";
+    const baseWhere: string[] = [];
+    const baseValues: Array<string | number> = [];
+    const wilayah = params.get("wilayah");
+    if (wilayah && wilayah !== "all") {
+      baseWhere.push("w.kode = ?");
+      baseValues.push(wilayah);
+    }
+    const ar = params.get("ar");
+    if (ar && ar !== "all") {
+      baseWhere.push("o.ar_id = ?");
+      baseValues.push(ar);
+    }
+    const q = params.get("q");
+    if (q) {
+      baseWhere.push("(LOWER(o.nama) LIKE ? OR LOWER(w.nama) LIKE ?)");
+      baseValues.push(`%${q.toLowerCase()}%`, `%${q.toLowerCase()}%`);
+    }
+    const whereClause = baseWhere.length ? `WHERE ${baseWhere.join(" AND ")}` : "";
+    const statusExpr =
+      "CASE WHEN saldo_deposit > 10000000 THEN 'hijau' WHEN saldo_deposit >= 2000000 THEN 'kuning' ELSE 'merah' END";
+    const status = params.get("status");
+    const statusClause = status && status !== "all" ? "WHERE status = ?" : "";
+    const statusValues = status && status !== "all" ? [status.toLowerCase()] : [];
     return db
       .prepare(
         `
-        SELECT o.nama AS opd, w.nama AS wilayah, d.nama_wajib_pajak, d.masa_pajak,
-          d.kd_map, d.kd_setor, ${depositAmount} AS saldo_deposit, d.tgl_setor, d.ntpn, d.sumber_data,
-          ${depositStatus} AS status, u.nama AS ar_pengampu
-        FROM deposit_penerimaan d
-        JOIN opd o ON o.id = d.opd_id
-        JOIN wilayah w ON w.id = o.wilayah_id
-        LEFT JOIN users u ON u.id = o.ar_id
-        ${prefix} d.kd_map = '411618' AND d.masa_pajak = ?
-        ORDER BY ${depositStatus}, ${depositAmount} ASC, o.nama
+        WITH base AS (
+          SELECT o.nama AS opd, w.nama AS wilayah, u.nama AS ar_pengampu,
+            COALESCE(SUM(d.nilai_setor), 0) AS saldo_deposit
+          FROM opd o
+          JOIN wilayah w ON w.id = o.wilayah_id
+          LEFT JOIN users u ON u.id = o.ar_id
+          LEFT JOIN deposit_penerimaan d ON d.opd_id = o.id AND d.kd_map = '411618'
+          ${whereClause}
+          GROUP BY o.id, o.nama, w.nama, u.nama
+        ),
+        scored AS (
+          SELECT base.*, ${statusExpr} AS status FROM base
+        )
+        SELECT opd, wilayah, ar_pengampu, saldo_deposit, status
+        FROM scored ${statusClause}
+        ORDER BY CASE status WHEN 'merah' THEN 1 WHEN 'kuning' THEN 2 ELSE 3 END, saldo_deposit ASC, opd
       `,
       )
-      .all(...values, masa) as CsvRow[];
+      .all(...baseValues, ...statusValues) as CsvRow[];
   }
 
   if (dataset === "scoring") {

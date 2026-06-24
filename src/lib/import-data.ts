@@ -90,6 +90,8 @@ const MASTERFILE_HEADERS = [
   "PROPINSI",
   "KODE_POS",
   "NOMOR_TELEPON",
+  "NAMA_BENDAHARA",
+  "NOMOR_TELP_BENDAHARA",
   "EMAIL",
   "NOMOR_IDENTITAS",
   "EMAIL_EFILING",
@@ -157,6 +159,8 @@ const TEMPLATE_SPECS: Record<ImportTemplateKey, TemplateSpec> = {
         "SUMATERA BARAT",
         "25563",
         "",
+        "Siti Bendahara",
+        "081234567890",
         "",
         "",
         "",
@@ -514,7 +518,7 @@ function normalizeMasterfile(sheet: ParsedSheet, payload: ImportPayload, warning
       status_pemungut_ppn: normalizeYesNo(row.pick("status_pemungut_ppn", "wajib_spt_ppn")),
       nama_bendahara: textValue(row.pick("nama_bendahara", "nama_bendahara_pengeluaran")) || null,
       nip_bendahara: textValue(row.pick("nip_bendahara")) || null,
-      hp_bendahara: textValue(row.pick("hp_bendahara", "no_hp_bendahara", "nomor_telepon_bendahara", "nomor_telpon_bendahara", "no_telp_bendahara", "telepon_bendahara", "telpon_bendahara")) || null,
+      hp_bendahara: textValue(row.pick("hp_bendahara", "no_hp_bendahara", "nomor_telp_bendahara", "nomor_telepon_bendahara", "nomor_telpon_bendahara", "no_telp_bendahara", "telepon_bendahara", "telpon_bendahara")) || null,
       email_bendahara: textValue(row.pick("email_bendahara")) || null,
       nama_bendahara_penerimaan: textValue(row.pick("nama_bendahara_penerimaan")) || null,
       hp_bendahara_penerimaan: textValue(row.pick("hp_bendahara_penerimaan")) || null,
@@ -680,9 +684,11 @@ function normalizePegawai(sheet: ParsedSheet, payload: ImportPayload, warnings: 
     const nama = textValue(row.pick("nama", "nama_pegawai"));
     if (!nama) return;
     const opd = textValue(row.pick("nama_satker", "opd", "nama_opd")) || null;
-    if (!opd) warnings.push(`Pegawai: "${nama}" tanpa OPD, akan dilewati saat commit bila OPD tak ditemukan.`);
+    const npwpSatker = normalizeNpwp(row.pick("npwp_satker"));
+    if (!opd && !npwpSatker) warnings.push(`Pegawai: "${nama}" tanpa OPD/NPWP_SATKER, akan dilewati saat commit bila OPD tak ditemukan.`);
     payload.pegawai.push({
       npwp: normalizeNpwp(row.pick("npwp", "npwp_pegawai")),
+      npwp_satker: npwpSatker,
       nik: textValue(row.pick("nik")) || null,
       nama,
       nip: textValue(row.pick("nip", "nip_pegawai")) || null,
@@ -893,7 +899,8 @@ function splitBlocks(sheet: ParsedSheet): Block[] {
 
 function looksLikeHeader(row: Array<string | number | Date | null>) {
   const text = toTextRow(row).map((v) => slug(v));
-  return text.includes("npwp") && (text.includes("jenis_spt") || text.includes("status_pelaporan") || text.includes("nama_wp"));
+  const hasNpwp = text.includes("npwp") || text.includes("npwp16") || text.includes("npwp15");
+  return hasNpwp && (text.includes("jenis_spt") || text.includes("status_pelaporan") || text.includes("nama_wp"));
 }
 
 function forEachRow(sheet: ParsedSheet, callback: (row: RowAccessor) => void) {
@@ -901,6 +908,7 @@ function forEachRow(sheet: ParsedSheet, callback: (row: RowAccessor) => void) {
   const headers = headerMap(sheet.headerRows.slice(0, depth));
   sheet.rows.slice(depth).forEach((raw) => {
     if (raw.every((value) => isBlank(value))) return;
+    if (looksLikeHeader(raw)) return;
     callback({ raw, pick: (...keys) => pickFrom(headers, raw, keys) });
   });
 }

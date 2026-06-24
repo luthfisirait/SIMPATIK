@@ -42,7 +42,7 @@ export function DepositKpiDialog({ rows }: { rows: DepositRecord[] }) {
     return [
       {
         key: "all",
-        label: `Total Saldo (${formatNumber(totalRows)} baris)`,
+        label: `Total Saldo (${formatNumber(totalRows)} OPD)`,
         value: formatCompactRupiah(totalSaldo),
         accent: "navy",
       },
@@ -50,7 +50,7 @@ export function DepositKpiDialog({ rows }: { rows: DepositRecord[] }) {
         key: "hijau",
         label: "Saldo Aman (>Rp 10 jt)",
         value: formatNumber(count("hijau")),
-        sub: `${formatPercent(amanPercent)} baris`,
+        sub: `${formatPercent(amanPercent)} OPD`,
         accent: "green",
       },
       {
@@ -110,7 +110,7 @@ export function DepositKpiDialog({ rows }: { rows: DepositRecord[] }) {
                   {activeCard.label}
                 </div>
                 <div className="card-subtitle">
-                  {formatNumber(dialogRows.length)} baris penerimaan - Total saldo {formatCompactRupiah(dialogSaldo)}
+                  {formatNumber(dialogRows.length)} OPD - Total saldo {formatCompactRupiah(dialogSaldo)}
                 </div>
               </div>
               <button className="icon-btn" type="button" aria-label="Tutup dialog" onClick={() => setActiveCard(null)}>

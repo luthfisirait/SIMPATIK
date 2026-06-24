@@ -1,11 +1,12 @@
 "use client";
 
-import { ClipboardCheck, FileCheck2, Presentation, ReceiptText, X } from "lucide-react";
+import { ClipboardCheck, Download, FileCheck2, Presentation, ReceiptText, X } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import { Badge, type BadgeTone } from "@/components/ui/Badge";
 import { KpiCard } from "@/components/ui/KpiCard";
+import { downloadCsv, safeCsvFileName } from "@/lib/client-csv";
 
 type KpiDialogIcon = "file-check" | "receipt" | "presentation" | "clipboard-check";
 
@@ -40,6 +41,7 @@ export type KpiDialogCard = {
   rows: KpiDialogRow[];
   description?: string;
   emptyText?: string;
+  exportFileName?: string;
 };
 
 const iconMap = {
@@ -55,6 +57,17 @@ function cellValue(cell: string | KpiDialogCell) {
 
 export function KpiListDialog({ cards }: { cards: KpiDialogCard[] }) {
   const [activeCard, setActiveCard] = useState<KpiDialogCard | null>(null);
+
+  function exportActiveCard(card: KpiDialogCard) {
+    downloadCsv<KpiDialogRow>(
+      card.exportFileName ?? safeCsvFileName(card.label),
+      card.columns.map((column) => ({
+        header: column.label,
+        value: (row) => cellValue(row.cells[column.key] ?? "-").value,
+      })),
+      card.rows,
+    );
+  }
 
   useEffect(() => {
     if (!activeCard) return undefined;
@@ -150,6 +163,12 @@ export function KpiListDialog({ cards }: { cards: KpiDialogCard[] }) {
               </div>
             </div>
             <div className="modal-footer">
+              {activeCard.exportFileName ? (
+                <button className="btn btn-primary" type="button" onClick={() => exportActiveCard(activeCard)} disabled={activeCard.rows.length === 0}>
+                  <Download size={16} />
+                  Ekspor
+                </button>
+              ) : null}
               <button className="btn btn-secondary" type="button" onClick={() => setActiveCard(null)}>
                 Tutup
               </button>

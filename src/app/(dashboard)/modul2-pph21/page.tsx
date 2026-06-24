@@ -59,6 +59,7 @@ export default async function ModulPph21Page({ searchParams }: { searchParams?: 
       columns: laporColumns,
       rows: wajibLaporRows.map(laporRow),
       description: `Daftar wajib lapor PPh Masa periode ${periodeLabel}`,
+      exportFileName: `pph-masa-wajib-lapor-${result.bulan}`,
     },
     {
       key: "belum_lapor",
@@ -70,6 +71,7 @@ export default async function ModulPph21Page({ searchParams }: { searchParams?: 
       columns: laporColumns,
       rows: belumLaporRows.map(laporRow),
       description: `Ringkasan belum lapor per jenis PPh Masa periode ${periodeLabel}`,
+      exportFileName: `pph-masa-belum-lapor-${result.bulan}`,
     },
     {
       key: "sudah_lapor",
@@ -81,6 +83,7 @@ export default async function ModulPph21Page({ searchParams }: { searchParams?: 
       columns: laporColumns,
       rows: sudahLaporRows.map(laporRow),
       description: `Ringkasan sudah lapor per jenis PPh Masa periode ${periodeLabel}`,
+      exportFileName: `pph-masa-sudah-lapor-${result.bulan}`,
     },
   ];
 

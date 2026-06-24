@@ -311,6 +311,7 @@ export type ImportSptTahunanOpRow = {
 
 export type ImportPegawaiRow = {
   npwp: string | null;
+  npwp_satker: string | null;
   nik: string | null;
   nama: string;
   nip: string | null;

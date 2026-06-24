@@ -33,7 +33,7 @@ export default function DashboardPage() {
       sub: `${formatNumber(data.kpis.sptTahunanOpPegawaiSudah)} dari ${formatNumber(data.kpis.sptTahunanOpPegawaiWajib)} pegawai`,
       accent: "teal",
     },
-    { href: "/modul2-pph21", label: "PPh Masa", sub: `${formatNumber(data.kpis.pphMasaSudahLapor)} OPD sudah lapor`, accent: "green" },
+    { href: "/modul2-pph21", label: "PPh Masa", accent: "green" },
     { href: "/modul3-sosialisasi", label: "Sosialisasi", sub: `${formatNumber(data.kpis.sudahSosialisasi)} OPD sudah sosialisasi`, accent: "gold" },
     { href: "/modul5-deposit", label: "Deposit Pajak", sub: `Total ${formatCompactRupiah(data.kpis.totalDeposit)}`, accent: "navy" },
     { href: "/action-log/input", label: "Kirim Imbauan", sub: "WA / Surat resmi", accent: "green" },
@@ -52,7 +52,7 @@ export default function DashboardPage() {
               <span className="quick-card-copy">
                 <span className="quick-card-label">{item.label}</span>
                 {"value" in item ? <span className="quick-card-value">{item.value}</span> : null}
-                <span className="quick-card-sub">{item.sub}</span>
+                {"sub" in item ? <span className="quick-card-sub">{item.sub}</span> : null}
               </span>
             </Link>
           );

@@ -152,6 +152,61 @@ function depositPenerimaanStatusSql(alias = "d") {
   return depositStatusForAmountSql(depositPenerimaanAmountSql(alias));
 }
 
+// Saldo deposit per OPD: jumlahkan NILAI SETOR (boleh minus) untuk KD MAP 411618,
+// dikelompokkan per NPWP16 (opd.id) lintas seluruh masa pajak. Semua OPD masterfile
+// ditampilkan; OPD tanpa data penerimaan dianggap bersaldo 0.
+function depositSaldoScoredSql(whereClause: string) {
+  return `
+    WITH base AS (
+      SELECT o.id AS id, o.id AS opd_id, o.nama AS opd_nama,
+        w.nama AS wilayah_nama, u.nama AS ar_nama,
+        COALESCE(SUM(d.nilai_setor), 0) AS total_deposit
+      FROM opd o
+      JOIN wilayah w ON w.id = o.wilayah_id
+      LEFT JOIN users u ON u.id = o.ar_id
+      LEFT JOIN deposit_penerimaan d ON d.opd_id = o.id AND d.kd_map = '411618'
+      ${whereClause}
+      GROUP BY o.id, o.nama, w.nama, u.nama
+    ),
+    scored AS (
+      SELECT base.*, ${depositStatusForAmountSql("total_deposit")} AS status_deposit_overall
+      FROM base
+    )
+  `;
+}
+
+// Kepatuhan SPT Tahunan OP per OPD: ASN & PPPK dari Daftar Pegawai Instansi
+// (pegawai.opd_id, relasi NPWP_SATKER = NPWP16), sudah lapor dari Pelaporan SPT
+// Tahunan OP (spt_tahunan_op.npwp_pegawai = NPWP pegawai).
+function sptTahunanScoredSql(whereClause: string) {
+  const pegawaiNpwp = npwpDigitsSql("p.npwp");
+  return `
+    WITH base AS (
+      SELECT o.id AS id, o.id AS opd_id, o.nama AS opd_nama,
+        w.nama AS wilayah_nama, u.nama AS ar_nama,
+        COUNT(DISTINCT p.id) AS jumlah_wajib_lapor,
+        COUNT(DISTINCT CASE WHEN sto.id IS NOT NULL THEN p.id END) AS jumlah_sudah_lapor
+      FROM opd o
+      JOIN wilayah w ON w.id = o.wilayah_id
+      LEFT JOIN users u ON u.id = o.ar_id
+      LEFT JOIN pegawai p ON p.opd_id = o.id
+      LEFT JOIN spt_tahunan_op sto ON ${pegawaiNpwp} <> '' AND sto.npwp_pegawai = ${pegawaiNpwp}
+      ${whereClause}
+      GROUP BY o.id, o.nama, w.nama, u.nama
+    ),
+    scored AS (
+      SELECT base.*,
+        CASE WHEN jumlah_wajib_lapor = 0 THEN 0
+          ELSE ROUND(jumlah_sudah_lapor * 100.0 / jumlah_wajib_lapor, 1) END AS persen_kepatuhan,
+        CASE
+          WHEN jumlah_wajib_lapor > 0 AND jumlah_sudah_lapor * 100.0 / jumlah_wajib_lapor >= 70 THEN 'hijau'
+          WHEN jumlah_wajib_lapor > 0 AND jumlah_sudah_lapor * 100.0 / jumlah_wajib_lapor >= 40 THEN 'kuning'
+          ELSE 'merah' END AS traffic_light
+      FROM base
+    )
+  `;
+}
+
 function latestDepositPeriod() {
   const database = db();
   const rawPeriod = (
@@ -472,13 +527,13 @@ export function getDashboardData() {
     .prepare(
       `
       SELECT
-        COALESCE(SUM(deposit_kd_411618), 0) AS total_deposit,
-        COALESCE(SUM(CASE WHEN COALESCE(deposit_kd_411618, 0) > 0 THEN 1 ELSE 0 END), 0) AS opd_deposit
-      FROM deposit_monitoring
-      WHERE masa_pajak = ?
+        COALESCE(SUM(nilai_setor), 0) AS total_deposit,
+        COUNT(DISTINCT opd_id) AS opd_deposit
+      FROM deposit_penerimaan
+      WHERE kd_map = '411618'
     `,
     )
-    .get(period) as { total_deposit: number; opd_deposit: number };
+    .get() as { total_deposit: number; opd_deposit: number };
 
   const totalOpd = (database.prepare("SELECT COUNT(*) AS total FROM opd").get() as { total: number }).total;
   const sudahSos = (
@@ -861,14 +916,14 @@ export function deleteOpd(id: number, audit?: { actor?: AuditActor }) {
   return result.changes > 0;
 }
 
-export function listSpt(params: ListParams & { periode?: string; traffic?: string } = {}) {
-  const database = db();
-  const periode = params.periode ?? latestPeriod();
-  const where = ["s.tahun_pajak = 2025", "s.periode = ?"];
-  const values: Array<string | number> = [periode];
+type SptScoredRow = Omit<SptRecord, "tahun_pajak" | "periode">;
+
+function sptSptTahunanFilters(params: ListParams) {
+  const where: string[] = [];
+  const values: Array<string | number> = [];
 
   if (params.q) {
-    where.push("(LOWER(o.nama) LIKE ? OR LOWER(u.nama) LIKE ?)");
+    where.push("(LOWER(o.nama) LIKE ? OR LOWER(COALESCE(u.nama, '')) LIKE ?)");
     const q = `%${params.q.toLowerCase()}%`;
     values.push(q, q);
   }
@@ -876,64 +931,55 @@ export function listSpt(params: ListParams & { periode?: string; traffic?: strin
     where.push("w.kode = ?");
     values.push(params.wilayah);
   }
-  if (params.traffic && params.traffic !== "all") {
-    where.push("s.traffic_light = ?");
-    values.push(params.traffic);
-  }
   if (params.ar && params.ar !== "all") {
     where.push("o.ar_id = ?");
     values.push(Number(params.ar));
   }
 
+  return { whereClause: where.length ? `WHERE ${where.join(" AND ")}` : "", values };
+}
+
+export function listSpt(params: ListParams & { periode?: string; traffic?: string } = {}) {
+  const database = db();
+  const periode = params.periode ?? latestPeriod();
+  const { whereClause, values } = sptSptTahunanFilters(params);
+  const scored = sptTahunanScoredSql(whereClause);
+
+  const trafficFilter = params.traffic && params.traffic !== "all" ? params.traffic : null;
+  const trafficClause = trafficFilter ? "WHERE traffic_light = ?" : "";
+  const trafficValues = trafficFilter ? [trafficFilter] : [];
+
   const page = Math.max(1, params.page ?? 1);
   const pageSize = Math.min(100, Math.max(5, params.pageSize ?? 12));
   const offset = (page - 1) * pageSize;
-  const clause = `WHERE ${where.join(" AND ")}`;
 
   const total = (
     database
-      .prepare(
-        `
-        SELECT COUNT(*) AS total
-        FROM spt_monitoring s
-        JOIN opd o ON o.id = s.opd_id
-        JOIN wilayah w ON w.id = o.wilayah_id
-        ${clause}
-      `,
-      )
-      .get(...values) as { total: number }
+      .prepare(`${scored} SELECT COUNT(*) AS total FROM scored ${trafficClause}`)
+      .get(...values, ...trafficValues) as { total: number }
   ).total;
 
-  const data = database
+  const rows = database
     .prepare(
-      `
-      SELECT s.id, o.id AS opd_id, o.nama AS opd_nama, w.nama AS wilayah_nama, u.nama AS ar_nama,
-        s.tahun_pajak, s.periode, s.jumlah_wajib_lapor, s.jumlah_sudah_lapor,
-        s.persen_kepatuhan, s.traffic_light
-      FROM spt_monitoring s
-      JOIN opd o ON o.id = s.opd_id
-      JOIN wilayah w ON w.id = o.wilayah_id
-      LEFT JOIN users u ON u.id = o.ar_id
-      ${clause}
-      ORDER BY s.persen_kepatuhan ASC, o.nama ASC
-      LIMIT ? OFFSET ?
-    `,
+      `${scored}
+       SELECT id, opd_id, opd_nama, wilayah_nama, ar_nama,
+         jumlah_wajib_lapor, jumlah_sudah_lapor, persen_kepatuhan, traffic_light
+       FROM scored ${trafficClause}
+       ORDER BY persen_kepatuhan ASC, opd_nama ASC
+       LIMIT ? OFFSET ?`,
     )
-    .all(...values, pageSize, offset) as SptRecord[];
+    .all(...values, ...trafficValues, pageSize, offset) as SptScoredRow[];
+  const data: SptRecord[] = rows.map((row) => ({ ...row, tahun_pajak: 2025, periode }));
 
-  const arFilter = params.ar && params.ar !== "all" ? Number(params.ar) : null;
   const summary = database
     .prepare(
-      `
-      SELECT s.traffic_light AS status, COUNT(*) AS total,
-        COALESCE(SUM(s.jumlah_wajib_lapor - s.jumlah_sudah_lapor), 0) AS belum_lapor
-      FROM spt_monitoring s
-      JOIN opd o ON o.id = s.opd_id
-      WHERE s.tahun_pajak = 2025 AND s.periode = ? AND (? IS NULL OR o.ar_id = ?)
-      GROUP BY s.traffic_light
-    `,
+      `${scored}
+       SELECT traffic_light AS status, COUNT(*) AS total,
+         COALESCE(SUM(jumlah_wajib_lapor - jumlah_sudah_lapor), 0) AS belum_lapor
+       FROM scored
+       GROUP BY traffic_light`,
     )
-    .all(periode, arFilter, arFilter) as Array<{ status: string; total: number; belum_lapor: number }>;
+    .all(...values) as Array<{ status: string; total: number; belum_lapor: number }>;
 
   return { data, summary, total, page, pageSize, pages: Math.ceil(total / pageSize) || 1, periode };
 }
@@ -941,43 +987,25 @@ export function listSpt(params: ListParams & { periode?: string; traffic?: strin
 export function listSptDialogRows(params: ListParams & { periode?: string; traffic?: string } = {}) {
   const database = db();
   const periode = params.periode ?? latestPeriod();
-  const where = ["s.tahun_pajak = 2025", "s.periode = ?"];
-  const values: Array<string | number> = [periode];
+  const { whereClause, values } = sptSptTahunanFilters(params);
+  const scored = sptTahunanScoredSql(whereClause);
 
-  if (params.q) {
-    where.push("(LOWER(o.nama) LIKE ? OR LOWER(u.nama) LIKE ?)");
-    const q = `%${params.q.toLowerCase()}%`;
-    values.push(q, q);
-  }
-  if (params.wilayah && params.wilayah !== "all") {
-    where.push("w.kode = ?");
-    values.push(params.wilayah);
-  }
-  if (params.traffic && params.traffic !== "all") {
-    where.push("s.traffic_light = ?");
-    values.push(params.traffic);
-  }
-  if (params.ar && params.ar !== "all") {
-    where.push("o.ar_id = ?");
-    values.push(Number(params.ar));
-  }
+  const trafficFilter = params.traffic && params.traffic !== "all" ? params.traffic : null;
+  const trafficClause = trafficFilter ? "WHERE traffic_light = ?" : "";
+  const trafficValues = trafficFilter ? [trafficFilter] : [];
 
-  return database
+  const rows = database
     .prepare(
-      `
-      SELECT s.id, o.id AS opd_id, o.nama AS opd_nama, w.nama AS wilayah_nama, u.nama AS ar_nama,
-        s.tahun_pajak, s.periode, s.jumlah_wajib_lapor, s.jumlah_sudah_lapor,
-        s.persen_kepatuhan, s.traffic_light
-      FROM spt_monitoring s
-      JOIN opd o ON o.id = s.opd_id
-      JOIN wilayah w ON w.id = o.wilayah_id
-      LEFT JOIN users u ON u.id = o.ar_id
-      WHERE ${where.join(" AND ")}
-      ORDER BY s.persen_kepatuhan ASC, o.nama ASC
-      LIMIT 500
-    `,
+      `${scored}
+       SELECT id, opd_id, opd_nama, wilayah_nama, ar_nama,
+         jumlah_wajib_lapor, jumlah_sudah_lapor, persen_kepatuhan, traffic_light
+       FROM scored ${trafficClause}
+       ORDER BY persen_kepatuhan ASC, opd_nama ASC
+       LIMIT 500`,
     )
-    .all(...values) as SptRecord[];
+    .all(...values, ...trafficValues) as SptScoredRow[];
+
+  return rows.map((row) => ({ ...row, tahun_pajak: 2025, periode })) as SptRecord[];
 }
 
 export function listPph21(params: ListParams & { bulan?: string; pphStatus?: string } = {}) {
@@ -1462,16 +1490,12 @@ export function listSptMasaDialogRows(params: ListParams & { masa?: string; over
     .all(...values) as SptMasaRecord[];
 }
 
-export function listDeposit(params: ListParams & { masa?: string; overallStatus?: string } = {}) {
-  const database = db();
-  const masa = params.masa ?? latestDepositPeriod();
-  const depositAmount = depositPenerimaanAmountSql();
-  const depositStatus = depositPenerimaanStatusSql();
-  const where = ["d.kd_map = '411618'", "d.masa_pajak = ?"];
-  const values: Array<string | number> = [masa];
+function depositSaldoFilters(params: ListParams) {
+  const where: string[] = [];
+  const values: Array<string | number> = [];
 
   if (params.q) {
-    where.push("(LOWER(o.nama) LIKE ? OR LOWER(COALESCE(d.nama_wajib_pajak, '')) LIKE ? OR LOWER(u.nama) LIKE ?)");
+    where.push("(LOWER(o.nama) LIKE ? OR LOWER(COALESCE(d.nama_wajib_pajak, '')) LIKE ? OR LOWER(COALESCE(u.nama, '')) LIKE ?)");
     const q = `%${params.q.toLowerCase()}%`;
     values.push(q, q, q);
   }
@@ -1479,67 +1503,81 @@ export function listDeposit(params: ListParams & { masa?: string; overallStatus?
     where.push("w.kode = ?");
     values.push(params.wilayah);
   }
-  if (params.overallStatus && params.overallStatus !== "all") {
-    where.push(`${depositStatus} = ?`);
-    values.push(params.overallStatus.toLowerCase());
-  }
   if (params.ar && params.ar !== "all") {
     where.push("o.ar_id = ?");
     values.push(Number(params.ar));
   }
 
+  return { whereClause: where.length ? `WHERE ${where.join(" AND ")}` : "", values };
+}
+
+function mapDepositSaldoRow(row: {
+  id: number;
+  opd_id: number;
+  opd_nama: string;
+  wilayah_nama: string;
+  ar_nama: string | null;
+  total_deposit: number;
+  status_deposit_overall: string;
+}, masa: string): DepositRecord {
+  return {
+    id: row.id,
+    opd_id: row.opd_id,
+    opd_nama: row.opd_nama,
+    wilayah_nama: row.wilayah_nama,
+    ar_nama: row.ar_nama,
+    masa_pajak: masa,
+    deposit_pph21: 0,
+    status_pph21: null,
+    deposit_pph_unifikasi: 0,
+    status_unifikasi: null,
+    deposit_ppn_put: 0,
+    status_ppn_put: null,
+    deposit_kd_411618: row.total_deposit,
+    total_deposit: row.total_deposit,
+    status_deposit_overall: row.status_deposit_overall,
+  };
+}
+
+export function listDeposit(params: ListParams & { masa?: string; overallStatus?: string } = {}) {
+  const database = db();
+  const masa = params.masa ?? latestDepositPeriod();
+  const { whereClause, values } = depositSaldoFilters(params);
+  const scored = depositSaldoScoredSql(whereClause);
+
+  const statusFilter = params.overallStatus && params.overallStatus !== "all" ? params.overallStatus.toLowerCase() : null;
+  const statusClause = statusFilter ? "WHERE status_deposit_overall = ?" : "";
+  const statusValues = statusFilter ? [statusFilter] : [];
+
   const page = Math.max(1, params.page ?? 1);
   const pageSize = Math.min(100, Math.max(5, params.pageSize ?? 12));
   const offset = (page - 1) * pageSize;
-  const clause = `WHERE ${where.join(" AND ")}`;
 
   const total = (
     database
-      .prepare(
-        `
-        SELECT COUNT(*) AS total
-        FROM deposit_penerimaan d
-        JOIN opd o ON o.id = d.opd_id
-        JOIN wilayah w ON w.id = o.wilayah_id
-        LEFT JOIN users u ON u.id = o.ar_id
-        ${clause}
-      `,
-      )
-      .get(...values) as { total: number }
+      .prepare(`${scored} SELECT COUNT(*) AS total FROM scored ${statusClause}`)
+      .get(...values, ...statusValues) as { total: number }
   ).total;
 
-  const data = database
+  const rows = database
     .prepare(
-      `
-      SELECT d.id, o.id AS opd_id, o.nama AS opd_nama, w.nama AS wilayah_nama, u.nama AS ar_nama,
-        d.masa_pajak, 0 AS deposit_pph21, NULL AS status_pph21, 0 AS deposit_pph_unifikasi, NULL AS status_unifikasi,
-        0 AS deposit_ppn_put, NULL AS status_ppn_put, ${depositAmount} AS deposit_kd_411618,
-        ${depositAmount} AS total_deposit,
-        ${depositStatus} AS status_deposit_overall
-      FROM deposit_penerimaan d
-      JOIN opd o ON o.id = d.opd_id
-      JOIN wilayah w ON w.id = o.wilayah_id
-      LEFT JOIN users u ON u.id = o.ar_id
-      ${clause}
-      ORDER BY CASE ${depositStatus} WHEN 'merah' THEN 1 WHEN 'kuning' THEN 2 ELSE 3 END, ${depositAmount} ASC, o.nama
-      LIMIT ? OFFSET ?
-    `,
+      `${scored}
+       SELECT id, opd_id, opd_nama, wilayah_nama, ar_nama, total_deposit, status_deposit_overall
+       FROM scored ${statusClause}
+       ORDER BY CASE status_deposit_overall WHEN 'merah' THEN 1 WHEN 'kuning' THEN 2 ELSE 3 END, total_deposit ASC, opd_nama
+       LIMIT ? OFFSET ?`,
     )
-    .all(...values, pageSize, offset) as DepositRecord[];
+    .all(...values, ...statusValues, pageSize, offset) as Parameters<typeof mapDepositSaldoRow>[0][];
+  const data = rows.map((row) => mapDepositSaldoRow(row, masa));
 
-  const arFilter = params.ar && params.ar !== "all" ? Number(params.ar) : null;
   const summary = database
     .prepare(
-      `
-      SELECT ${depositStatus} AS status, COUNT(*) AS total,
-        COALESCE(SUM(${depositAmount}), 0) AS nominal
-      FROM deposit_penerimaan d
-      JOIN opd o ON o.id = d.opd_id
-      WHERE d.kd_map = '411618' AND d.masa_pajak = ? AND (? IS NULL OR o.ar_id = ?)
-      GROUP BY ${depositStatus}
-    `,
+      `${scored}
+       SELECT status_deposit_overall AS status, COUNT(*) AS total, COALESCE(SUM(total_deposit), 0) AS nominal
+       FROM scored
+       GROUP BY status_deposit_overall`,
     )
-    .all(masa, arFilter, arFilter) as Array<{ status: string; total: number; nominal: number }>;
+    .all(...values) as Array<{ status: string; total: number; nominal: number }>;
 
   return { data, summary, total, page, pageSize, pages: Math.ceil(total / pageSize) || 1, masa };
 }
@@ -1547,47 +1585,24 @@ export function listDeposit(params: ListParams & { masa?: string; overallStatus?
 export function listDepositDialogRows(params: ListParams & { masa?: string; overallStatus?: string } = {}) {
   const database = db();
   const masa = params.masa ?? latestDepositPeriod();
-  const depositAmount = depositPenerimaanAmountSql();
-  const depositStatus = depositPenerimaanStatusSql();
-  const where = ["d.kd_map = '411618'", "d.masa_pajak = ?"];
-  const values: Array<string | number> = [masa];
+  const { whereClause, values } = depositSaldoFilters(params);
+  const scored = depositSaldoScoredSql(whereClause);
 
-  if (params.q) {
-    where.push("(LOWER(o.nama) LIKE ? OR LOWER(COALESCE(d.nama_wajib_pajak, '')) LIKE ? OR LOWER(u.nama) LIKE ?)");
-    const q = `%${params.q.toLowerCase()}%`;
-    values.push(q, q, q);
-  }
-  if (params.wilayah && params.wilayah !== "all") {
-    where.push("w.kode = ?");
-    values.push(params.wilayah);
-  }
-  if (params.overallStatus && params.overallStatus !== "all") {
-    where.push(`${depositStatus} = ?`);
-    values.push(params.overallStatus.toLowerCase());
-  }
-  if (params.ar && params.ar !== "all") {
-    where.push("o.ar_id = ?");
-    values.push(Number(params.ar));
-  }
+  const statusFilter = params.overallStatus && params.overallStatus !== "all" ? params.overallStatus.toLowerCase() : null;
+  const statusClause = statusFilter ? "WHERE status_deposit_overall = ?" : "";
+  const statusValues = statusFilter ? [statusFilter] : [];
 
-  return database
+  const rows = database
     .prepare(
-      `
-      SELECT d.id, o.id AS opd_id, o.nama AS opd_nama, w.nama AS wilayah_nama, u.nama AS ar_nama,
-        d.masa_pajak, 0 AS deposit_pph21, NULL AS status_pph21, 0 AS deposit_pph_unifikasi, NULL AS status_unifikasi,
-        0 AS deposit_ppn_put, NULL AS status_ppn_put, ${depositAmount} AS deposit_kd_411618,
-        ${depositAmount} AS total_deposit,
-        ${depositStatus} AS status_deposit_overall
-      FROM deposit_penerimaan d
-      JOIN opd o ON o.id = d.opd_id
-      JOIN wilayah w ON w.id = o.wilayah_id
-      LEFT JOIN users u ON u.id = o.ar_id
-      WHERE ${where.join(" AND ")}
-      ORDER BY CASE ${depositStatus} WHEN 'merah' THEN 1 WHEN 'kuning' THEN 2 ELSE 3 END, ${depositAmount} ASC, o.nama
-      LIMIT 500
-    `,
+      `${scored}
+       SELECT id, opd_id, opd_nama, wilayah_nama, ar_nama, total_deposit, status_deposit_overall
+       FROM scored ${statusClause}
+       ORDER BY CASE status_deposit_overall WHEN 'merah' THEN 1 WHEN 'kuning' THEN 2 ELSE 3 END, total_deposit ASC, opd_nama
+       LIMIT 500`,
     )
-    .all(...values) as DepositRecord[];
+    .all(...values, ...statusValues) as Parameters<typeof mapDepositSaldoRow>[0][];
+
+  return rows.map((row) => mapDepositSaldoRow(row, masa));
 }
 
 export function listScoring(params: ListParams & { bulan?: string; kategori?: string; statusRp?: string } = {}) {
@@ -3434,7 +3449,7 @@ export async function commitImportData(template: ImportTemplateKey, payload: Imp
          email = excluded.email, jenis_kepegawaian = excluded.jenis_kepegawaian`,
     );
     payload.pegawai.forEach((row) => {
-      const opdId = resolveOpd(null, row.opd_nama);
+      const opdId = resolveOpd(row.npwp_satker, row.opd_nama);
       if (!opdId || !row.nip) {
         addSkip(!opdId ? "Pegawai: OPD tidak ditemukan." : "Pegawai: NIP kosong.");
         return;

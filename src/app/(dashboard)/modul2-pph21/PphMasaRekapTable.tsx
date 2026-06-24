@@ -1,9 +1,10 @@
 "use client";
 
-import { Eye, X } from "lucide-react";
+import { Download, Eye, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 import type { PphMasaJenisSummary, PphMasaLaporDetailRow, PphMasaLaporStatus } from "@/types";
+import { downloadCsv, safeCsvFileName } from "@/lib/client-csv";
 import { formatNumber, monthFullLabel } from "@/lib/utils";
 
 type ActiveList = {
@@ -31,6 +32,24 @@ export function PphMasaRekapTable({ summary, detailRows, q, wilayah, ar, bulan, 
     () => (activeList ? detailRows.filter((row) => row.jenis === activeList.jenis && row.status === activeList.status) : []),
     [activeList, detailRows],
   );
+
+  function exportActiveRows() {
+    if (!activeList) return;
+
+    downloadCsv(
+      safeCsvFileName("pph-masa", activeList.jenis, activeList.status, bulan),
+      [
+        { header: "Nama OPD", value: (row) => row.opd_nama },
+        { header: "Wilayah", value: (row) => row.wilayah_nama },
+        { header: "Jenis PPh Masa", value: (row) => row.jenis },
+        { header: "Status", value: () => statusLabel(activeList.status) },
+        { header: "Status Lapor", value: (row) => row.status_lapor ?? "-" },
+        { header: "Bendahara", value: (row) => row.nama_bendahara },
+        { header: "AR", value: (row) => row.ar_nama ?? "-" },
+      ],
+      activeRows,
+    );
+  }
 
   useEffect(() => {
     if (!activeList) return undefined;
@@ -175,6 +194,10 @@ export function PphMasaRekapTable({ summary, detailRows, q, wilayah, ar, bulan, 
               </div>
             </div>
             <div className="modal-footer">
+              <button className="btn btn-primary" type="button" onClick={exportActiveRows} disabled={activeRows.length === 0}>
+                <Download size={16} />
+                Ekspor
+              </button>
               <button className="btn btn-secondary" type="button" onClick={() => setActiveList(null)}>
                 Tutup
               </button>

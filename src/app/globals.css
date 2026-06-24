@@ -1424,10 +1424,13 @@ button.kpi-card {
 
 .modal {
   width: min(760px, 100%);
+  max-height: calc(100dvh - 96px);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--card);
   box-shadow: var(--shadow-lg);
+  display: flex;
+  flex-direction: column;
   overflow: hidden;
 }
 
@@ -1446,7 +1449,10 @@ button.kpi-card {
 }
 
 .modal-body {
+  flex: 1 1 auto;
+  min-height: 0;
   padding: 22px;
+  overflow-y: auto;
 }
 
 .modal-footer {

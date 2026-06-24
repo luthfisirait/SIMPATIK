@@ -132,7 +132,7 @@ export default async function ModulDepositPage({ searchParams }: { searchParams?
         </div>
         <div className="card-footer">
           <span className="muted">
-            Menampilkan {formatNumber(result.data.length)} dari {formatNumber(result.total)} baris penerimaan - Kritis &lt;Rp 2 jt - Rendah Rp 2-10 jt - Aman &gt;Rp 10 jt
+            Menampilkan {formatNumber(result.data.length)} dari {formatNumber(result.total)} OPD - Kritis &lt;Rp 2 jt - Rendah Rp 2-10 jt - Aman &gt;Rp 10 jt
           </span>
           <Pagination page={result.page} pages={result.pages} basePath="/modul5-deposit" query={keepQuery({ q, wilayah, status, ar })} />
         </div>
