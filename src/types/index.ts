@@ -80,8 +80,23 @@ export type Pph21Record = {
 export type PphMasaJenisSummary = {
   jenis: string;
   keterangan: string;
+  wajib_lapor: number;
   sudah_lapor: number;
   belum_lapor: number;
+};
+
+export type PphMasaLaporStatus = "sudah_lapor" | "belum_lapor";
+
+export type PphMasaLaporDetailRow = {
+  id: string;
+  opd_id: number;
+  opd_nama: string;
+  wilayah_nama: string;
+  ar_nama: string | null;
+  nama_bendahara: string;
+  jenis: string;
+  status_lapor: string | null;
+  status: PphMasaLaporStatus;
 };
 
 export type PphMasaPaymentRecord = {

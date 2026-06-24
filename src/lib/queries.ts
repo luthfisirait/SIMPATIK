@@ -9,6 +9,7 @@ import type {
   ImportTemplateKey,
   Notification,
   PphMasaJenisSummary,
+  PphMasaLaporDetailRow,
   Opd,
   PegawaiRecord,
   Pph21Record,
@@ -285,6 +286,77 @@ export function listAuditLogs(limit = 80) {
     `,
     )
     .all(Math.min(200, Math.max(10, limit))) as AuditLogRecord[];
+}
+
+function sptMasaLaporSudahSql(statusSql: string) {
+  return `(
+    ${statusSql} NOT LIKE '%belum%'
+    AND ${statusSql} NOT LIKE '%nihil%'
+    AND ${statusSql} NOT LIKE '%gagal%'
+    AND ${statusSql} NOT LIKE '%tidak lapor%'
+    AND (
+      ${statusSql} LIKE '%tepat%'
+      OR ${statusSql} LIKE '%normal%'
+      OR ${statusSql} LIKE '%submitted%'
+      OR ${statusSql} LIKE '%terlambat%'
+      OR ${statusSql} LIKE '%lapor%'
+    )
+  )`;
+}
+
+function pphMasaLaporFilters(params: ListParams) {
+  const where: string[] = [];
+  const values: Array<string | number> = [];
+
+  if (params.q) {
+    where.push("(LOWER(o.nama) LIKE ? OR LOWER(u.nama) LIKE ?)");
+    const q = `%${params.q.toLowerCase()}%`;
+    values.push(q, q);
+  }
+  if (params.wilayah && params.wilayah !== "all") {
+    where.push("w.kode = ?");
+    values.push(params.wilayah);
+  }
+  if (params.ar && params.ar !== "all") {
+    where.push("o.ar_id = ?");
+    values.push(Number(params.ar));
+  }
+
+  return {
+    clause: where.length ? `WHERE ${where.join(" AND ")}` : "",
+    values,
+  };
+}
+
+function pphMasaJenisDefinitions() {
+  const pph21SudahLapor = sptMasaLaporSudahSql("LOWER(COALESCE(m.pph21_status, ''))");
+  const pph22SudahLapor = sptMasaLaporSudahSql("LOWER(COALESCE(m.pph22_status, ''))");
+  const pph23SudahLapor = sptMasaLaporSudahSql("LOWER(COALESCE(m.pph23_status, ''))");
+  const ppnSudahLapor = sptMasaLaporSudahSql("LOWER(COALESCE(m.ppn_put_status, ''))");
+
+  return [
+    {
+      key: "pph21",
+      jenis: "PPh Pasal 21",
+      keterangan: "SPT Masa PPh Pasal 21/26",
+      statusSql: "COALESCE(m.pph21_status, 'Belum lapor')",
+      sudahLaporSql: pph21SudahLapor,
+    },
+    {
+      key: "unifikasi",
+      jenis: "PPh Unifikasi",
+      keterangan: "SPT Masa PPh Unifikasi",
+      statusSql: "'PPh 22: ' || COALESCE(m.pph22_status, 'Belum lapor') || '; PPh 23: ' || COALESCE(m.pph23_status, 'Belum lapor')",
+      sudahLaporSql: `(${pph22SudahLapor} OR ${pph23SudahLapor})`,
+    },
+    {
+      key: "ppn",
+      jenis: "PPN",
+      keterangan: "SPT Masa PPN bagi Pemungut PPN dan Pihak Lain yang Bukan Merupakan PKP",
+      statusSql: "COALESCE(m.ppn_put_status, 'Belum lapor')",
+      sudahLaporSql: ppnSudahLapor,
+    },
+  ];
 }
 
 export function getWilayah() {
@@ -1023,37 +1095,7 @@ export function listPph21(params: ListParams & { bulan?: string; pphStatus?: str
     total_opd: number;
   };
 
-  function sptLaporSudahSql(statusSql: string) {
-    return `(
-      ${statusSql} NOT LIKE '%belum%'
-      AND ${statusSql} NOT LIKE '%nihil%'
-      AND ${statusSql} NOT LIKE '%gagal%'
-      AND ${statusSql} NOT LIKE '%tidak lapor%'
-      AND (
-        ${statusSql} LIKE '%tepat%'
-        OR ${statusSql} LIKE '%normal%'
-        OR ${statusSql} LIKE '%submitted%'
-        OR ${statusSql} LIKE '%terlambat%'
-        OR ${statusSql} LIKE '%lapor%'
-      )
-    )`;
-  }
-
-  const jenisWhere = ["m.masa_pajak = ?"];
-  const jenisValues: Array<string | number> = [bulan];
-  if (params.q) {
-    jenisWhere.push("(LOWER(o.nama) LIKE ? OR LOWER(u.nama) LIKE ?)");
-    const q = `%${params.q.toLowerCase()}%`;
-    jenisValues.push(q, q);
-  }
-  if (params.wilayah && params.wilayah !== "all") {
-    jenisWhere.push("w.kode = ?");
-    jenisValues.push(params.wilayah);
-  }
-  if (params.ar && params.ar !== "all") {
-    jenisWhere.push("o.ar_id = ?");
-    jenisValues.push(Number(params.ar));
-  }
+  const laporFilters = pphMasaLaporFilters(params);
 
   function sptMasaLaporSummary(jenis: string, keterangan: string, sudahLaporSql: string) {
     return database
@@ -1062,29 +1104,20 @@ export function listPph21(params: ListParams & { bulan?: string; pphStatus?: str
         SELECT
           ? AS jenis,
           ? AS keterangan,
+          COUNT(o.id) AS wajib_lapor,
           COALESCE(SUM(CASE WHEN ${sudahLaporSql} THEN 1 ELSE 0 END), 0) AS sudah_lapor,
-          COALESCE(SUM(CASE WHEN NOT (${sudahLaporSql}) THEN 1 ELSE 0 END), 0) AS belum_lapor
-        FROM spt_masa_monitoring m
-        JOIN opd o ON o.id = m.opd_id
+          COUNT(o.id) - COALESCE(SUM(CASE WHEN ${sudahLaporSql} THEN 1 ELSE 0 END), 0) AS belum_lapor
+        FROM opd o
         JOIN wilayah w ON w.id = o.wilayah_id
         LEFT JOIN users u ON u.id = o.ar_id
-        WHERE ${jenisWhere.join(" AND ")}
+        LEFT JOIN spt_masa_monitoring m ON m.opd_id = o.id AND m.masa_pajak = ?
+        ${laporFilters.clause}
       `,
       )
-      .get(jenis, keterangan, ...jenisValues) as PphMasaJenisSummary;
+      .get(jenis, keterangan, bulan, ...laporFilters.values) as PphMasaJenisSummary;
   }
 
-  const pph21SudahLapor = sptLaporSudahSql("LOWER(COALESCE(m.pph21_status, ''))");
-  const pph22SudahLapor = sptLaporSudahSql("LOWER(COALESCE(m.pph22_status, ''))");
-  const pph23SudahLapor = sptLaporSudahSql("LOWER(COALESCE(m.pph23_status, ''))");
-  const pphUnifikasiSudahLapor = `(${pph22SudahLapor} OR ${pph23SudahLapor})`;
-  const ppnSudahLapor = sptLaporSudahSql("LOWER(COALESCE(m.ppn_put_status, ''))");
-
-  const jenisSummary = [
-    sptMasaLaporSummary("PPh Pasal 21", "SPT Masa PPh Pasal 21/26", pph21SudahLapor),
-    sptMasaLaporSummary("PPh Unifikasi", "SPT Masa PPh Unifikasi", pphUnifikasiSudahLapor),
-    sptMasaLaporSummary("PPN", "SPT Masa PPN bagi Pemungut PPN dan Pihak Lain yang Bukan Merupakan PKP", ppnSudahLapor),
-  ];
+  const jenisSummary = pphMasaJenisDefinitions().map((definition) => sptMasaLaporSummary(definition.jenis, definition.keterangan, definition.sudahLaporSql));
 
   return { data, summary, jenisSummary, total, page, pageSize, pages: Math.ceil(total / pageSize) || 1, bulan };
 }
@@ -1179,6 +1212,38 @@ function pphMasaPaymentSql(filterClause: string) {
 
 function repeatedPphMasaPaymentValues(bulan: string, filterValues: Array<string | number>) {
   return [bulan, ...filterValues, bulan, ...filterValues, bulan, ...filterValues];
+}
+
+export function listPphMasaLaporDetailRows(params: ListParams & { bulan?: string } = {}) {
+  const database = db();
+  const bulan = params.bulan ?? latestPphMonth();
+  const filters = pphMasaLaporFilters(params);
+
+  return pphMasaJenisDefinitions().flatMap((definition) =>
+    database
+      .prepare(
+        `
+        SELECT
+          ? || '-' || o.id AS id,
+          o.id AS opd_id,
+          o.nama AS opd_nama,
+          w.nama AS wilayah_nama,
+          u.nama AS ar_nama,
+          o.nama_bendahara,
+          ? AS jenis,
+          ${definition.statusSql} AS status_lapor,
+          CASE WHEN ${definition.sudahLaporSql} THEN 'sudah_lapor' ELSE 'belum_lapor' END AS status
+        FROM opd o
+        JOIN wilayah w ON w.id = o.wilayah_id
+        LEFT JOIN users u ON u.id = o.ar_id
+        LEFT JOIN spt_masa_monitoring m ON m.opd_id = o.id AND m.masa_pajak = ?
+        ${filters.clause}
+        ORDER BY o.nama
+        LIMIT 1000
+      `,
+      )
+      .all(definition.key, definition.jenis, bulan, ...filters.values) as PphMasaLaporDetailRow[],
+  );
 }
 
 export function listPphMasaPayments(params: ListParams & { bulan?: string } = {}) {
