@@ -134,16 +134,36 @@ function depositAmountSql(alias = "d") {
   return `COALESCE(${prefix}deposit_kd_411618, 0)`;
 }
 
-function depositStatusSql(alias = "d") {
-  const amount = depositAmountSql(alias);
+function depositPenerimaanAmountSql(alias = "d") {
+  const prefix = alias ? `${alias}.` : "";
+  return `COALESCE(${prefix}nilai_setor, 0)`;
+}
+
+function depositStatusForAmountSql(amount: string) {
   return `CASE WHEN ${amount} > 10000000 THEN 'hijau' WHEN ${amount} >= 2000000 THEN 'kuning' ELSE 'merah' END`;
 }
 
+function depositStatusSql(alias = "d") {
+  return depositStatusForAmountSql(depositAmountSql(alias));
+}
+
+function depositPenerimaanStatusSql(alias = "d") {
+  return depositStatusForAmountSql(depositPenerimaanAmountSql(alias));
+}
+
 function latestDepositPeriod() {
+  const database = db();
+  const rawPeriod = (
+    database.prepare("SELECT MAX(masa_pajak) AS period FROM deposit_penerimaan WHERE kd_map = '411618'").get() as {
+      period: string | null;
+    }
+  ).period;
+  if (rawPeriod) return rawPeriod;
+
   return (
     (
-      db()
-        .prepare("SELECT MAX(masa_pajak) AS period FROM deposit_monitoring WHERE COALESCE(deposit_kd_411618, 0) > 0")
+      database
+        .prepare("SELECT MAX(masa_pajak) AS period FROM deposit_monitoring WHERE COALESCE(deposit_kd_411618, 0) <> 0")
         .get() as { period: string | null }
     ).period ??
     latestSptMasaPeriod()
@@ -173,6 +193,7 @@ type CountTable =
   | "users"
   | "opd"
   | "spt_monitoring"
+  | "spt_tahunan_op"
   | "pph21_monitoring"
   | "spt_masa_monitoring"
   | "deposit_monitoring"
@@ -185,6 +206,7 @@ const IMPORT_ORDER: ImportTemplateKey[] = [
   "penerimaan",
   "pelaporan_pph21",
   "pelaporan_unifikasi",
+  "pelaporan_tahunan_op",
   "pegawai",
   "sosialisasi",
 ];
@@ -194,6 +216,7 @@ const IMPORT_LABELS: Record<ImportTemplateKey, string> = {
   penerimaan: "Data Penerimaan",
   pelaporan_pph21: "Pelaporan SPT Masa PPh Pasal 21",
   pelaporan_unifikasi: "Pelaporan SPT Masa Unifikasi/PPN",
+  pelaporan_tahunan_op: "Pelaporan SPT Tahunan OP",
   pegawai: "Daftar Pegawai Instansi",
   sosialisasi: "Rekam Sosialisasi",
 };
@@ -204,18 +227,23 @@ function tableCount(database: ReturnType<typeof getDb>, table: CountTable) {
 
 export function getDataStatus() {
   const database = db();
+  const depositRows = (
+    database.prepare("SELECT COUNT(*) AS total FROM deposit_penerimaan WHERE kd_map = '411618'").get() as { total: number }
+  ).total;
+  const depositMonitoringRows = (
+    database
+      .prepare("SELECT COUNT(*) AS total FROM deposit_monitoring WHERE COALESCE(deposit_kd_411618, 0) <> 0")
+      .get() as { total: number }
+  ).total;
 
   return {
     users: tableCount(database, "users"),
     opd: tableCount(database, "opd"),
     spt: tableCount(database, "spt_monitoring"),
+    sptTahunanOp: tableCount(database, "spt_tahunan_op"),
     pph21: tableCount(database, "pph21_monitoring"),
     sptMasa: tableCount(database, "spt_masa_monitoring"),
-    deposit: (
-      database
-        .prepare("SELECT COUNT(*) AS total FROM deposit_monitoring WHERE COALESCE(deposit_kd_411618, 0) > 0")
-        .get() as { total: number }
-    ).total,
+    deposit: depositRows > 0 ? depositRows : depositMonitoringRows,
     scoring: tableCount(database, "scoring_opd"),
     sosialisasi: tableCount(database, "sosialisasi"),
     pegawai: tableCount(database, "pegawai"),
@@ -268,6 +296,8 @@ export function getDashboardData() {
   const fiscalPeriods = collectFiscalPeriods(database);
   const period = fiscalPeriods.at(-1) ?? latestPeriod();
   const pphMonth = latestPphMonth();
+  const sptTahunanOpJenis = "SPT Tahunan PPh Wajib Pajak Orang Pribadi";
+  const pegawaiNpwp = npwpDigitsSql("p.npwp");
 
   const spt = database
     .prepare(
@@ -390,22 +420,54 @@ export function getDashboardData() {
     }
   ).total;
 
-  const trendPeriods = fiscalPeriods.length > 0 ? fiscalPeriods : [period];
+  const sptTahunanOpPegawai = database
+    .prepare(
+      `
+      SELECT
+        COUNT(*) AS wajib,
+        COALESCE(SUM(CASE WHEN EXISTS (
+          SELECT 1
+          FROM spt_tahunan_op sto
+          WHERE sto.npwp_pegawai = ${pegawaiNpwp}
+            AND sto.jenis_spt = ?
+        ) THEN 1 ELSE 0 END), 0) AS sudah
+      FROM pegawai p
+    `,
+    )
+    .get(sptTahunanOpJenis) as { wajib: number; sudah: number };
+  const sptTahunanOpPersen =
+    sptTahunanOpPegawai.wajib === 0
+      ? 0
+      : Number(((sptTahunanOpPegawai.sudah * 100) / sptTahunanOpPegawai.wajib).toFixed(1));
+
+  const trendPeriods = (
+    database
+      .prepare(
+        `
+        SELECT DISTINCT strftime('%Y-%m', tanggal_terima) AS periode
+        FROM spt_tahunan_op
+        WHERE jenis_spt = ?
+          AND tanggal_terima IS NOT NULL
+          AND tanggal_terima <> ''
+        ORDER BY periode
+      `,
+      )
+      .all(sptTahunanOpJenis) as Array<{ periode: string }>
+  ).map((row) => row.periode);
   const trendStatement = database.prepare(
     `
-      SELECT ? AS periode, 2025 AS tahun_pajak,
-        CASE
-          WHEN COALESCE(SUM(jumlah_wajib_lapor), 0) = 0 THEN 0
-          ELSE ROUND(SUM(jumlah_sudah_lapor) * 100.0 / SUM(jumlah_wajib_lapor), 1)
-        END AS persen,
-        COALESCE(SUM(jumlah_sudah_lapor), 0) AS sudah
-      FROM spt_monitoring
-      WHERE tahun_pajak = 2025 AND periode = ?
+      SELECT ? AS periode,
+        COUNT(DISTINCT sto.npwp_pegawai) AS sudah
+      FROM spt_tahunan_op sto
+      WHERE sto.jenis_spt = ?
+        AND sto.tanggal_terima IS NOT NULL
+        AND sto.tanggal_terima <> ''
+        AND strftime('%Y-%m', sto.tanggal_terima) = ?
     `,
   );
   const trend = trendPeriods.map((trendPeriod) =>
-    trendStatement.get(trendPeriod, trendPeriod),
-  ) as Array<{ periode: string; tahun_pajak: number; persen: number; sudah: number }>;
+    trendStatement.get(trendPeriod, sptTahunanOpJenis, trendPeriod),
+  ) as Array<{ periode: string; sudah: number }>;
 
   const wilayahDistribution = database
     .prepare(
@@ -467,6 +529,9 @@ export function getDashboardData() {
       sptMasuk: spt.sudah,
       sptWajib: spt.wajib,
       sptOpdSudahLapor: spt.opd_sudah,
+      sptTahunanOpPegawaiPersen: sptTahunanOpPersen,
+      sptTahunanOpPegawaiSudah: sptTahunanOpPegawai.sudah,
+      sptTahunanOpPegawaiWajib: sptTahunanOpPegawai.wajib,
       pphBelumSetor: pph.belum,
       pphTepat: pph.tepat,
       pphUnderReporting: pph.under_reporting,
@@ -1335,15 +1400,15 @@ export function listSptMasaDialogRows(params: ListParams & { masa?: string; over
 export function listDeposit(params: ListParams & { masa?: string; overallStatus?: string } = {}) {
   const database = db();
   const masa = params.masa ?? latestDepositPeriod();
-  const depositAmount = depositAmountSql();
-  const depositStatus = depositStatusSql();
-  const where = ["d.masa_pajak = ?"];
+  const depositAmount = depositPenerimaanAmountSql();
+  const depositStatus = depositPenerimaanStatusSql();
+  const where = ["d.kd_map = '411618'", "d.masa_pajak = ?"];
   const values: Array<string | number> = [masa];
 
   if (params.q) {
-    where.push("(LOWER(o.nama) LIKE ? OR LOWER(u.nama) LIKE ?)");
+    where.push("(LOWER(o.nama) LIKE ? OR LOWER(COALESCE(d.nama_wajib_pajak, '')) LIKE ? OR LOWER(u.nama) LIKE ?)");
     const q = `%${params.q.toLowerCase()}%`;
-    values.push(q, q);
+    values.push(q, q, q);
   }
   if (params.wilayah && params.wilayah !== "all") {
     where.push("w.kode = ?");
@@ -1368,7 +1433,7 @@ export function listDeposit(params: ListParams & { masa?: string; overallStatus?
       .prepare(
         `
         SELECT COUNT(*) AS total
-        FROM deposit_monitoring d
+        FROM deposit_penerimaan d
         JOIN opd o ON o.id = d.opd_id
         JOIN wilayah w ON w.id = o.wilayah_id
         LEFT JOIN users u ON u.id = o.ar_id
@@ -1382,11 +1447,11 @@ export function listDeposit(params: ListParams & { masa?: string; overallStatus?
     .prepare(
       `
       SELECT d.id, o.id AS opd_id, o.nama AS opd_nama, w.nama AS wilayah_nama, u.nama AS ar_nama,
-        d.masa_pajak, d.deposit_pph21, d.status_pph21, d.deposit_pph_unifikasi, d.status_unifikasi,
-        d.deposit_ppn_put, d.status_ppn_put, d.deposit_kd_411618,
+        d.masa_pajak, 0 AS deposit_pph21, NULL AS status_pph21, 0 AS deposit_pph_unifikasi, NULL AS status_unifikasi,
+        0 AS deposit_ppn_put, NULL AS status_ppn_put, ${depositAmount} AS deposit_kd_411618,
         ${depositAmount} AS total_deposit,
         ${depositStatus} AS status_deposit_overall
-      FROM deposit_monitoring d
+      FROM deposit_penerimaan d
       JOIN opd o ON o.id = d.opd_id
       JOIN wilayah w ON w.id = o.wilayah_id
       LEFT JOIN users u ON u.id = o.ar_id
@@ -1403,9 +1468,9 @@ export function listDeposit(params: ListParams & { masa?: string; overallStatus?
       `
       SELECT ${depositStatus} AS status, COUNT(*) AS total,
         COALESCE(SUM(${depositAmount}), 0) AS nominal
-      FROM deposit_monitoring d
+      FROM deposit_penerimaan d
       JOIN opd o ON o.id = d.opd_id
-      WHERE d.masa_pajak = ? AND (? IS NULL OR o.ar_id = ?)
+      WHERE d.kd_map = '411618' AND d.masa_pajak = ? AND (? IS NULL OR o.ar_id = ?)
       GROUP BY ${depositStatus}
     `,
     )
@@ -1417,15 +1482,15 @@ export function listDeposit(params: ListParams & { masa?: string; overallStatus?
 export function listDepositDialogRows(params: ListParams & { masa?: string; overallStatus?: string } = {}) {
   const database = db();
   const masa = params.masa ?? latestDepositPeriod();
-  const depositAmount = depositAmountSql();
-  const depositStatus = depositStatusSql();
-  const where = ["d.masa_pajak = ?"];
+  const depositAmount = depositPenerimaanAmountSql();
+  const depositStatus = depositPenerimaanStatusSql();
+  const where = ["d.kd_map = '411618'", "d.masa_pajak = ?"];
   const values: Array<string | number> = [masa];
 
   if (params.q) {
-    where.push("(LOWER(o.nama) LIKE ? OR LOWER(u.nama) LIKE ?)");
+    where.push("(LOWER(o.nama) LIKE ? OR LOWER(COALESCE(d.nama_wajib_pajak, '')) LIKE ? OR LOWER(u.nama) LIKE ?)");
     const q = `%${params.q.toLowerCase()}%`;
-    values.push(q, q);
+    values.push(q, q, q);
   }
   if (params.wilayah && params.wilayah !== "all") {
     where.push("w.kode = ?");
@@ -1444,11 +1509,11 @@ export function listDepositDialogRows(params: ListParams & { masa?: string; over
     .prepare(
       `
       SELECT d.id, o.id AS opd_id, o.nama AS opd_nama, w.nama AS wilayah_nama, u.nama AS ar_nama,
-        d.masa_pajak, d.deposit_pph21, d.status_pph21, d.deposit_pph_unifikasi, d.status_unifikasi,
-        d.deposit_ppn_put, d.status_ppn_put, d.deposit_kd_411618,
+        d.masa_pajak, 0 AS deposit_pph21, NULL AS status_pph21, 0 AS deposit_pph_unifikasi, NULL AS status_unifikasi,
+        0 AS deposit_ppn_put, NULL AS status_ppn_put, ${depositAmount} AS deposit_kd_411618,
         ${depositAmount} AS total_deposit,
         ${depositStatus} AS status_deposit_overall
-      FROM deposit_monitoring d
+      FROM deposit_penerimaan d
       JOIN opd o ON o.id = d.opd_id
       JOIN wilayah w ON w.id = o.wilayah_id
       LEFT JOIN users u ON u.id = o.ar_id
@@ -1840,17 +1905,18 @@ export function listPegawai(params: ListParams = {}) {
   const page = Math.max(1, params.page ?? 1);
   const pageSize = Math.min(100, Math.max(5, params.pageSize ?? 12));
   const offset = (page - 1) * pageSize;
-  const where = params.includeSudah ? [] : ["p.status_coretax != 'sudah_lapor'"];
+  const sptTahunanStatus = pegawaiSptTahunanStatusSql();
+  const where = params.includeSudah ? [] : [`${sptTahunanStatus} != 'sudah_lapor'`];
   const values: Array<string | number> = [];
   const summaryWhere: string[] = [];
   const summaryValues: Array<string | number> = [];
 
   if (params.q) {
-    where.push("(LOWER(p.nama) LIKE ? OR p.nip LIKE ? OR LOWER(o.nama) LIKE ? OR LOWER(u.nama) LIKE ?)");
-    summaryWhere.push("(LOWER(p.nama) LIKE ? OR p.nip LIKE ? OR LOWER(o.nama) LIKE ? OR LOWER(u.nama) LIKE ?)");
+    where.push("(LOWER(p.nama) LIKE ? OR p.nip LIKE ? OR p.npwp LIKE ? OR LOWER(o.nama) LIKE ? OR LOWER(u.nama) LIKE ?)");
+    summaryWhere.push("(LOWER(p.nama) LIKE ? OR p.nip LIKE ? OR p.npwp LIKE ? OR LOWER(o.nama) LIKE ? OR LOWER(u.nama) LIKE ?)");
     const q = `%${params.q.toLowerCase()}%`;
-    values.push(q, `%${params.q}%`, q, q);
-    summaryValues.push(q, `%${params.q}%`, q, q);
+    values.push(q, `%${params.q}%`, `%${params.q}%`, q, q);
+    summaryValues.push(q, `%${params.q}%`, `%${params.q}%`, q, q);
   }
   if (params.wilayah && params.wilayah !== "all") {
     where.push("w.kode = ?");
@@ -1859,7 +1925,7 @@ export function listPegawai(params: ListParams = {}) {
     summaryValues.push(params.wilayah);
   }
   if (params.status && params.status !== "all") {
-    where.push("p.status_coretax = ?");
+    where.push(`${sptTahunanStatus} = ?`);
     values.push(params.status);
   }
   if (params.ar && params.ar !== "all") {
@@ -1899,14 +1965,14 @@ export function listPegawai(params: ListParams = {}) {
     .prepare(
       `
       SELECT p.id, p.nama, p.nip, p.opd_id, o.nama AS opd_nama, w.nama AS wilayah_nama,
-        p.jabatan, p.status_coretax, u.nama AS ar_nama, p.phone,
+        p.jabatan, ${sptTahunanStatus} AS status_coretax, u.nama AS ar_nama, p.phone,
         p.npwp, p.nik, p.email, p.jenis_kepegawaian
       FROM pegawai p
       JOIN opd o ON o.id = p.opd_id
       JOIN wilayah w ON w.id = o.wilayah_id
       LEFT JOIN users u ON u.id = o.ar_id
       ${clause}
-      ORDER BY CASE p.status_coretax WHEN 'belum_aktivasi' THEN 1 ELSE 2 END, w.id, p.nama
+      ORDER BY CASE ${sptTahunanStatus} WHEN 'aktif_belum_lapor' THEN 1 ELSE 2 END, w.id, p.nama
       LIMIT ? OFFSET ?
     `,
     )
@@ -1916,18 +1982,36 @@ export function listPegawai(params: ListParams = {}) {
   const summary = database
     .prepare(
       `
-      SELECT p.status_coretax AS status, COUNT(*) AS total
+      SELECT ${sptTahunanStatus} AS status, COUNT(*) AS total
       FROM pegawai p
       JOIN opd o ON o.id = p.opd_id
       JOIN wilayah w ON w.id = o.wilayah_id
       LEFT JOIN users u ON u.id = o.ar_id
       ${summaryClause}
-      GROUP BY p.status_coretax
+      GROUP BY ${sptTahunanStatus}
     `,
     )
     .all(...summaryValues) as Array<{ status: string; total: number }>;
 
   return { data, summary, total, page, pageSize, pages: Math.ceil(total / pageSize) || 1 };
+}
+
+function npwpDigitsSql(expression: string) {
+  return `REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(${expression}, ''), '.', ''), '-', ''), '/', ''), ' ', '')`;
+}
+
+function pegawaiSptTahunanStatusSql() {
+  const npwp = npwpDigitsSql("p.npwp");
+  return `CASE
+    WHEN ${npwp} <> ''
+      AND EXISTS (
+        SELECT 1
+        FROM spt_tahunan_op sto
+        WHERE sto.npwp_pegawai = ${npwp}
+      )
+    THEN 'sudah_lapor'
+    ELSE 'aktif_belum_lapor'
+  END`;
 }
 
 export function listAr() {
@@ -2448,7 +2532,8 @@ function importTemplateHasSourceData(database: ReturnType<typeof getDb>, templat
     case "penerimaan":
       return (
         tableCount(database, "pph21_monitoring") > 0 ||
-        database.prepare("SELECT 1 FROM deposit_monitoring WHERE COALESCE(deposit_kd_411618, 0) > 0 LIMIT 1").get() !==
+        database.prepare("SELECT 1 FROM deposit_penerimaan WHERE kd_map = '411618' LIMIT 1").get() !== undefined ||
+        database.prepare("SELECT 1 FROM deposit_monitoring WHERE COALESCE(deposit_kd_411618, 0) <> 0 LIMIT 1").get() !==
           undefined ||
         database
           .prepare(
@@ -2472,6 +2557,8 @@ function importTemplateHasSourceData(database: ReturnType<typeof getDb>, templat
           )
           .get() !== undefined
       );
+    case "pelaporan_tahunan_op":
+      return tableCount(database, "spt_tahunan_op") > 0;
     case "pegawai":
       return tableCount(database, "pegawai") > 0;
     case "sosialisasi":
@@ -2517,6 +2604,8 @@ function importedRowCountForTemplate(result: ImportCommitResult, template: Impor
     case "pelaporan_pph21":
     case "pelaporan_unifikasi":
       return result.spt_masa;
+    case "pelaporan_tahunan_op":
+      return result.spt_tahunan_op;
     case "pegawai":
       return result.pegawai;
     case "sosialisasi":
@@ -2534,9 +2623,13 @@ function collectFiscalPeriods(database: ReturnType<typeof getDb>) {
       `
       SELECT bulan AS period FROM pph21_monitoring
       UNION
+      SELECT masa_pajak AS period FROM deposit_penerimaan
+      UNION
       SELECT masa_pajak AS period FROM deposit_monitoring
       UNION
       SELECT masa_pajak AS period FROM spt_masa_monitoring
+      UNION
+      SELECT masa_pajak AS period FROM spt_tahunan_op
       ORDER BY period
     `,
     )
@@ -2550,8 +2643,12 @@ function collectDepositPeriods(database: ReturnType<typeof getDb>) {
     .prepare(
       `
       SELECT masa_pajak AS period
+      FROM deposit_penerimaan
+      WHERE kd_map = '411618'
+      UNION
+      SELECT masa_pajak AS period
       FROM deposit_monitoring
-      WHERE COALESCE(deposit_kd_411618, 0) > 0
+      WHERE COALESCE(deposit_kd_411618, 0) <> 0
       ORDER BY period
     `,
     )
@@ -2611,21 +2708,23 @@ function deriveSptMonitoring(database: ReturnType<typeof getDb>, periods: string
   const sourcePeriods = periods.length > 0 ? periods : tableCount(database, "pegawai") > 0 ? [currentMonth()] : [];
   if (sourcePeriods.length === 0) return 0;
 
-  const rows = database
-    .prepare(
-      `
+  const selectRows = database.prepare(
+    `
       SELECT o.id AS opd_id,
-        CASE
-          WHEN COUNT(p.id) > 0 THEN COUNT(p.id)
-          ELSE COALESCE(o.jumlah_asn, 0) + COALESCE(o.jumlah_pppk, 0)
-        END AS wajib,
-        COALESCE(SUM(CASE WHEN p.status_coretax = 'sudah_lapor' THEN 1 ELSE 0 END), 0) AS sudah
+        COUNT(p.id) AS wajib,
+        COALESCE(SUM(CASE
+          WHEN ${npwpDigitsSql("p.npwp")} <> ''
+            AND EXISTS (
+              SELECT 1
+              FROM spt_tahunan_op sto
+              WHERE sto.npwp_pegawai = ${npwpDigitsSql("p.npwp")}
+            )
+          THEN 1 ELSE 0 END), 0) AS sudah
       FROM opd o
       LEFT JOIN pegawai p ON p.opd_id = o.id
       GROUP BY o.id
     `,
-    )
-    .all() as Array<{ opd_id: number; wajib: number; sudah: number }>;
+  );
 
   const upsert = database.prepare(
     `
@@ -2643,6 +2742,7 @@ function deriveSptMonitoring(database: ReturnType<typeof getDb>, periods: string
 
   let changed = 0;
   sourcePeriods.forEach((period) => {
+    const rows = selectRows.all() as Array<{ opd_id: number; wajib: number; sudah: number }>;
     rows.forEach((row) => {
       const wajib = Math.max(0, Number(row.wajib ?? 0));
       const sudah = Math.min(wajib, Math.max(0, Number(row.sudah ?? 0)));
@@ -2847,6 +2947,7 @@ function clearImportDataForTemplate(database: ReturnType<typeof getDb>, template
     case "penerimaan": {
       const cleared =
         database.prepare("DELETE FROM pph21_monitoring").run().changes +
+        database.prepare("DELETE FROM deposit_penerimaan").run().changes +
         database.prepare("DELETE FROM deposit_monitoring").run().changes +
         database
           .prepare(
@@ -2877,6 +2978,8 @@ function clearImportDataForTemplate(database: ReturnType<typeof getDb>, template
       refreshSptMasaOverall(database);
       return cleared;
     }
+    case "pelaporan_tahunan_op":
+      return database.prepare("DELETE FROM spt_tahunan_op").run().changes;
     case "pegawai":
       return database.prepare("DELETE FROM pegawai").run().changes;
     case "sosialisasi":
@@ -2896,6 +2999,7 @@ export async function commitImportData(template: ImportTemplateKey, payload: Imp
       pph21: 0,
       deposit: 0,
       spt_masa: 0,
+      spt_tahunan_op: 0,
       pegawai: 0,
       sosialisasi: 0,
       derived_spt: 0,
@@ -3133,6 +3237,12 @@ export async function commitImportData(template: ImportTemplateKey, payload: Imp
     });
 
     // --- 3. Deposit -------------------------------------------------------
+    const insertDepositRow = database.prepare(
+      `INSERT INTO deposit_penerimaan (
+         opd_id, npwp, nama_wajib_pajak, masa_pajak, kd_map, kd_setor, nilai_setor, tgl_setor, ntpn, sumber_data
+       )
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    );
     const upsertDeposit = database.prepare(
       `INSERT INTO deposit_monitoring (opd_id, masa_pajak, deposit_kd_411618, total_deposit)
        VALUES (?, ?, ?, ?)
@@ -3143,15 +3253,34 @@ export async function commitImportData(template: ImportTemplateKey, payload: Imp
          deposit_kd_411618 = excluded.deposit_kd_411618,
          total_deposit = excluded.total_deposit`,
     );
+    const depositTotals = new Map<string, { opdId: number; masaPajak: string; nilaiSetor: number }>();
     payload.deposit.forEach((row) => {
       const opdId = resolveOpd(row.npwp, row.nama_opd);
       if (!opdId) {
         addSkip("Deposit: OPD tidak ditemukan.");
         return;
       }
-      const deposit = Math.round(row.deposit_kd_411618);
-      upsertDeposit.run(opdId, row.masa_pajak, deposit, deposit);
+      const nilaiSetor = Math.round(row.nilai_setor);
+      insertDepositRow.run(
+        opdId,
+        row.npwp,
+        row.nama_opd,
+        row.masa_pajak,
+        row.kd_map,
+        row.kd_setor,
+        nilaiSetor,
+        row.tgl_setor,
+        row.ntpn,
+        row.sumber_data,
+      );
+      const key = `${opdId}__${row.masa_pajak}`;
+      const current = depositTotals.get(key) ?? { opdId, masaPajak: row.masa_pajak, nilaiSetor: 0 };
+      current.nilaiSetor += nilaiSetor;
+      depositTotals.set(key, current);
       result.deposit += 1;
+    });
+    depositTotals.forEach((row) => {
+      upsertDeposit.run(row.opdId, row.masaPajak, row.nilaiSetor, row.nilaiSetor);
     });
 
     // --- 4. SPT Masa (pelaporan) -----------------------------------------
@@ -3191,7 +3320,45 @@ export async function commitImportData(template: ImportTemplateKey, payload: Imp
     });
     if (payload.sptMasa.length > 0) refreshSptMasaOverall(database);
 
-    // --- 5. Pegawai -------------------------------------------------------
+    // --- 5. SPT Tahunan OP ----------------------------------------------
+    const upsertSptTahunanOp = database.prepare(
+      `INSERT INTO spt_tahunan_op (
+         npwp_pegawai, nama_pegawai, masa_pajak, jenis_spt, nomor_tanda_terima,
+         tanggal_terima, status_pelaporan, pembetulan, kanal_pelaporan, kpp_administrasi
+       )
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(npwp_pegawai, masa_pajak) DO UPDATE SET
+         nama_pegawai = excluded.nama_pegawai,
+         jenis_spt = excluded.jenis_spt,
+         nomor_tanda_terima = excluded.nomor_tanda_terima,
+         tanggal_terima = excluded.tanggal_terima,
+         status_pelaporan = excluded.status_pelaporan,
+         pembetulan = excluded.pembetulan,
+         kanal_pelaporan = excluded.kanal_pelaporan,
+         kpp_administrasi = excluded.kpp_administrasi`,
+    );
+    payload.sptTahunanOp.forEach((row) => {
+      const npwpPegawai = row.npwp_pegawai?.replace(/\D/g, "") ?? "";
+      if (!npwpPegawai) {
+        addSkip("SPT Tahunan OP: NPWP pegawai kosong.");
+        return;
+      }
+      upsertSptTahunanOp.run(
+        npwpPegawai,
+        row.nama_pegawai,
+        row.masa_pajak,
+        row.jenis_spt,
+        row.nomor_tanda_terima,
+        row.tanggal_terima,
+        row.status_pelaporan,
+        row.pembetulan,
+        row.kanal_pelaporan,
+        row.kpp_administrasi,
+      );
+      result.spt_tahunan_op += 1;
+    });
+
+    // --- 6. Pegawai -------------------------------------------------------
     const upsertPegawai = database.prepare(
       `INSERT INTO pegawai (nama, nip, opd_id, jabatan, status_coretax, phone, npwp, nik, email, jenis_kepegawaian)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -3226,7 +3393,7 @@ export async function commitImportData(template: ImportTemplateKey, payload: Imp
       }
     });
 
-    // --- 6. Sosialisasi ---------------------------------------------------
+    // --- 7. Sosialisasi ---------------------------------------------------
     const findSosialisasi = database.prepare(
       "SELECT id FROM sosialisasi WHERE opd_id = ? AND tanggal = ? AND COALESCE(tema, '') = COALESCE(?, '')",
     );

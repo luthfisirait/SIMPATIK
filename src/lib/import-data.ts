@@ -28,6 +28,7 @@ const TEMPLATE_LABEL: Record<ImportTemplateKey, string> = {
   penerimaan: "Data Penerimaan",
   pelaporan_pph21: "Pelaporan SPT Masa PPh Pasal 21",
   pelaporan_unifikasi: "Pelaporan SPT Masa Unifikasi/PPN",
+  pelaporan_tahunan_op: "Pelaporan SPT Tahunan OP",
   pegawai: "Daftar Pegawai Instansi",
   sosialisasi: "Rekam Sosialisasi",
 };
@@ -230,6 +231,14 @@ const TEMPLATE_SPECS: Record<ImportTemplateKey, TemplateSpec> = {
       [2, "1000000000912729", "BBPMP DIREKTORAT JENDERAL PENDIDIKAN ANAK USIA DINI, PENDIDIKAN DASAR, DAN PENDIDIKAN MENENGAH KEMENTERIAN PENDIDIKAN DASAR DAN MENENGAH", "05052025", "SPT Masa PPN bagi Pemungut PPN dan Pihak Lain yang Bukan Merupakan PKP", "BPE-09760/CT/KPP.2704/2026", "02-01-2026", "", "Submitted", "Normal", "Portal Wajib Pajak", "201-KPP Pratama Padang Satu", "201-KPP Pratama Padang Satu"],
     ],
   },
+  pelaporan_tahunan_op: {
+    label: TEMPLATE_LABEL.pelaporan_tahunan_op,
+    sheetName: "SPT Tahunan OP",
+    headerRows: [PELAPORAN_HEADERS],
+    samples: [
+      [1, "9876543210987654", "BUDI SANTOSO", "01012025", "SPT Tahunan PPh Wajib Pajak Orang Pribadi", "BPE-OP-2025-0001", "31-03-2026", "", "Submitted", "Normal", "Portal Wajib Pajak", "201-KPP Pratama Padang Satu", "201-KPP Pratama Padang Satu"],
+    ],
+  },
   pegawai: {
     label: TEMPLATE_LABEL.pegawai,
     sheetName: "Sheet1",
@@ -314,6 +323,7 @@ const DATASET_META: Record<keyof ImportPayload, { label: string; modul: string }
   pph21: { label: "Setoran PPh 21", modul: "Modul 2 PPh 21" },
   deposit: { label: "Deposit pajak", modul: "Modul 5 Deposit" },
   sptMasa: { label: "Pelaporan SPT Masa", modul: "Modul 4 SPT Masa" },
+  sptTahunanOp: { label: "Pelaporan SPT Tahunan OP", modul: "Rincian Pegawai SPT" },
   pegawai: { label: "Pegawai instansi", modul: "Direktori Pegawai" },
   sosialisasi: { label: "Sosialisasi", modul: "Modul 3 Sosialisasi" },
 };
@@ -367,6 +377,7 @@ export function analyzeSheets(
     pph21: [],
     deposit: [],
     sptMasa: [],
+    sptTahunanOp: [],
     pegawai: [],
     sosialisasi: [],
   };
@@ -396,6 +407,9 @@ export function analyzeSheets(
         break;
       case "pelaporan_unifikasi":
         normalizePelaporan(sheet, payload, "unifikasi");
+        break;
+      case "pelaporan_tahunan_op":
+        normalizePelaporan(sheet, payload, "tahunan_op");
         break;
       case "pegawai":
         normalizePegawai(sheet, payload, warnings);
@@ -461,17 +475,21 @@ function detectPelaporanSheet(sheet: ParsedSheet, expected?: ImportTemplateKey |
   let hasPph21 = false;
   let hasUnifikasi = false;
   let hasPpn = false;
+  let hasTahunanOp = false;
 
   forEachRow(sheet, (row) => {
     const kind = pelaporanKindFromJenisSpt(row.pick("jenis_spt"));
     if (kind === "unifikasi") hasUnifikasi = true;
     if (kind === "ppn") hasPpn = true;
     if (kind === "pph21") hasPph21 = true;
+    if (kind === "tahunan_op") hasTahunanOp = true;
   });
 
+  if (hasTahunanOp && !hasPph21 && !hasUnifikasi && !hasPpn) return "pelaporan_tahunan_op";
   if ((hasUnifikasi || hasPpn) && !hasPph21) return "pelaporan_unifikasi";
   if (hasPph21 && !hasUnifikasi && !hasPpn) return "pelaporan_pph21";
-  if (expected === "pelaporan_pph21" || expected === "pelaporan_unifikasi") return expected;
+  if (expected === "pelaporan_pph21" || expected === "pelaporan_unifikasi" || expected === "pelaporan_tahunan_op") return expected;
+  if (hasTahunanOp) return "pelaporan_tahunan_op";
   return hasUnifikasi || hasPpn ? "pelaporan_unifikasi" : "pelaporan_pph21";
 }
 
@@ -494,9 +512,9 @@ function normalizeMasterfile(sheet: ParsedSheet, payload: ImportPayload, warning
       ar_nama: textValue(row.pick("nama_ar")) || null,
       ar_nip: textValue(row.pick("nip_ar")) || null,
       status_pemungut_ppn: normalizeYesNo(row.pick("status_pemungut_ppn", "wajib_spt_ppn")),
-      nama_bendahara: textValue(row.pick("nama_bendahara")) || null,
+      nama_bendahara: textValue(row.pick("nama_bendahara", "nama_bendahara_pengeluaran")) || null,
       nip_bendahara: textValue(row.pick("nip_bendahara")) || null,
-      hp_bendahara: textValue(row.pick("hp_bendahara", "no_hp_bendahara")) || null,
+      hp_bendahara: textValue(row.pick("hp_bendahara", "no_hp_bendahara", "nomor_telepon_bendahara", "nomor_telpon_bendahara", "no_telp_bendahara", "telepon_bendahara", "telpon_bendahara")) || null,
       email_bendahara: textValue(row.pick("email_bendahara")) || null,
       nama_bendahara_penerimaan: textValue(row.pick("nama_bendahara_penerimaan")) || null,
       hp_bendahara_penerimaan: textValue(row.pick("hp_bendahara_penerimaan")) || null,
@@ -523,7 +541,6 @@ function normalizePenerimaan(sheet: ParsedSheet, payload: ImportPayload, warning
       pph23: number;
       pphFinal: number;
       ppn: number;
-      depositUmum: number;
       jumlahDipotong: number;
       estimasiWajar: number;
       ketepatan: "tepat_waktu" | "terlambat" | "belum_setor";
@@ -547,6 +564,20 @@ function normalizePenerimaan(sheet: ParsedSheet, payload: ImportPayload, warning
       warnings.push(`Penerimaan: KD MAP ${map || "(kosong)"} untuk ${nama ?? npwp} belum dipetakan dan dilewati.`);
       return;
     }
+    if (kind === "deposit") {
+      payload.deposit.push({
+        npwp,
+        nama_opd: nama,
+        masa_pajak: masa,
+        kd_map: map,
+        kd_setor: textValue(row.pick("kd_setor")) || null,
+        nilai_setor: nilai,
+        tgl_setor: toIsoDate(row.pick("tgl_setor", "tanggal_setor")),
+        ntpn: textValue(row.pick("ntpn")) || null,
+        sumber_data: textValue(row.pick("sumber_data")) || null,
+      });
+      return;
+    }
     const key = `${npwp ?? nama}__${masa}`;
     const entry = bucket.get(key) ?? {
       npwp,
@@ -557,7 +588,6 @@ function normalizePenerimaan(sheet: ParsedSheet, payload: ImportPayload, warning
       pph23: 0,
       pphFinal: 0,
       ppn: 0,
-      depositUmum: 0,
       jumlahDipotong: 0,
       estimasiWajar: 0,
       ketepatan: "tepat_waktu",
@@ -578,19 +608,10 @@ function normalizePenerimaan(sheet: ParsedSheet, payload: ImportPayload, warning
     else if (kind === "pph23") entry.pph23 += nilai;
     else if (kind === "pph_final") entry.pphFinal += nilai;
     else if (kind === "ppn") entry.ppn += nilai;
-    else entry.depositUmum += nilai;
     bucket.set(key, entry);
   });
 
   bucket.forEach((entry) => {
-    if (entry.depositUmum > 0) {
-      payload.deposit.push({
-        npwp: entry.npwp,
-        nama_opd: entry.nama,
-        masa_pajak: entry.masa,
-        deposit_kd_411618: entry.depositUmum,
-      });
-    }
     if (entry.pph22 > 0 || entry.pph23 > 0 || entry.pphFinal > 0 || entry.ppn > 0) {
       const sptMasa = ensureSptMasaRow(payload, entry.npwp, entry.nama, entry.masa);
       sptMasa.pph22_nominal += entry.pph22;
@@ -612,7 +633,7 @@ function normalizePenerimaan(sheet: ParsedSheet, payload: ImportPayload, warning
   });
 }
 
-function normalizePelaporan(sheet: ParsedSheet, payload: ImportPayload, fallbackKind: "pph21" | "unifikasi") {
+function normalizePelaporan(sheet: ParsedSheet, payload: ImportPayload, fallbackKind: "pph21" | "unifikasi" | "tahunan_op") {
   // Satu sheet bisa memuat beberapa blok (PPh 21 / PPN / Unifikasi) dipisah baris kosong.
   // Karena tiap blok punya header sendiri, kita proses per baris dengan header aktif.
   const blocks = splitBlocks(sheet);
@@ -625,6 +646,10 @@ function normalizePelaporan(sheet: ParsedSheet, payload: ImportPayload, fallback
       if (!masa) return;
       const kind = pelaporanKindFromJenisSpt(row.pick("jenis_spt"));
       const status = textValue(row.pick("status_pelaporan")) || null;
+      if (kind === "tahunan_op" || fallbackKind === "tahunan_op") {
+        addSptTahunanOpRow(payload, row, npwp, nama, masa);
+        return;
+      }
       const target = ensureSptMasaRow(payload, npwp, nama, masa);
       if (kind === "ppn") target.ppn_put_status = status;
       else if (kind === "unifikasi") setUnifikasiStatus(target, status);
@@ -635,6 +660,21 @@ function normalizePelaporan(sheet: ParsedSheet, payload: ImportPayload, fallback
   });
 }
 
+function addSptTahunanOpRow(payload: ImportPayload, row: RowAccessor, npwp: string | null, nama: string | null, masa: string) {
+  payload.sptTahunanOp.push({
+    npwp_pegawai: normalizeNpwp(npwp),
+    nama_pegawai: nama,
+    masa_pajak: masa,
+    jenis_spt: textValue(row.pick("jenis_spt")) || "SPT Tahunan PPh Wajib Pajak Orang Pribadi",
+    nomor_tanda_terima: textValue(row.pick("nomor_tanda_terima")) || null,
+    tanggal_terima: toIsoDate(row.pick("tgl_terima", "tanggal_terima")),
+    status_pelaporan: textValue(row.pick("status_pelaporan")) || null,
+    pembetulan: textValue(row.pick("pembetulan", "pembe_tulan")) || null,
+    kanal_pelaporan: textValue(row.pick("kanal_pelaporan")) || null,
+    kpp_administrasi: textValue(row.pick("kpp_administrasi")) || null,
+  });
+}
+
 function normalizePegawai(sheet: ParsedSheet, payload: ImportPayload, warnings: string[]) {
   forEachRow(sheet, (row) => {
     const nama = textValue(row.pick("nama", "nama_pegawai"));
@@ -642,7 +682,7 @@ function normalizePegawai(sheet: ParsedSheet, payload: ImportPayload, warnings: 
     const opd = textValue(row.pick("nama_satker", "opd", "nama_opd")) || null;
     if (!opd) warnings.push(`Pegawai: "${nama}" tanpa OPD, akan dilewati saat commit bila OPD tak ditemukan.`);
     payload.pegawai.push({
-      npwp: textValue(row.pick("npwp", "npwp_pegawai")) || null,
+      npwp: normalizeNpwp(row.pick("npwp", "npwp_pegawai")),
       nik: textValue(row.pick("nik")) || null,
       nama,
       nip: textValue(row.pick("nip", "nip_pegawai")) || null,
@@ -804,8 +844,9 @@ function penerimaanKindFromMap(kdMap: string): PenerimaanKind | null {
   return PENERIMAAN_KIND_BY_MAP[kdMap] ?? null;
 }
 
-function pelaporanKindFromJenisSpt(value: unknown): "pph21" | "unifikasi" | "ppn" | null {
+function pelaporanKindFromJenisSpt(value: unknown): "pph21" | "unifikasi" | "ppn" | "tahunan_op" | null {
   const jenis = textValue(value).toLowerCase();
+  if (jenis.includes("tahunan") && jenis.includes("orang pribadi")) return "tahunan_op";
   if (jenis.includes("ppn")) return "ppn";
   if (jenis.includes("unifikasi")) return "unifikasi";
   if (jenis.includes("21") || jenis.includes("26")) return "pph21";
@@ -948,6 +989,11 @@ function isBlank(value: unknown): boolean {
 function textValue(value: unknown): string {
   if (value instanceof Date) return value.toISOString().slice(0, 10);
   return String(value ?? "").trim();
+}
+
+function normalizeNpwp(value: unknown): string | null {
+  const digits = textValue(value).replace(/\D/g, "");
+  return digits || null;
 }
 
 function numberValue(value: unknown): number {

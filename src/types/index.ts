@@ -220,6 +220,7 @@ export type ImportTemplateKey =
   | "penerimaan"
   | "pelaporan_pph21"
   | "pelaporan_unifikasi"
+  | "pelaporan_tahunan_op"
   | "pegawai"
   | "sosialisasi";
 
@@ -259,7 +260,12 @@ export type ImportDepositRow = {
   npwp: string | null;
   nama_opd: string | null;
   masa_pajak: string; // YYYY-MM
-  deposit_kd_411618: number;
+  kd_map: string;
+  kd_setor: string | null;
+  nilai_setor: number;
+  tgl_setor: string | null;
+  ntpn: string | null;
+  sumber_data: string | null;
 };
 
 export type ImportSptMasaRow = {
@@ -273,6 +279,19 @@ export type ImportSptMasaRow = {
   ppn_put_nominal: number;
   ppn_put_status: string | null; // dari SPT PPN
   pph21_status: string | null; // dari SPT PPh 21
+};
+
+export type ImportSptTahunanOpRow = {
+  npwp_pegawai: string | null;
+  nama_pegawai: string | null;
+  masa_pajak: string; // YYYY-MM
+  jenis_spt: string;
+  nomor_tanda_terima: string | null;
+  tanggal_terima: string | null;
+  status_pelaporan: string | null;
+  pembetulan: string | null;
+  kanal_pelaporan: string | null;
+  kpp_administrasi: string | null;
 };
 
 export type ImportPegawaiRow = {
@@ -306,6 +325,7 @@ export type ImportPayload = {
   pph21: ImportPph21Row[];
   deposit: ImportDepositRow[];
   sptMasa: ImportSptMasaRow[];
+  sptTahunanOp: ImportSptTahunanOpRow[];
   pegawai: ImportPegawaiRow[];
   sosialisasi: ImportSosialisasiRow[];
 };
@@ -336,6 +356,7 @@ export type ImportCommitResult = {
   pph21: number;
   deposit: number;
   spt_masa: number;
+  spt_tahunan_op: number;
   pegawai: number;
   sosialisasi: number;
   derived_spt: number;

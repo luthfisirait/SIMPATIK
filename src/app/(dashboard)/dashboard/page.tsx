@@ -26,7 +26,13 @@ export default function DashboardPage() {
   const trendLabels = data.trend.map((item) => monthLabel(item.periode));
 
   const quickCards = [
-    { href: "/modul1-spt", label: "SPT Tahunan OP", sub: `${formatNumber(data.kpis.sptOpdSudahLapor)} OPD sudah melapor`, accent: "teal" },
+    {
+      href: "/modul1-spt",
+      label: "SPT Tahunan OP",
+      value: formatPercent(data.kpis.sptTahunanOpPegawaiPersen),
+      sub: `${formatNumber(data.kpis.sptTahunanOpPegawaiSudah)} dari ${formatNumber(data.kpis.sptTahunanOpPegawaiWajib)} pegawai`,
+      accent: "teal",
+    },
     { href: "/modul2-pph21", label: "PPh Masa", sub: `${formatNumber(data.kpis.pphMasaSudahLapor)} OPD sudah lapor`, accent: "green" },
     { href: "/modul3-sosialisasi", label: "Sosialisasi", sub: `${formatNumber(data.kpis.sudahSosialisasi)} OPD sudah sosialisasi`, accent: "gold" },
     { href: "/modul5-deposit", label: "Deposit Pajak", sub: `Total ${formatCompactRupiah(data.kpis.totalDeposit)}`, accent: "navy" },
@@ -45,6 +51,7 @@ export default function DashboardPage() {
               </span>
               <span className="quick-card-copy">
                 <span className="quick-card-label">{item.label}</span>
+                {"value" in item ? <span className="quick-card-value">{item.value}</span> : null}
                 <span className="quick-card-sub">{item.sub}</span>
               </span>
             </Link>
@@ -57,7 +64,7 @@ export default function DashboardPage() {
           <div className="card-header">
             <div>
               <div className="card-title">Tren SPT Tahunan OP</div>
-              <div className="card-subtitle">Jumlah sudah lapor per Masa Pajak</div>
+              <div className="card-subtitle">Jumlah sudah lapor per bulan TGL TERIMA</div>
             </div>
           </div>
           <div className="card-body">
@@ -68,7 +75,7 @@ export default function DashboardPage() {
                 <SingleBarChart
                   labels={trendLabels}
                   values={data.trend.map((item) => item.sudah)}
-                  label="Sudah lapor per Masa Pajak"
+                  label="Sudah lapor per bulan terima"
                 />
               </div>
             )}

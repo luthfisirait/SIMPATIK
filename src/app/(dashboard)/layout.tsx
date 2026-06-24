@@ -18,9 +18,11 @@ export default async function DashboardLayout({ children }: { children: React.Re
   const monitoringKosong =
     dataStatus.opd === 0 ||
     dataStatus.spt === 0 ||
+    dataStatus.sptTahunanOp === 0 ||
     dataStatus.pph21 === 0 ||
     dataStatus.sptMasa === 0 ||
     dataStatus.deposit === 0 ||
+    dataStatus.pegawai === 0 ||
     dataStatus.scoring === 0;
   const statusText =
     dataStatus.opd === 0

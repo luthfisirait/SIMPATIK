@@ -17,6 +17,7 @@ const TEMPLATE_OPTIONS: Array<{ key: ImportTemplateKey; label: string }> = [
   { key: "penerimaan", label: "Data Penerimaan" },
   { key: "pelaporan_pph21", label: "Pelaporan SPT Masa PPh Pasal 21" },
   { key: "pelaporan_unifikasi", label: "Pelaporan SPT Masa Unifikasi/PPN" },
+  { key: "pelaporan_tahunan_op", label: "Pelaporan SPT Tahunan OP" },
   { key: "pegawai", label: "Daftar Pegawai Instansi" },
   { key: "sosialisasi", label: "Rekam Sosialisasi" },
 ];
@@ -28,6 +29,7 @@ const RESULT_LABELS: Array<{ key: NumericResultKey; label: string }> = [
   { key: "pph21", label: "Setoran PPh 21" },
   { key: "deposit", label: "Deposit" },
   { key: "spt_masa", label: "SPT Masa" },
+  { key: "spt_tahunan_op", label: "SPT Tahunan OP" },
   { key: "pegawai", label: "Pegawai" },
   { key: "sosialisasi", label: "Sosialisasi" },
   { key: "derived_spt", label: "Derivasi SPT Tahunan" },

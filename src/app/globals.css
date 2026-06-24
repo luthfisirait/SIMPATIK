@@ -692,6 +692,14 @@ textarea {
   line-height: 1.25;
 }
 
+.quick-card-value {
+  color: var(--text-1);
+  display: block;
+  font-size: 24px;
+  font-weight: 900;
+  line-height: 1;
+}
+
 .quick-card-sub {
   color: var(--text-2);
   display: block;

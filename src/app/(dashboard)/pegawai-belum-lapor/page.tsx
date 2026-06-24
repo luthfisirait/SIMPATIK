@@ -38,7 +38,7 @@ export default async function PegawaiBelumLaporPage({ searchParams }: { searchPa
   const selectedOpd = opdOptions.find((item) => String(item.id) === opd);
   const statusCount = (key: string) => result.summary.find((item) => item.status === key)?.total ?? 0;
   const sudah = statusCount("sudah_lapor");
-  const belum = statusCount("aktif_belum_lapor") + statusCount("belum_aktivasi");
+  const belum = statusCount("aktif_belum_lapor");
   const totalPegawai = sudah + belum;
   const kepatuhan = totalPegawai === 0 ? 0 : (sudah * 100) / totalPegawai;
   const exportQuery = queryString({ q, wilayah, status, ar, opd });
@@ -48,7 +48,7 @@ export default async function PegawaiBelumLaporPage({ searchParams }: { searchPa
     <>
       <PageHeader
         title="Rincian Pegawai SPT Tahunan OP"
-        description="Daftar ASN & PPPK per OPD berdasarkan data pegawai yang diimport."
+        description="Status lapor dihitung dari kecocokan NPWP pegawai dengan daftar SPT Tahunan OP yang diimport."
         actions={
           <>
             <Link className="btn btn-secondary" href={exportHref} target="_blank">
@@ -94,7 +94,6 @@ export default async function PegawaiBelumLaporPage({ searchParams }: { searchPa
               <option value="all">Semua status</option>
               <option value="sudah_lapor">Sudah lapor</option>
               <option value="aktif_belum_lapor">Belum lapor</option>
-              <option value="belum_aktivasi">Belum aktivasi</option>
             </select>
             <select className="search-input" name="ar" defaultValue={ar} style={{ maxWidth: 220 }}>
               <option value="all">Semua AR</option>
@@ -121,6 +120,7 @@ export default async function PegawaiBelumLaporPage({ searchParams }: { searchPa
               <tr>
                 <th>Nama Pegawai</th>
                 <th>NIP</th>
+                <th>NPWP</th>
                 <th>NIK</th>
                 <th>Jabatan</th>
                 <th>OPD</th>
@@ -132,7 +132,7 @@ export default async function PegawaiBelumLaporPage({ searchParams }: { searchPa
             <tbody>
               {result.data.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="muted">
+                  <td colSpan={9} className="muted">
                     Belum ada data pegawai.
                   </td>
                 </tr>
@@ -143,6 +143,7 @@ export default async function PegawaiBelumLaporPage({ searchParams }: { searchPa
                       <strong>{item.nama}</strong>
                     </td>
                     <td className="td-mono">{item.nip}</td>
+                    <td className="td-mono">{item.npwp ?? "-"}</td>
                     <td className="td-mono">{item.nik ?? "-"}</td>
                     <td>{item.jabatan}</td>
                     <td>{item.opd_nama}</td>

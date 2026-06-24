@@ -34,15 +34,15 @@ export function DepositKpiDialog({ rows }: { rows: DepositRecord[] }) {
   const [activeCard, setActiveCard] = useState<DepositDialogCard | null>(null);
 
   const cards = useMemo(() => {
-    const totalOpd = rows.length;
+    const totalRows = rows.length;
     const totalSaldo = rows.reduce((sum, item) => sum + item.total_deposit, 0);
     const count = (status: DepositStatusKey) => rowsByStatus(rows, status).length;
-    const amanPercent = totalOpd === 0 ? 0 : (count("hijau") * 100) / totalOpd;
+    const amanPercent = totalRows === 0 ? 0 : (count("hijau") * 100) / totalRows;
 
     return [
       {
         key: "all",
-        label: `Total Saldo (${formatNumber(totalOpd)} OPD)`,
+        label: `Total Saldo (${formatNumber(totalRows)} baris)`,
         value: formatCompactRupiah(totalSaldo),
         accent: "navy",
       },
@@ -50,7 +50,7 @@ export function DepositKpiDialog({ rows }: { rows: DepositRecord[] }) {
         key: "hijau",
         label: "Saldo Aman (>Rp 10 jt)",
         value: formatNumber(count("hijau")),
-        sub: `${formatPercent(amanPercent)} OPD`,
+        sub: `${formatPercent(amanPercent)} baris`,
         accent: "green",
       },
       {
@@ -110,7 +110,7 @@ export function DepositKpiDialog({ rows }: { rows: DepositRecord[] }) {
                   {activeCard.label}
                 </div>
                 <div className="card-subtitle">
-                  {formatNumber(dialogRows.length)} OPD - Total saldo {formatCompactRupiah(dialogSaldo)}
+                  {formatNumber(dialogRows.length)} baris penerimaan - Total saldo {formatCompactRupiah(dialogSaldo)}
                 </div>
               </div>
               <button className="icon-btn" type="button" aria-label="Tutup dialog" onClick={() => setActiveCard(null)}>

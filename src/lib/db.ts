@@ -80,6 +80,22 @@ function initSchema(database: Database.Database) {
       UNIQUE(opd_id, tahun_pajak, periode)
     );
 
+    CREATE TABLE IF NOT EXISTS spt_tahunan_op (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      npwp_pegawai TEXT NOT NULL,
+      nama_pegawai TEXT,
+      masa_pajak TEXT NOT NULL,
+      jenis_spt TEXT NOT NULL,
+      nomor_tanda_terima TEXT,
+      tanggal_terima TEXT,
+      status_pelaporan TEXT,
+      pembetulan TEXT,
+      kanal_pelaporan TEXT,
+      kpp_administrasi TEXT,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(npwp_pegawai, masa_pajak)
+    );
+
     CREATE TABLE IF NOT EXISTS pph21_monitoring (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       opd_id INTEGER NOT NULL REFERENCES opd(id) ON DELETE CASCADE,
@@ -123,6 +139,21 @@ function initSchema(database: Database.Database) {
       total_deposit INTEGER NOT NULL DEFAULT 0,
       status_deposit_overall TEXT,
       UNIQUE(opd_id, masa_pajak)
+    );
+
+    CREATE TABLE IF NOT EXISTS deposit_penerimaan (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      opd_id INTEGER NOT NULL REFERENCES opd(id) ON DELETE CASCADE,
+      npwp TEXT,
+      nama_wajib_pajak TEXT,
+      masa_pajak TEXT NOT NULL,
+      kd_map TEXT NOT NULL DEFAULT '411618',
+      kd_setor TEXT,
+      nilai_setor INTEGER NOT NULL DEFAULT 0,
+      tgl_setor TEXT,
+      ntpn TEXT,
+      sumber_data TEXT,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
 
     CREATE TABLE IF NOT EXISTS scoring_opd (
@@ -204,9 +235,13 @@ function initSchema(database: Database.Database) {
 
     CREATE INDEX IF NOT EXISTS idx_opd_wilayah ON opd(wilayah_id);
     CREATE INDEX IF NOT EXISTS idx_spt_period ON spt_monitoring(periode, tahun_pajak);
+    CREATE INDEX IF NOT EXISTS idx_spt_tahunan_op_period ON spt_tahunan_op(masa_pajak);
+    CREATE INDEX IF NOT EXISTS idx_spt_tahunan_op_npwp ON spt_tahunan_op(npwp_pegawai);
     CREATE INDEX IF NOT EXISTS idx_pph_bulan ON pph21_monitoring(bulan);
     CREATE INDEX IF NOT EXISTS idx_spt_masa_period ON spt_masa_monitoring(masa_pajak);
     CREATE INDEX IF NOT EXISTS idx_deposit_period ON deposit_monitoring(masa_pajak);
+    CREATE INDEX IF NOT EXISTS idx_deposit_penerimaan_period ON deposit_penerimaan(masa_pajak);
+    CREATE INDEX IF NOT EXISTS idx_deposit_penerimaan_map ON deposit_penerimaan(kd_map);
     CREATE INDEX IF NOT EXISTS idx_scoring_period ON scoring_opd(bulan_scoring);
     CREATE INDEX IF NOT EXISTS idx_scoring_status ON scoring_opd(status_rp, kategori);
     CREATE INDEX IF NOT EXISTS idx_pegawai_status ON pegawai(status_coretax);
