@@ -31,58 +31,73 @@ export default async function ModulPph21Page({ searchParams }: { searchParams?: 
     { key: "bendahara", label: "Bendahara" },
     { key: "ar", label: "AR" },
   ];
-  const laporRow = (item: (typeof laporDetailRows)[number]): KpiDialogRow => ({
-    id: item.id,
+  const jenisCount = result.jenisSummary.length;
+  const laporOpdMap = new Map<
+    number,
+    (typeof laporDetailRows)[number] & { jumlah_sudah: number; jumlah_belum: number }
+  >();
+  laporDetailRows.forEach((item) => {
+    const current = laporOpdMap.get(item.opd_id) ?? { ...item, jumlah_sudah: 0, jumlah_belum: 0 };
+    if (item.status === "sudah_lapor") current.jumlah_sudah += 1;
+    else current.jumlah_belum += 1;
+    laporOpdMap.set(item.opd_id, current);
+  });
+  const laporOpdRows = [...laporOpdMap.values()].sort((a, b) => a.opd_nama.localeCompare(b.opd_nama, "id"));
+  const laporRow = (item: (typeof laporOpdRows)[number]): KpiDialogRow => ({
+    id: item.opd_id,
     cells: {
       opd: { value: item.opd_nama, strong: true },
       wilayah: item.wilayah_nama,
-      jenis: { value: item.jenis, strong: true },
-      status: { value: item.status_lapor ?? "-", tone: item.status === "sudah_lapor" ? "green" : "red" },
+      jenis: { value: `${formatNumber(jenisCount)} jenis`, strong: true },
+      status: {
+        value: `${formatNumber(item.jumlah_sudah)} dari ${formatNumber(jenisCount)} sudah`,
+        tone: item.jumlah_belum === 0 ? "green" : "red",
+      },
       bendahara: item.nama_bendahara,
       ar: item.ar_nama ?? "-",
     },
   });
-  const wajibLaporRows = laporDetailRows;
-  const sudahLaporRows = laporDetailRows.filter((item) => item.status === "sudah_lapor");
-  const belumLaporRows = laporDetailRows.filter((item) => item.status === "belum_lapor");
-  const totalWajibLapor = result.jenisSummary.reduce((sum, item) => sum + item.wajib_lapor, 0);
-  const totalSudahLapor = result.jenisSummary.reduce((sum, item) => sum + item.sudah_lapor, 0);
-  const totalBelumLapor = result.jenisSummary.reduce((sum, item) => sum + item.belum_lapor, 0);
+  const wajibLaporRows = laporOpdRows;
+  const sudahLaporRows = laporOpdRows.filter((item) => item.jumlah_belum === 0);
+  const belumLaporRows = laporOpdRows.filter((item) => item.jumlah_belum > 0);
+  const totalWajibLapor = wajibLaporRows.length;
+  const totalSudahLapor = sudahLaporRows.length;
+  const totalBelumLapor = belumLaporRows.length;
   const pphDialogCards: KpiDialogCard[] = [
     {
       key: "wajib_lapor",
       label: "Wajib Lapor",
       value: formatNumber(totalWajibLapor),
-      sub: `${formatNumber(result.jenisSummary.length)} jenis SPT Masa`,
+      sub: `${formatNumber(jenisCount)} jenis SPT Masa`,
       accent: "navy",
       icon: "receipt",
       columns: laporColumns,
       rows: wajibLaporRows.map(laporRow),
-      description: `Daftar wajib lapor PPh Masa periode ${periodeLabel}`,
+      description: `Daftar OPD wajib lapor PPh Masa periode ${periodeLabel}`,
       exportFileName: `pph-masa-wajib-lapor-${result.bulan}`,
     },
     {
       key: "belum_lapor",
       label: "Belum Lapor",
       value: formatNumber(totalBelumLapor),
-      sub: `${formatNumber(totalWajibLapor)} wajib lapor`,
+      sub: `${formatNumber(totalWajibLapor)} OPD wajib lapor`,
       accent: "red",
       icon: "receipt",
       columns: laporColumns,
       rows: belumLaporRows.map(laporRow),
-      description: `Ringkasan belum lapor per jenis PPh Masa periode ${periodeLabel}`,
+      description: `OPD yang masih memiliki jenis PPh Masa belum lapor periode ${periodeLabel}`,
       exportFileName: `pph-masa-belum-lapor-${result.bulan}`,
     },
     {
       key: "sudah_lapor",
       label: "Sudah Lapor",
       value: formatNumber(totalSudahLapor),
-      sub: `${formatNumber(totalWajibLapor)} wajib lapor`,
+      sub: `${formatNumber(totalWajibLapor)} OPD wajib lapor`,
       accent: "green",
       icon: "receipt",
       columns: laporColumns,
       rows: sudahLaporRows.map(laporRow),
-      description: `Ringkasan sudah lapor per jenis PPh Masa periode ${periodeLabel}`,
+      description: `OPD yang sudah lengkap seluruh jenis PPh Masa periode ${periodeLabel}`,
       exportFileName: `pph-masa-sudah-lapor-${result.bulan}`,
     },
   ];

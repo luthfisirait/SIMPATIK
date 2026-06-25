@@ -216,7 +216,7 @@ export default async function ModulSosialisasiPage({ searchParams }: { searchPar
         </div>
         <div className="card-footer">
           <span className="muted">
-            Menampilkan {formatNumber(result.data.length)} dari {formatNumber(result.total)} sesi
+            Menampilkan {formatNumber(result.data.length)} dari {formatNumber(result.total)} OPD
           </span>
           <Pagination page={result.page} pages={result.pages} basePath="/modul3-sosialisasi" query={keepQuery({ q, wilayah, status, ar })} />
         </div>

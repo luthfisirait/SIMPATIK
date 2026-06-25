@@ -1,4 +1,4 @@
-import { Clock3, Download, FileSpreadsheet } from "lucide-react";
+import { Clock3, Download, FileSpreadsheet, ListChecks } from "lucide-react";
 
 import { Badge } from "@/components/ui/Badge";
 import { KpiCard } from "@/components/ui/KpiCard";
@@ -36,17 +36,71 @@ const templateInfo: Array<{ key: ImportTemplateKey; nama: string; kolom: string;
     modul: "Modul 4 SPT Masa (status PPh 22/23 dan PPN)",
   },
   {
+    key: "pelaporan_tahunan_op",
+    nama: "Pelaporan SPT Tahunan OP",
+    kolom: "NO, NPWP, NAMA WP, MASA PAJAK, JENIS SPT, STATUS PELAPORAN, TGL TERIMA",
+    modul: "Modul 1 SPT Tahunan OP + Rincian Pegawai SPT (relasi ke NPWP pegawai)",
+  },
+  {
     key: "pegawai",
     nama: "Daftar Pegawai Instansi",
-    kolom: "Nama, NIP, NPWP, NIK, OPD, Email, No HP, PNS/P3K",
+    kolom: "Nama, NIP, NPWP/NPWP_PEGAWAI, NPWP_SATKER, NIK, OPD, Email, No HP, PNS/P3K",
     modul: "Direktori Pegawai",
   },
   {
     key: "sosialisasi",
     nama: "Rekam Sosialisasi",
     kolom: "NPWP, Nama OPD, Wilayah Kerja, 2 blok tema, Hari/Tgl, Tempat, Jumlah Peserta",
-    modul: "Modul 3 Sosialisasi (buat OPD minimal bila belum ada)",
+    modul: "Modul 3 Sosialisasi (baris dilewati bila OPD tidak ada di Masterfile)",
   },
+];
+
+const importRules = [
+  {
+    urutan: "1",
+    template: "Masterfile Wajib Pajak",
+    aturan: "Wajib diimport paling awal. Masterfile adalah sumber final jumlah dan identitas OPD.",
+    kunci: "NPWP16, NAMA_WP, NAMA_AR, NIP_AR",
+  },
+  {
+    urutan: "2",
+    template: "Daftar Pegawai Instansi",
+    aturan: "Dipakai untuk menghitung ASN & PPPK per OPD dan rincian pegawai SPT.",
+    kunci: "NPWP_SATKER = Masterfile.NPWP16",
+  },
+  {
+    urutan: "3",
+    template: "Pelaporan SPT Tahunan OP",
+    aturan: "Dipakai untuk status sudah lapor pegawai. Baris tanpa NPWP pegawai dilewati.",
+    kunci: "SPT Tahunan OP.NPWP = Data Instansi Pegawai.NPWP_PEGAWAI",
+  },
+  {
+    urutan: "4",
+    template: "Data Penerimaan",
+    aturan: "Dipakai untuk setoran PPh Masa dan saldo deposit KD MAP 411618.",
+    kunci: "Data Penerimaan.NPWP = Masterfile.NPWP16",
+  },
+  {
+    urutan: "5",
+    template: "Pelaporan SPT Masa PPh 21, Unifikasi, PPN",
+    aturan: "Dipakai untuk status lapor PPh Masa dan SPT Masa per periode.",
+    kunci: "SPT Masa.NPWP = Masterfile.NPWP16",
+  },
+  {
+    urutan: "6",
+    template: "Rekam Sosialisasi",
+    aturan: "Dipakai untuk status sudah/belum sosialisasi per OPD. Tidak membuat OPD baru.",
+    kunci: "NPWP atau Nama OPD harus cocok ke Masterfile",
+  },
+];
+
+const relationRules = [
+  "Masterfile.NPWP16 = SPT Masa PPh21.NPWP",
+  "Masterfile.NPWP16 = SPT Masa Unifikasi.NPWP",
+  "Masterfile.NPWP16 = SPT Masa PPN.NPWP",
+  "Masterfile.NPWP16 = Data Penerimaan.NPWP",
+  "Data Instansi Pegawai.NPWP_SATKER = Masterfile.NPWP16",
+  "SPT Tahunan OP.NPWP = Data Instansi Pegawai.NPWP_PEGAWAI",
 ];
 
 function formatImportDate(value: string | null) {
@@ -82,6 +136,47 @@ export default function ImportPage() {
       </section>
 
       <ImportClient />
+
+      <section className="card" style={{ marginTop: 20 }}>
+        <div className="card-header">
+          <div>
+            <div className="card-title">Aturan import</div>
+            <div className="card-subtitle">Urutan dan kunci relasi yang dipakai saat commit file Excel.</div>
+          </div>
+          <ListChecks size={18} />
+        </div>
+        <div className="card-body">
+          <div className="table-wrap">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Urutan</th>
+                  <th>Template</th>
+                  <th>Aturan</th>
+                  <th>Kunci relasi</th>
+                </tr>
+              </thead>
+              <tbody>
+                {importRules.map((item) => (
+                  <tr key={item.urutan}>
+                    <td className="td-mono">{item.urutan}</td>
+                    <td>{item.template}</td>
+                    <td>{item.aturan}</td>
+                    <td className="muted">{item.kunci}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="toolbar" style={{ marginTop: 12 }}>
+            {relationRules.map((item) => (
+              <Badge key={item} tone="navy">
+                {item}
+              </Badge>
+            ))}
+          </div>
+        </div>
+      </section>
 
       <section className="card" style={{ marginTop: 20 }}>
         <div className="card-header">

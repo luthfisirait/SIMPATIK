@@ -429,10 +429,11 @@ export function getDashboardData() {
   const pphMonth = latestPphMonth();
   const sptTahunanOpJenis = "SPT Tahunan PPh Wajib Pajak Orang Pribadi";
   const pegawaiNpwp = npwpDigitsSql("p.npwp");
+  const sptScored = sptTahunanScoredSql("");
 
   const spt = database
     .prepare(
-      `
+      `${sptScored}
       SELECT
         COALESCE(SUM(jumlah_wajib_lapor), 0) AS wajib,
         COALESCE(SUM(jumlah_sudah_lapor), 0) AS sudah,
@@ -441,11 +442,10 @@ export function getDashboardData() {
           ELSE ROUND(SUM(jumlah_sudah_lapor) * 100.0 / SUM(jumlah_wajib_lapor), 1)
         END AS persen,
         COALESCE(SUM(CASE WHEN jumlah_sudah_lapor > 0 THEN 1 ELSE 0 END), 0) AS opd_sudah
-      FROM spt_monitoring
-      WHERE tahun_pajak = 2025 AND periode = ?
+      FROM scored
     `,
     )
-    .get(period) as { wajib: number; sudah: number; persen: number; opd_sudah: number };
+    .get() as { wajib: number; sudah: number; persen: number; opd_sudah: number };
 
   const pph = database
     .prepare(
@@ -546,7 +546,7 @@ export function getDashboardData() {
       .get() as { total: number }
   ).total;
   const totalPeserta = (
-    database.prepare("SELECT COALESCE(SUM(jumlah_peserta), 0) AS total FROM sosialisasi").get() as {
+    database.prepare("SELECT COALESCE(SUM(jumlah_peserta), 0) AS total FROM sosialisasi WHERE status IN ('sudah','perlu_ulang')").get() as {
       total: number;
     }
   ).total;
@@ -602,48 +602,42 @@ export function getDashboardData() {
 
   const wilayahDistribution = database
     .prepare(
-      `
+      `${sptScored}
       SELECT w.nama,
         CASE
-          WHEN COALESCE(SUM(s.jumlah_wajib_lapor), 0) = 0 THEN 0
-          ELSE ROUND(SUM(s.jumlah_sudah_lapor) * 100.0 / SUM(s.jumlah_wajib_lapor), 1)
+          WHEN COALESCE(SUM(scored.jumlah_wajib_lapor), 0) = 0 THEN 0
+          ELSE ROUND(SUM(scored.jumlah_sudah_lapor) * 100.0 / SUM(scored.jumlah_wajib_lapor), 1)
         END AS persen,
-        COALESCE(SUM(s.jumlah_sudah_lapor), 0) AS sudah,
-        COALESCE(SUM(s.jumlah_wajib_lapor), 0) AS wajib,
-        COUNT(o.id) AS opd
-      FROM spt_monitoring s
-      JOIN opd o ON o.id = s.opd_id
+        COALESCE(SUM(scored.jumlah_sudah_lapor), 0) AS sudah,
+        COALESCE(SUM(scored.jumlah_wajib_lapor), 0) AS wajib,
+        COUNT(scored.opd_id) AS opd
+      FROM scored
+      JOIN opd o ON o.id = scored.opd_id
       JOIN wilayah w ON w.id = o.wilayah_id
-      WHERE s.tahun_pajak = 2025 AND s.periode = ?
       GROUP BY w.id
       ORDER BY w.id
     `,
     )
-    .all(period) as Array<{ nama: string; persen: number; sudah: number; wajib: number; opd: number }>;
+    .all() as Array<{ nama: string; persen: number; sudah: number; wajib: number; opd: number }>;
 
   const trafficCounts = database
     .prepare(
-      `
+      `${sptScored}
       SELECT traffic_light AS status, COUNT(*) AS total
-      FROM spt_monitoring
-      WHERE tahun_pajak = 2025 AND periode = ?
+      FROM scored
       GROUP BY traffic_light
     `,
     )
-    .all(period) as Array<{ status: string; total: number }>;
+    .all() as Array<{ status: string; total: number }>;
 
   const trafficTop = database
     .prepare(
-      `
-      SELECT s.id, o.id AS opd_id, o.nama AS opd_nama, w.nama AS wilayah_nama, u.nama AS ar_nama,
-        s.tahun_pajak, s.periode, s.jumlah_wajib_lapor, s.jumlah_sudah_lapor,
-        s.persen_kepatuhan, s.traffic_light
-      FROM spt_monitoring s
-      JOIN opd o ON o.id = s.opd_id
-      JOIN wilayah w ON w.id = o.wilayah_id
-      LEFT JOIN users u ON u.id = o.ar_id
-      WHERE s.tahun_pajak = 2025 AND s.periode = ?
-      ORDER BY s.persen_kepatuhan ASC, o.nama ASC
+      `${sptScored}
+      SELECT id, opd_id, opd_nama, wilayah_nama, ar_nama,
+        2025 AS tahun_pajak, ? AS periode, jumlah_wajib_lapor, jumlah_sudah_lapor,
+        persen_kepatuhan, traffic_light
+      FROM scored
+      ORDER BY persen_kepatuhan ASC, opd_nama ASC
       LIMIT 8
     `,
     )
@@ -1004,8 +998,7 @@ export function listSptDialogRows(params: ListParams & { periode?: string; traff
        SELECT id, opd_id, opd_nama, wilayah_nama, ar_nama,
          jumlah_wajib_lapor, jumlah_sudah_lapor, persen_kepatuhan, traffic_light
        FROM scored ${trafficClause}
-       ORDER BY persen_kepatuhan ASC, opd_nama ASC
-       LIMIT 500`,
+       ORDER BY persen_kepatuhan ASC, opd_nama ASC`,
     )
     .all(...values, ...trafficValues) as SptScoredRow[];
 
@@ -1271,7 +1264,6 @@ export function listPphMasaLaporDetailRows(params: ListParams & { bulan?: string
         LEFT JOIN spt_masa_monitoring m ON m.opd_id = o.id AND m.masa_pajak = ?
         ${filters.clause}
         ORDER BY o.nama
-        LIMIT 1000
       `,
       )
       .all(definition.key, definition.jenis, bulan, ...filters.values) as PphMasaLaporDetailRow[],
@@ -1319,7 +1311,6 @@ export function listPphMasaPaymentDialogRows(params: ListParams & { bulan?: stri
       SELECT id, opd_id, opd_nama, wilayah_nama, ar_nama, nama_bendahara, bulan, jenis_pph, jumlah_pembayaran
       FROM rows
       ORDER BY CASE WHEN jumlah_pembayaran > 0 THEN 0 ELSE 1 END, opd_nama, jenis_order
-      LIMIT 500
     `,
     )
     .all(...values) as PphMasaPaymentRecord[];
@@ -1364,7 +1355,6 @@ export function listPph21DialogRows(params: ListParams & { bulan?: string } = {}
           ELSE 4
         END,
         o.nama
-      LIMIT 500
     `,
     )
     .all(...values) as Pph21Record[];
@@ -1488,7 +1478,6 @@ export function listSptMasaDialogRows(params: ListParams & { masa?: string; over
       LEFT JOIN users u ON u.id = o.ar_id
       WHERE ${where.join(" AND ")}
       ORDER BY CASE LOWER(m.status_keseluruhan) WHEN 'merah' THEN 1 WHEN 'kuning' THEN 2 ELSE 3 END, o.nama
-      LIMIT 500
     `,
     )
     .all(...values) as SptMasaRecord[];
@@ -1568,8 +1557,8 @@ export function listDeposit(params: ListParams & { masa?: string; overallStatus?
       `${scored}
        SELECT id, opd_id, opd_nama, wilayah_nama, ar_nama, total_deposit, status_deposit_overall
        FROM scored ${statusClause}
-       ORDER BY CASE status_deposit_overall WHEN 'merah' THEN 1 WHEN 'kuning' THEN 2 ELSE 3 END, total_deposit ASC, opd_nama
-       LIMIT ? OFFSET ?`,
+        ORDER BY CASE status_deposit_overall WHEN 'merah' THEN 1 WHEN 'kuning' THEN 2 ELSE 3 END, total_deposit ASC, opd_nama
+        LIMIT ? OFFSET ?`,
     )
     .all(...values, ...statusValues, pageSize, offset) as Parameters<typeof mapDepositSaldoRow>[0][];
   const data = rows.map((row) => mapDepositSaldoRow(row, masa));
@@ -1601,8 +1590,7 @@ export function listDepositDialogRows(params: ListParams & { masa?: string; over
       `${scored}
        SELECT id, opd_id, opd_nama, wilayah_nama, ar_nama, total_deposit, status_deposit_overall
        FROM scored ${statusClause}
-       ORDER BY CASE status_deposit_overall WHEN 'merah' THEN 1 WHEN 'kuning' THEN 2 ELSE 3 END, total_deposit ASC, opd_nama
-       LIMIT 500`,
+        ORDER BY CASE status_deposit_overall WHEN 'merah' THEN 1 WHEN 'kuning' THEN 2 ELSE 3 END, total_deposit ASC, opd_nama`,
     )
     .all(...values, ...statusValues) as Parameters<typeof mapDepositSaldoRow>[0][];
 
@@ -1614,15 +1602,21 @@ export function listScoring(params: ListParams & { bulan?: string; kategori?: st
   const bulan = params.bulan ?? latestScoringPeriod();
   const where = ["s.bulan_scoring = ?"];
   const values: Array<string | number> = [bulan];
+  const summaryWhere = ["s.bulan_scoring = ?"];
+  const summaryValues: Array<string | number> = [bulan];
 
   if (params.q) {
     where.push("(LOWER(o.nama) LIKE ? OR LOWER(u.nama) LIKE ?)");
+    summaryWhere.push("(LOWER(o.nama) LIKE ? OR LOWER(u.nama) LIKE ?)");
     const q = `%${params.q.toLowerCase()}%`;
     values.push(q, q);
+    summaryValues.push(q, q);
   }
   if (params.wilayah && params.wilayah !== "all") {
     where.push("w.kode = ?");
     values.push(params.wilayah);
+    summaryWhere.push("w.kode = ?");
+    summaryValues.push(params.wilayah);
   }
   if (params.kategori && params.kategori !== "all") {
     where.push("s.kategori = ?");
@@ -1635,12 +1629,15 @@ export function listScoring(params: ListParams & { bulan?: string; kategori?: st
   if (params.ar && params.ar !== "all") {
     where.push("o.ar_id = ?");
     values.push(Number(params.ar));
+    summaryWhere.push("o.ar_id = ?");
+    summaryValues.push(Number(params.ar));
   }
 
   const page = Math.max(1, params.page ?? 1);
   const pageSize = Math.min(100, Math.max(5, params.pageSize ?? 12));
   const offset = (page - 1) * pageSize;
   const clause = `WHERE ${where.join(" AND ")}`;
+  const summaryClause = `WHERE ${summaryWhere.join(" AND ")}`;
 
   const total = (
     database
@@ -1674,18 +1671,19 @@ export function listScoring(params: ListParams & { bulan?: string; kategori?: st
     )
     .all(...values, pageSize, offset) as ScoringRecord[];
 
-  const arFilter = params.ar && params.ar !== "all" ? Number(params.ar) : null;
   const summary = database
     .prepare(
       `
       SELECT s.kategori, s.status_rp, COUNT(*) AS total, ROUND(AVG(s.skor_total), 1) AS avg_score
       FROM scoring_opd s
       JOIN opd o ON o.id = s.opd_id
-      WHERE s.bulan_scoring = ? AND (? IS NULL OR o.ar_id = ?)
+      JOIN wilayah w ON w.id = o.wilayah_id
+      LEFT JOIN users u ON u.id = o.ar_id
+      ${summaryClause}
       GROUP BY s.kategori, s.status_rp
     `,
     )
-    .all(bulan, arFilter, arFilter) as Array<{ kategori: string; status_rp: string; total: number; avg_score: number }>;
+    .all(...summaryValues) as Array<{ kategori: string; status_rp: string; total: number; avg_score: number }>;
 
   const topReward = database
     .prepare(
@@ -1697,12 +1695,12 @@ export function listScoring(params: ListParams & { bulan?: string; kategori?: st
       JOIN opd o ON o.id = s.opd_id
       JOIN wilayah w ON w.id = o.wilayah_id
       LEFT JOIN users u ON u.id = o.ar_id
-      WHERE s.bulan_scoring = ? AND s.status_rp = 'reward' AND (? IS NULL OR o.ar_id = ?)
+      ${summaryClause} AND s.status_rp = 'reward'
       ORDER BY s.skor_total DESC, o.nama
       LIMIT 5
     `,
     )
-    .all(bulan, arFilter, arFilter) as ScoringRecord[];
+    .all(...summaryValues) as ScoringRecord[];
 
   const topPunishment = database
     .prepare(
@@ -1714,12 +1712,12 @@ export function listScoring(params: ListParams & { bulan?: string; kategori?: st
       JOIN opd o ON o.id = s.opd_id
       JOIN wilayah w ON w.id = o.wilayah_id
       LEFT JOIN users u ON u.id = o.ar_id
-      WHERE s.bulan_scoring = ? AND s.status_rp = 'punishment' AND (? IS NULL OR o.ar_id = ?)
+      ${summaryClause} AND s.status_rp = 'punishment'
       ORDER BY s.skor_total ASC, o.nama
       LIMIT 10
     `,
     )
-    .all(bulan, arFilter, arFilter) as ScoringRecord[];
+    .all(...summaryValues) as ScoringRecord[];
 
   return { data, summary, topReward, topPunishment, total, page, pageSize, pages: Math.ceil(total / pageSize) || 1, bulan };
 }
@@ -1778,50 +1776,90 @@ export function listSosialisasi(params: ListParams = {}) {
   const values: Array<string | number> = [];
 
   if (params.q) {
-    where.push("(LOWER(o.nama) LIKE ? OR LOWER(u.nama) LIKE ?)");
+    where.push("(LOWER(base.opd_nama) LIKE ? OR LOWER(COALESCE(base.penyuluh_nama, '')) LIKE ? OR LOWER(COALESCE(base.ar_nama, '')) LIKE ?)");
     const q = `%${params.q.toLowerCase()}%`;
-    values.push(q, q);
+    values.push(q, q, q);
   }
   if (params.wilayah && params.wilayah !== "all") {
-    where.push("w.kode = ?");
+    where.push("base.wilayah_kode = ?");
     values.push(params.wilayah);
   }
   if (params.status && params.status !== "all") {
-    where.push("s.status = ?");
+    where.push("base.status = ?");
     values.push(params.status);
   }
   if (params.ar && params.ar !== "all") {
-    where.push("o.ar_id = ?");
+    where.push("base.ar_id = ?");
     values.push(Number(params.ar));
   }
 
   const clause = where.length ? `WHERE ${where.join(" AND ")}` : "";
+  const baseSql = `
+    WITH sos_summary AS (
+      SELECT opd_id,
+        COUNT(CASE WHEN status IN ('sudah', 'perlu_ulang') THEN 1 END) AS sesi,
+        COALESCE(SUM(CASE WHEN status IN ('sudah', 'perlu_ulang') THEN jumlah_peserta ELSE 0 END), 0) AS peserta,
+        COALESCE(SUM(CASE WHEN status = 'sudah' THEN 1 ELSE 0 END), 0) AS sudah,
+        COALESCE(SUM(CASE WHEN status = 'perlu_ulang' THEN 1 ELSE 0 END), 0) AS perlu_ulang
+      FROM sosialisasi
+      GROUP BY opd_id
+    ),
+    latest AS (
+      SELECT id, opd_id, tanggal, jumlah_peserta, penyuluh_id, status, tempat, tema
+      FROM (
+        SELECT s.*,
+          ROW_NUMBER() OVER (
+            PARTITION BY s.opd_id
+            ORDER BY CASE WHEN s.status IN ('sudah', 'perlu_ulang') THEN 0 ELSE 1 END, s.tanggal DESC, s.id DESC
+          ) AS row_number
+        FROM sosialisasi s
+      )
+      WHERE row_number = 1
+    ),
+    base AS (
+      SELECT o.id, o.id AS opd_id, o.nama AS opd_nama, w.nama AS wilayah_nama, w.kode AS wilayah_kode,
+        COALESCE(latest.tanggal, '-') AS tanggal,
+        COALESCE(sos_summary.peserta, 0) AS jumlah_peserta,
+        latest.penyuluh_id,
+        penyuluh.nama AS penyuluh_nama,
+        CASE
+          WHEN COALESCE(sos_summary.perlu_ulang, 0) > 0 THEN 'perlu_ulang'
+          WHEN COALESCE(sos_summary.sudah, 0) > 0 THEN 'sudah'
+          ELSE 'belum'
+        END AS status,
+        latest.tempat,
+        latest.tema,
+        o.ar_id,
+        ar.nama AS ar_nama,
+        COALESCE(sos_summary.sesi, 0) AS sesi
+      FROM opd o
+      JOIN wilayah w ON w.id = o.wilayah_id
+      LEFT JOIN sos_summary ON sos_summary.opd_id = o.id
+      LEFT JOIN latest ON latest.opd_id = o.id
+      LEFT JOIN users penyuluh ON penyuluh.id = latest.penyuluh_id
+      LEFT JOIN users ar ON ar.id = o.ar_id
+    )
+  `;
   const total = (
     database
       .prepare(
-        `
+        `${baseSql}
         SELECT COUNT(*) AS total
-        FROM sosialisasi s
-        JOIN opd o ON o.id = s.opd_id
-        JOIN wilayah w ON w.id = o.wilayah_id
-        ${clause}
-      `,
+        FROM base
+        ${clause}`,
       )
       .get(...values) as { total: number }
   ).total;
 
   const data = database
     .prepare(
-      `
-      SELECT s.id, o.id AS opd_id, o.nama AS opd_nama, w.nama AS wilayah_nama,
-        s.tanggal, s.jumlah_peserta, s.penyuluh_id, u.nama AS penyuluh_nama, s.status,
-        s.tempat, s.tema
-      FROM sosialisasi s
-      JOIN opd o ON o.id = s.opd_id
-      JOIN wilayah w ON w.id = o.wilayah_id
-      LEFT JOIN users u ON u.id = s.penyuluh_id
+      `${baseSql}
+      SELECT id, opd_id, opd_nama, wilayah_nama,
+        tanggal, jumlah_peserta, penyuluh_id, penyuluh_nama, status,
+        tempat, tema
+      FROM base
       ${clause}
-      ORDER BY s.tanggal DESC
+      ORDER BY CASE status WHEN 'belum' THEN 1 WHEN 'perlu_ulang' THEN 2 ELSE 3 END, opd_nama
       LIMIT ? OFFSET ?
     `,
     )
@@ -1832,9 +1870,9 @@ export function listSosialisasi(params: ListParams = {}) {
     .prepare(
       `
       SELECT
-        COUNT(*) AS sesi,
-        COUNT(DISTINCT s.opd_id) AS sudah,
-        COALESCE(SUM(s.jumlah_peserta), 0) AS peserta
+        COUNT(CASE WHEN s.status IN ('sudah', 'perlu_ulang') THEN 1 END) AS sesi,
+        COUNT(DISTINCT CASE WHEN s.status IN ('sudah', 'perlu_ulang') THEN s.opd_id END) AS sudah,
+        COALESCE(SUM(CASE WHEN s.status IN ('sudah', 'perlu_ulang') THEN s.jumlah_peserta ELSE 0 END), 0) AS peserta
       FROM sosialisasi s
       JOIN opd o ON o.id = s.opd_id
       WHERE (? IS NULL OR o.ar_id = ?)
@@ -1854,7 +1892,7 @@ export function listSosialisasi(params: ListParams = {}) {
       FROM opd o
       JOIN wilayah w ON w.id = o.wilayah_id
       LEFT JOIN users u ON u.id = o.ar_id
-      WHERE o.id NOT IN (SELECT DISTINCT opd_id FROM sosialisasi)
+      WHERE NOT EXISTS (SELECT 1 FROM sosialisasi s WHERE s.opd_id = o.id AND s.status IN ('sudah', 'perlu_ulang'))
         AND (? IS NULL OR o.ar_id = ?)
       ORDER BY o.jumlah_asn DESC
       LIMIT 6
@@ -1885,7 +1923,7 @@ export type SosialisasiOpdDialogRow = {
 
 export function listSosialisasiDialogData(params: ListParams = {}) {
   const database = db();
-  const sessionWhere: string[] = [];
+  const sessionWhere: string[] = ["s.status IN ('sudah', 'perlu_ulang')"];
   const sessionValues: Array<string | number> = [];
   const opdWhere: string[] = [];
   const opdValues: Array<string | number> = [];
@@ -1925,7 +1963,6 @@ export function listSosialisasiDialogData(params: ListParams = {}) {
       LEFT JOIN users p ON p.id = s.penyuluh_id
       ${sessionClause}
       ORDER BY s.tanggal DESC, o.nama
-      LIMIT 500
     `,
     )
     .all(...sessionValues) as SosialisasiRecord[];
@@ -1938,11 +1975,10 @@ export function listSosialisasiDialogData(params: ListParams = {}) {
       FROM opd o
       JOIN wilayah w ON w.id = o.wilayah_id
       LEFT JOIN users ar ON ar.id = o.ar_id
-      JOIN sosialisasi s ON s.opd_id = o.id
+      JOIN sosialisasi s ON s.opd_id = o.id AND s.status IN ('sudah', 'perlu_ulang')
       WHERE 1 = 1 ${opdBaseClause}
       GROUP BY o.id, o.nama, w.nama, ar.nama, o.jumlah_asn
       ORDER BY sesi DESC, peserta DESC, o.nama
-      LIMIT 500
     `,
     )
     .all(...opdValues) as SosialisasiOpdDialogRow[];
@@ -1955,9 +1991,8 @@ export function listSosialisasiDialogData(params: ListParams = {}) {
       FROM opd o
       JOIN wilayah w ON w.id = o.wilayah_id
       LEFT JOIN users ar ON ar.id = o.ar_id
-      WHERE NOT EXISTS (SELECT 1 FROM sosialisasi s WHERE s.opd_id = o.id) ${opdBaseClause}
+      WHERE NOT EXISTS (SELECT 1 FROM sosialisasi s WHERE s.opd_id = o.id AND s.status IN ('sudah', 'perlu_ulang')) ${opdBaseClause}
       ORDER BY o.jumlah_asn DESC, o.nama
-      LIMIT 500
     `,
     )
     .all(...opdValues) as SosialisasiOpdDialogRow[];
@@ -2102,15 +2137,16 @@ export function listAr() {
   return db()
     .prepare(
       `
-      SELECT u.id, u.nama, u.email, u.nip, u.jabatan, u.role, u.phone, u.avatar_color, u.status,
-        COUNT(o.id) AS opd_count,
+      SELECT u.id, MIN(COALESCE(NULLIF(TRIM(o.nama_ar), ''), u.nama)) AS nama,
+        u.email, u.nip, u.jabatan, u.role, u.phone, u.avatar_color, u.status,
+        COUNT(DISTINCT o.id) AS opd_count,
         ROUND(AVG(s.persen_kepatuhan), 1) AS avg_kepatuhan
       FROM users u
-      LEFT JOIN opd o ON o.ar_id = u.id
+      JOIN opd o ON o.ar_id = u.id
       LEFT JOIN spt_monitoring s ON s.opd_id = o.id AND s.tahun_pajak = 2025 AND s.periode = (SELECT MAX(periode) FROM spt_monitoring WHERE tahun_pajak = 2025)
       WHERE u.role = 'ar'
       GROUP BY u.id
-      ORDER BY u.nama
+      ORDER BY nama
     `,
     )
     .all() as Array<User & { opd_count: number; avg_kepatuhan: number | null }>;
@@ -2156,6 +2192,22 @@ export function listBendahara(params: ListParams = {}) {
       )
       .get(...values) as { total: number }
   ).total;
+  const summary = database
+    .prepare(
+      `
+        SELECT
+          COALESCE(SUM(CASE WHEN NULLIF(TRIM(COALESCE(o.email_bendahara, '')), '') IS NOT NULL THEN 1 ELSE 0 END), 0) AS withEmail,
+          COALESCE(SUM(CASE
+            WHEN NULLIF(TRIM(COALESCE(o.nama_bendahara_penerimaan, '')), '') IS NOT NULL
+              OR NULLIF(TRIM(COALESCE(o.hp_bendahara_penerimaan, '')), '') IS NOT NULL
+            THEN 1 ELSE 0 END), 0) AS withPenerimaan
+        FROM opd o
+        JOIN wilayah w ON w.id = o.wilayah_id
+        LEFT JOIN users u ON u.id = o.ar_id
+        ${clause}
+      `,
+    )
+    .get(...values) as { withEmail: number; withPenerimaan: number };
 
   const data = database
     .prepare(
@@ -2176,7 +2228,7 @@ export function listBendahara(params: ListParams = {}) {
     )
     .all(pphMonth, scoringPeriod, ...values, pageSize, offset) as BendaharaRecord[];
 
-  return { data, total, page, pageSize, pages: Math.ceil(total / pageSize) || 1, pphMonth, scoringPeriod };
+  return { data, summary, total, page, pageSize, pages: Math.ceil(total / pageSize) || 1, pphMonth, scoringPeriod };
 }
 
 export function listUsers() {
@@ -2428,6 +2480,7 @@ export function markNotificationsRead() {
 export function getAnalyticsData() {
   const database = db();
   const dashboard = getDashboardData();
+  const sptScored = sptTahunanScoredSql("");
   const pphTrend = database
     .prepare(
       `
@@ -2444,16 +2497,14 @@ export function getAnalyticsData() {
 
   const scatter = database
     .prepare(
-      `
+      `${sptScored}
       SELECT
-        CASE WHEN EXISTS (SELECT 1 FROM sosialisasi so WHERE so.opd_id = o.id) THEN 1 ELSE 0 END AS sosialisasi,
-        s.persen_kepatuhan AS kepatuhan,
-        o.jumlah_asn AS asn,
-        o.nama
-      FROM opd o
-      JOIN spt_monitoring s ON s.opd_id = o.id
-      WHERE s.tahun_pajak = 2025 AND s.periode = (SELECT MAX(periode) FROM spt_monitoring WHERE tahun_pajak = 2025)
-      ORDER BY o.id
+        CASE WHEN EXISTS (SELECT 1 FROM sosialisasi so WHERE so.opd_id = scored.opd_id AND so.status IN ('sudah','perlu_ulang')) THEN 1 ELSE 0 END AS sosialisasi,
+        scored.persen_kepatuhan AS kepatuhan,
+        scored.jumlah_wajib_lapor AS asn,
+        scored.opd_nama AS nama
+      FROM scored
+      ORDER BY scored.opd_id
       LIMIT 80
     `,
     )
@@ -3214,21 +3265,6 @@ export async function commitImportData(template: ImportTemplateKey, payload: Imp
     };
 
     // --- 1. OPD masterfile -----------------------------------------------
-    const insertOpd = database.prepare(
-      `INSERT INTO opd (nama, wilayah_id, jenis_instansi, npwp_opd, nama_bendahara, hp_bendahara, nama_pic_kepeg, hp_pic_kepeg, ar_id, tanggal_input, tanggal_update_kontak)
-       VALUES (?, ?, ?, ?, 'Belum diisi', '-', 'Belum diisi', '-', ?, ?, ?)`,
-    );
-    const createMinimalOpd = (nama: string | null, npwp: string | null, wilayah: string | null): number | null => {
-      const cleanNama = (nama ?? "").trim();
-      if (!cleanNama) return null;
-      const npwpDigits = npwp ? npwp.replace(/\D/g, "") : null;
-      const wilayahId = ensureWilayah(wilayah);
-      const id = Number(insertOpd.run(cleanNama, wilayahId, "OPD", npwp, null, today, today).lastInsertRowid);
-      registerOpdName(cleanNama, id);
-      if (npwpDigits) opdByNpwp.set(npwpDigits, id);
-      result.opd_created += 1;
-      return id;
-    };
     const insertOpdMaster = database.prepare(
       `INSERT INTO opd (
          nama, wilayah_id, jenis_instansi, npwp_opd, status_pemungut_ppn,
@@ -3513,9 +3549,9 @@ export async function commitImportData(template: ImportTemplateKey, payload: Imp
       "INSERT INTO sosialisasi (opd_id, tanggal, jumlah_peserta, penyuluh_id, status, tempat, tema) VALUES (?, ?, ?, ?, ?, ?, ?)",
     );
     payload.sosialisasi.forEach((row) => {
-      const opdId = resolveOpd(row.npwp, row.nama_opd) ?? createMinimalOpd(row.nama_opd, row.npwp, row.wilayah);
+      const opdId = resolveOpd(row.npwp, row.nama_opd);
       if (!opdId) {
-        addSkip("Sosialisasi: nama OPD kosong atau tidak valid.");
+        addSkip("Sosialisasi: OPD tidak ditemukan di Masterfile.");
         return;
       }
       const tanggal = row.tanggal ?? today;

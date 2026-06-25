@@ -28,8 +28,8 @@ export default async function DirektoriBendaharaPage({ searchParams }: { searchP
   const arOptions = listAr();
   const exportQuery = queryString({ q, wilayah, ar });
   const exportHref = exportQuery ? `/api/export/bendahara?${exportQuery}` : "/api/export/bendahara";
-  const withEmail = result.data.filter((item) => item.email_bendahara).length;
-  const withPenerimaan = result.data.filter((item) => item.nama_bendahara_penerimaan || item.hp_bendahara_penerimaan).length;
+  const withEmail = result.summary.withEmail;
+  const withPenerimaan = result.summary.withPenerimaan;
 
   return (
     <>
@@ -46,8 +46,8 @@ export default async function DirektoriBendaharaPage({ searchParams }: { searchP
 
       <section className="kpi-grid">
         <KpiCard label="Kontak Ditampilkan" value={formatNumber(result.total)} sub="OPD sesuai filter" accent="navy" icon={<BookUser size={18} />} />
-        <KpiCard label="Email Terisi" value={formatNumber(withEmail)} sub="Pada halaman saat ini" accent="teal" icon={<Mail size={18} />} />
-        <KpiCard label="Bendahara Penerimaan" value={formatNumber(withPenerimaan)} sub="Kontak tambahan tersedia" accent="green" icon={<Phone size={18} />} />
+        <KpiCard label="Email Terisi" value={formatNumber(withEmail)} sub="OPD sesuai filter" accent="teal" icon={<Mail size={18} />} />
+        <KpiCard label="Bendahara Penerimaan" value={formatNumber(withPenerimaan)} sub="OPD sesuai filter" accent="green" icon={<Phone size={18} />} />
         <KpiCard label="Periode Skor" value={monthLabel(result.scoringPeriod)} sub="Dipakai untuk prioritas kontak" accent="gold" icon={<BookUser size={18} />} />
       </section>
 
