@@ -504,8 +504,8 @@ function detectPelaporanSheet(sheet: ParsedSheet, expected?: ImportTemplateKey |
 function normalizeMasterfile(sheet: ParsedSheet, payload: ImportPayload, warnings: string[]) {
   forEachRow(sheet, (row) => {
     const nama = textValue(row.pick("nama_wp"));
-    if (!nama) return;
     const npwp = normalizeNpwp(row.pick("npwp16")) || normalizeNpwp(row.pick("npwp15"));
+    if (!nama && !npwp) return;
     const wilayahOpd = textValue(row.pick("wilayah_opd", "wilayah"));
     const kota = textValue(row.pick("kota", "kabupaten", "propinsi"));
     payload.opd.push({
