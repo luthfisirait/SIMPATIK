@@ -152,6 +152,10 @@ function depositPenerimaanStatusSql(alias = "d") {
   return depositStatusForAmountSql(depositPenerimaanAmountSql(alias));
 }
 
+function opdArNameSql(alias = "o") {
+  return `NULLIF(TRIM(COALESCE(${alias}.nama_ar, '')), '')`;
+}
+
 // Saldo deposit per OPD: jumlahkan NILAI SETOR (boleh minus) untuk KD MAP 411618,
 // dikelompokkan per NPWP16 (opd.id) lintas seluruh masa pajak. Semua OPD masterfile
 // ditampilkan; OPD tanpa data penerimaan dianggap bersaldo 0.
@@ -159,7 +163,7 @@ function depositSaldoScoredSql(whereClause: string) {
   return `
     WITH base AS (
       SELECT o.id AS id, o.id AS opd_id, o.nama AS opd_nama,
-        w.nama AS wilayah_nama, u.nama AS ar_nama,
+        w.nama AS wilayah_nama, ${opdArNameSql("o")} AS ar_nama,
         COALESCE(SUM(d.nilai_setor), 0) AS total_deposit
       FROM opd o
       JOIN wilayah w ON w.id = o.wilayah_id
@@ -186,7 +190,7 @@ function sptTahunanScoredSql(whereClause: string) {
     WITH base AS (
       SELECT o.id AS id, o.id AS opd_id, o.nama AS opd_nama,
         w.nama AS wilayah_nama,
-        COALESCE(NULLIF(TRIM(o.nama_ar), ''), u.nama) AS ar_nama,
+        ${opdArNameSql("o")} AS ar_nama,
         COUNT(DISTINCT p.id) AS jumlah_wajib_lapor,
         COUNT(DISTINCT CASE WHEN sto.id IS NOT NULL THEN p.id END) AS jumlah_sudah_lapor
       FROM opd o
@@ -368,7 +372,7 @@ function pphMasaLaporFilters(params: ListParams) {
   const values: Array<string | number> = [];
 
   if (params.q) {
-    where.push("(LOWER(o.nama) LIKE ? OR LOWER(u.nama) LIKE ?)");
+    where.push(`(LOWER(o.nama) LIKE ? OR LOWER(COALESCE(${opdArNameSql("o")}, '')) LIKE ?)`);
     const q = `%${params.q.toLowerCase()}%`;
     values.push(q, q);
   }
@@ -688,7 +692,7 @@ export function listOpd(params: ListParams = {}) {
 
   if (params.q) {
     where.push(
-      "(LOWER(o.nama) LIKE ? OR LOWER(o.nama_bendahara) LIKE ? OR LOWER(o.nama_pic_kepeg) LIKE ? OR LOWER(u.nama) LIKE ?)",
+      `(LOWER(o.nama) LIKE ? OR LOWER(o.nama_bendahara) LIKE ? OR LOWER(o.nama_pic_kepeg) LIKE ? OR LOWER(COALESCE(${opdArNameSql("o")}, '')) LIKE ?)`,
     );
     const q = `%${params.q.toLowerCase()}%`;
     values.push(q, q, q, q);
@@ -728,7 +732,7 @@ export function listOpd(params: ListParams = {}) {
     .prepare(
       `
       SELECT o.*, (o.jumlah_asn + o.jumlah_pppk) AS total_wajib_lapor,
-        w.nama AS wilayah_nama, w.kode AS wilayah_kode, u.nama AS ar_nama
+        w.nama AS wilayah_nama, w.kode AS wilayah_kode, ${opdArNameSql("o")} AS ar_nama
       FROM opd o
       JOIN wilayah w ON w.id = o.wilayah_id
       LEFT JOIN users u ON u.id = o.ar_id
@@ -754,7 +758,7 @@ export function listOpdOptions(params: { ar?: string } = {}) {
   return db()
     .prepare(
       `
-      SELECT o.id, o.nama, w.nama AS wilayah_nama, u.nama AS ar_nama, o.ar_id
+      SELECT o.id, o.nama, w.nama AS wilayah_nama, ${opdArNameSql("o")} AS ar_nama, o.ar_id
       FROM opd o
       JOIN wilayah w ON w.id = o.wilayah_id
       LEFT JOIN users u ON u.id = o.ar_id
@@ -770,7 +774,7 @@ export function getOpd(id: number) {
     .prepare(
       `
       SELECT o.*, (o.jumlah_asn + o.jumlah_pppk) AS total_wajib_lapor,
-        w.nama AS wilayah_nama, w.kode AS wilayah_kode, u.nama AS ar_nama
+        w.nama AS wilayah_nama, w.kode AS wilayah_kode, ${opdArNameSql("o")} AS ar_nama
       FROM opd o
       JOIN wilayah w ON w.id = o.wilayah_id
       LEFT JOIN users u ON u.id = o.ar_id
@@ -921,7 +925,7 @@ function sptSptTahunanFilters(params: ListParams) {
   const values: Array<string | number> = [];
 
   if (params.q) {
-    where.push("(LOWER(o.nama) LIKE ? OR LOWER(COALESCE(u.nama, '')) LIKE ?)");
+    where.push(`(LOWER(o.nama) LIKE ? OR LOWER(COALESCE(${opdArNameSql("o")}, '')) LIKE ?)`);
     const q = `%${params.q.toLowerCase()}%`;
     values.push(q, q);
   }
@@ -1070,7 +1074,7 @@ export function listPph21(params: ListParams & { bulan?: string; pphStatus?: str
   const data = database
     .prepare(
       `
-      SELECT p.id, o.id AS opd_id, o.nama AS opd_nama, w.nama AS wilayah_nama, u.nama AS ar_nama,
+      SELECT p.id, o.id AS opd_id, o.nama AS opd_nama, w.nama AS wilayah_nama, ${opdArNameSql("o")} AS ar_nama,
         o.nama_bendahara, p.bulan, p.jumlah_dipotong, p.nominal_setor, p.estimasi_wajar,
         p.ketepatan, p.status, m.pph21_status AS status_lapor
       FROM pph21_monitoring p
@@ -1152,7 +1156,7 @@ function pphMasaPaymentFilters(params: ListParams) {
   const values: Array<string | number> = [];
 
   if (params.q) {
-    where.push("(LOWER(o.nama) LIKE ? OR LOWER(o.nama_bendahara) LIKE ? OR LOWER(u.nama) LIKE ?)");
+    where.push(`(LOWER(o.nama) LIKE ? OR LOWER(o.nama_bendahara) LIKE ? OR LOWER(COALESCE(${opdArNameSql("o")}, '')) LIKE ?)`);
     const q = `%${params.q.toLowerCase()}%`;
     values.push(q, q, q);
   }
@@ -1179,7 +1183,7 @@ function pphMasaPaymentSql(filterClause: string) {
         o.id AS opd_id,
         o.nama AS opd_nama,
         w.nama AS wilayah_nama,
-        u.nama AS ar_nama,
+        ${opdArNameSql("o")} AS ar_nama,
         o.nama_bendahara,
         p.bulan,
         'PPh Pasal 21' AS jenis_pph,
@@ -1199,7 +1203,7 @@ function pphMasaPaymentSql(filterClause: string) {
         o.id AS opd_id,
         o.nama AS opd_nama,
         w.nama AS wilayah_nama,
-        u.nama AS ar_nama,
+        ${opdArNameSql("o")} AS ar_nama,
         o.nama_bendahara,
         m.masa_pajak AS bulan,
         'PPh Unifikasi' AS jenis_pph,
@@ -1219,7 +1223,7 @@ function pphMasaPaymentSql(filterClause: string) {
         o.id AS opd_id,
         o.nama AS opd_nama,
         w.nama AS wilayah_nama,
-        u.nama AS ar_nama,
+        ${opdArNameSql("o")} AS ar_nama,
         o.nama_bendahara,
         m.masa_pajak AS bulan,
         'PPN' AS jenis_pph,
@@ -1253,7 +1257,7 @@ export function listPphMasaLaporDetailRows(params: ListParams & { bulan?: string
           o.id AS opd_id,
           o.nama AS opd_nama,
           w.nama AS wilayah_nama,
-          u.nama AS ar_nama,
+          ${opdArNameSql("o")} AS ar_nama,
           o.nama_bendahara,
           ? AS jenis,
           ${definition.statusSql} AS status_lapor,
@@ -1338,7 +1342,7 @@ export function listPph21DialogRows(params: ListParams & { bulan?: string } = {}
   return database
     .prepare(
       `
-      SELECT p.id, o.id AS opd_id, o.nama AS opd_nama, w.nama AS wilayah_nama, u.nama AS ar_nama,
+      SELECT p.id, o.id AS opd_id, o.nama AS opd_nama, w.nama AS wilayah_nama, ${opdArNameSql("o")} AS ar_nama,
         o.nama_bendahara, p.bulan, p.jumlah_dipotong, p.nominal_setor, p.estimasi_wajar,
         p.ketepatan, p.status, m.pph21_status AS status_lapor
       FROM pph21_monitoring p
@@ -1367,7 +1371,7 @@ export function listSptMasa(params: ListParams & { masa?: string; overallStatus?
   const values: Array<string | number> = [masa];
 
   if (params.q) {
-    where.push("(LOWER(o.nama) LIKE ? OR LOWER(u.nama) LIKE ?)");
+    where.push(`(LOWER(o.nama) LIKE ? OR LOWER(COALESCE(${opdArNameSql("o")}, '')) LIKE ?)`);
     const q = `%${params.q.toLowerCase()}%`;
     values.push(q, q);
   }
@@ -1407,7 +1411,7 @@ export function listSptMasa(params: ListParams & { masa?: string; overallStatus?
   const data = database
     .prepare(
       `
-      SELECT m.id, o.id AS opd_id, o.nama AS opd_nama, w.nama AS wilayah_nama, u.nama AS ar_nama,
+      SELECT m.id, o.id AS opd_id, o.nama AS opd_nama, w.nama AS wilayah_nama, ${opdArNameSql("o")} AS ar_nama,
         m.masa_pajak, m.pph21_status, m.pph22_nominal, m.pph22_status, m.pph23_nominal, m.pph23_status,
         m.ppn_put_nominal, m.ppn_put_status, m.status_opd_pemungut,
         LOWER(COALESCE(m.status_keseluruhan, 'merah')) AS status_keseluruhan,
@@ -1447,7 +1451,7 @@ export function listSptMasaDialogRows(params: ListParams & { masa?: string; over
   const values: Array<string | number> = [masa];
 
   if (params.q) {
-    where.push("(LOWER(o.nama) LIKE ? OR LOWER(u.nama) LIKE ?)");
+    where.push(`(LOWER(o.nama) LIKE ? OR LOWER(COALESCE(${opdArNameSql("o")}, '')) LIKE ?)`);
     const q = `%${params.q.toLowerCase()}%`;
     values.push(q, q);
   }
@@ -1467,7 +1471,7 @@ export function listSptMasaDialogRows(params: ListParams & { masa?: string; over
   return database
     .prepare(
       `
-      SELECT m.id, o.id AS opd_id, o.nama AS opd_nama, w.nama AS wilayah_nama, u.nama AS ar_nama,
+      SELECT m.id, o.id AS opd_id, o.nama AS opd_nama, w.nama AS wilayah_nama, ${opdArNameSql("o")} AS ar_nama,
         m.masa_pajak, m.pph21_status, m.pph22_nominal, m.pph22_status, m.pph23_nominal, m.pph23_status,
         m.ppn_put_nominal, m.ppn_put_status, m.status_opd_pemungut,
         LOWER(COALESCE(m.status_keseluruhan, 'merah')) AS status_keseluruhan,
@@ -1488,7 +1492,7 @@ function depositSaldoFilters(params: ListParams) {
   const values: Array<string | number> = [];
 
   if (params.q) {
-    where.push("(LOWER(o.nama) LIKE ? OR LOWER(COALESCE(d.nama_wajib_pajak, '')) LIKE ? OR LOWER(COALESCE(u.nama, '')) LIKE ?)");
+    where.push(`(LOWER(o.nama) LIKE ? OR LOWER(COALESCE(d.nama_wajib_pajak, '')) LIKE ? OR LOWER(COALESCE(${opdArNameSql("o")}, '')) LIKE ?)`);
     const q = `%${params.q.toLowerCase()}%`;
     values.push(q, q, q);
   }
@@ -1606,8 +1610,8 @@ export function listScoring(params: ListParams & { bulan?: string; kategori?: st
   const summaryValues: Array<string | number> = [bulan];
 
   if (params.q) {
-    where.push("(LOWER(o.nama) LIKE ? OR LOWER(u.nama) LIKE ?)");
-    summaryWhere.push("(LOWER(o.nama) LIKE ? OR LOWER(u.nama) LIKE ?)");
+    where.push(`(LOWER(o.nama) LIKE ? OR LOWER(COALESCE(${opdArNameSql("o")}, '')) LIKE ?)`);
+    summaryWhere.push(`(LOWER(o.nama) LIKE ? OR LOWER(COALESCE(${opdArNameSql("o")}, '')) LIKE ?)`);
     const q = `%${params.q.toLowerCase()}%`;
     values.push(q, q);
     summaryValues.push(q, q);
@@ -1657,7 +1661,7 @@ export function listScoring(params: ListParams & { bulan?: string; kategori?: st
   const data = database
     .prepare(
       `
-      SELECT s.id, o.id AS opd_id, o.nama AS opd_nama, w.nama AS wilayah_nama, u.nama AS ar_nama,
+      SELECT s.id, o.id AS opd_id, o.nama AS opd_nama, w.nama AS wilayah_nama, ${opdArNameSql("o")} AS ar_nama,
         s.bulan_scoring, s.skor_spt_op, s.skor_pph21, s.skor_spt_masa, s.skor_deposit,
         s.skor_total, s.kategori, s.status_rp, s.catatan
       FROM scoring_opd s
@@ -1688,7 +1692,7 @@ export function listScoring(params: ListParams & { bulan?: string; kategori?: st
   const topReward = database
     .prepare(
       `
-      SELECT s.id, o.id AS opd_id, o.nama AS opd_nama, w.nama AS wilayah_nama, u.nama AS ar_nama,
+      SELECT s.id, o.id AS opd_id, o.nama AS opd_nama, w.nama AS wilayah_nama, ${opdArNameSql("o")} AS ar_nama,
         s.bulan_scoring, s.skor_spt_op, s.skor_pph21, s.skor_spt_masa, s.skor_deposit,
         s.skor_total, s.kategori, s.status_rp, s.catatan
       FROM scoring_opd s
@@ -1705,7 +1709,7 @@ export function listScoring(params: ListParams & { bulan?: string; kategori?: st
   const topPunishment = database
     .prepare(
       `
-      SELECT s.id, o.id AS opd_id, o.nama AS opd_nama, w.nama AS wilayah_nama, u.nama AS ar_nama,
+      SELECT s.id, o.id AS opd_id, o.nama AS opd_nama, w.nama AS wilayah_nama, ${opdArNameSql("o")} AS ar_nama,
         s.bulan_scoring, s.skor_spt_op, s.skor_pph21, s.skor_spt_masa, s.skor_deposit,
         s.skor_total, s.kategori, s.status_rp, s.catatan
       FROM scoring_opd s
@@ -1736,7 +1740,7 @@ export function getRewardPunishment() {
   const database = db();
   const bulan = latestScoringPeriod();
   const base = `
-    SELECT s.opd_id, o.nama AS opd_nama, w.nama AS wilayah_nama, u.nama AS ar_nama,
+    SELECT s.opd_id, o.nama AS opd_nama, w.nama AS wilayah_nama, ${opdArNameSql("o")} AS ar_nama,
       s.skor_total, s.kategori, s.status_rp
     FROM scoring_opd s
     JOIN opd o ON o.id = s.opd_id
@@ -1830,7 +1834,7 @@ export function listSosialisasi(params: ListParams = {}) {
         latest.tempat,
         latest.tema,
         o.ar_id,
-        ar.nama AS ar_nama,
+        ${opdArNameSql("o")} AS ar_nama,
         COALESCE(sos_summary.sesi, 0) AS sesi
       FROM opd o
       JOIN wilayah w ON w.id = o.wilayah_id
@@ -1888,7 +1892,7 @@ export function listSosialisasi(params: ListParams = {}) {
   const priority = database
     .prepare(
       `
-      SELECT o.id, o.nama, w.nama AS wilayah_nama, u.nama AS ar_nama, o.jumlah_asn
+      SELECT o.id, o.nama, w.nama AS wilayah_nama, ${opdArNameSql("o")} AS ar_nama, o.jumlah_asn
       FROM opd o
       JOIN wilayah w ON w.id = o.wilayah_id
       LEFT JOIN users u ON u.id = o.ar_id
@@ -1932,7 +1936,7 @@ export function listSosialisasiDialogData(params: ListParams = {}) {
     const q = `%${params.q.toLowerCase()}%`;
     sessionWhere.push("(LOWER(o.nama) LIKE ? OR LOWER(p.nama) LIKE ?)");
     sessionValues.push(q, q);
-    opdWhere.push("(LOWER(o.nama) LIKE ? OR LOWER(ar.nama) LIKE ?)");
+    opdWhere.push(`(LOWER(o.nama) LIKE ? OR LOWER(COALESCE(${opdArNameSql("o")}, '')) LIKE ?)`);
     opdValues.push(q, q);
   }
   if (params.wilayah && params.wilayah !== "all") {
@@ -1970,7 +1974,7 @@ export function listSosialisasiDialogData(params: ListParams = {}) {
   const sudah = database
     .prepare(
       `
-      SELECT o.id, o.nama, w.nama AS wilayah_nama, ar.nama AS ar_nama, o.jumlah_asn,
+      SELECT o.id, o.nama, w.nama AS wilayah_nama, ${opdArNameSql("o")} AS ar_nama, o.jumlah_asn,
         COUNT(s.id) AS sesi, COALESCE(SUM(s.jumlah_peserta), 0) AS peserta
       FROM opd o
       JOIN wilayah w ON w.id = o.wilayah_id
@@ -1986,7 +1990,7 @@ export function listSosialisasiDialogData(params: ListParams = {}) {
   const belum = database
     .prepare(
       `
-      SELECT o.id, o.nama, w.nama AS wilayah_nama, ar.nama AS ar_nama, o.jumlah_asn,
+      SELECT o.id, o.nama, w.nama AS wilayah_nama, ${opdArNameSql("o")} AS ar_nama, o.jumlah_asn,
         0 AS sesi, 0 AS peserta
       FROM opd o
       JOIN wilayah w ON w.id = o.wilayah_id
@@ -2031,8 +2035,8 @@ export function listPegawai(params: ListParams = {}) {
   const summaryValues: Array<string | number> = [];
 
   if (params.q) {
-    where.push("(LOWER(p.nama) LIKE ? OR p.nip LIKE ? OR p.npwp LIKE ? OR LOWER(o.nama) LIKE ? OR LOWER(u.nama) LIKE ?)");
-    summaryWhere.push("(LOWER(p.nama) LIKE ? OR p.nip LIKE ? OR p.npwp LIKE ? OR LOWER(o.nama) LIKE ? OR LOWER(u.nama) LIKE ?)");
+    where.push(`(LOWER(p.nama) LIKE ? OR p.nip LIKE ? OR p.npwp LIKE ? OR LOWER(o.nama) LIKE ? OR LOWER(COALESCE(${opdArNameSql("o")}, '')) LIKE ?)`);
+    summaryWhere.push(`(LOWER(p.nama) LIKE ? OR p.nip LIKE ? OR p.npwp LIKE ? OR LOWER(o.nama) LIKE ? OR LOWER(COALESCE(${opdArNameSql("o")}, '')) LIKE ?)`);
     const q = `%${params.q.toLowerCase()}%`;
     values.push(q, `%${params.q}%`, `%${params.q}%`, q, q);
     summaryValues.push(q, `%${params.q}%`, `%${params.q}%`, q, q);
@@ -2084,7 +2088,7 @@ export function listPegawai(params: ListParams = {}) {
     .prepare(
       `
       SELECT p.id, p.nama, p.nip, p.opd_id, o.nama AS opd_nama, w.nama AS wilayah_nama,
-        p.jabatan, ${sptTahunanStatus} AS status_coretax, u.nama AS ar_nama, p.phone,
+        p.jabatan, ${sptTahunanStatus} AS status_coretax, ${opdArNameSql("o")} AS ar_nama, p.phone,
         p.npwp, p.nik, p.email, p.jenis_kepegawaian
       FROM pegawai p
       JOIN opd o ON o.id = p.opd_id
@@ -2137,7 +2141,7 @@ export function listAr() {
   return db()
     .prepare(
       `
-      SELECT u.id, MIN(COALESCE(NULLIF(TRIM(o.nama_ar), ''), u.nama)) AS nama,
+      SELECT u.id, COALESCE(MIN(${opdArNameSql("o")}), 'AR belum diisi') AS nama,
         u.email, u.nip, u.jabatan, u.role, u.phone, u.avatar_color, u.status,
         COUNT(DISTINCT o.id) AS opd_count,
         ROUND(AVG(s.persen_kepatuhan), 1) AS avg_kepatuhan
@@ -2164,7 +2168,7 @@ export function listBendahara(params: ListParams = {}) {
 
   if (params.q) {
     where.push(
-      "(LOWER(o.nama) LIKE ? OR LOWER(o.nama_bendahara) LIKE ? OR LOWER(o.nama_bendahara_penerimaan) LIKE ? OR LOWER(u.nama) LIKE ?)",
+      `(LOWER(o.nama) LIKE ? OR LOWER(o.nama_bendahara) LIKE ? OR LOWER(o.nama_bendahara_penerimaan) LIKE ? OR LOWER(COALESCE(${opdArNameSql("o")}, '')) LIKE ?)`,
     );
     const q = `%${params.q.toLowerCase()}%`;
     values.push(q, q, q, q);
@@ -2213,7 +2217,7 @@ export function listBendahara(params: ListParams = {}) {
     .prepare(
       `
       SELECT o.*, (o.jumlah_asn + o.jumlah_pppk) AS total_wajib_lapor,
-        w.nama AS wilayah_nama, w.kode AS wilayah_kode, u.nama AS ar_nama,
+        w.nama AS wilayah_nama, w.kode AS wilayah_kode, ${opdArNameSql("o")} AS ar_nama,
         p.ketepatan AS status_pph21_terakhir,
         s.skor_total AS skor_terakhir
       FROM opd o

@@ -72,12 +72,13 @@ export default async function ModulSosialisasiPage({ searchParams }: { searchPar
     },
   });
   const totalPeserta = dialogData.sessions.reduce((sum, item) => sum + item.jumlah_peserta, 0);
+  const totalOpd = dialogData.sudah.length + dialogData.belum.length;
   const sosialisasiDialogCards: KpiDialogCard[] = [
     {
       key: "sudah",
       label: "Sudah Disosialisasi",
       value: formatNumber(dialogData.sudah.length),
-      sub: "OPD unik",
+      sub: `Dari ${formatNumber(totalOpd)} OPD master`,
       accent: "green",
       icon: "presentation",
       columns: opdColumns,
@@ -87,7 +88,7 @@ export default async function ModulSosialisasiPage({ searchParams }: { searchPar
       key: "belum",
       label: "Belum Disosialisasi",
       value: formatNumber(dialogData.belum.length),
-      sub: "Prioritas jadwal berikutnya",
+      sub: `Dari ${formatNumber(totalOpd)} OPD master`,
       accent: "red",
       icon: "presentation",
       columns: opdColumns,
@@ -97,7 +98,7 @@ export default async function ModulSosialisasiPage({ searchParams }: { searchPar
       key: "peserta",
       label: "Total Peserta",
       value: formatNumber(totalPeserta),
-      sub: "ASN & PPPK terlatih",
+      sub: `${formatNumber(dialogData.sessions.length)} sesi`,
       accent: "teal",
       icon: "presentation",
       columns: sessionColumns,
@@ -108,7 +109,7 @@ export default async function ModulSosialisasiPage({ searchParams }: { searchPar
       key: "sesi",
       label: "Sesi Terlaksana",
       value: formatNumber(dialogData.sessions.length),
-      sub: "Sosialisasi & asistensi",
+      sub: `${formatNumber(totalOpd)} OPD master`,
       accent: "gold",
       icon: "presentation",
       columns: sessionColumns,

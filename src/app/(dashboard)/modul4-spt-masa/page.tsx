@@ -60,12 +60,13 @@ export default async function ModulSptMasaPage({ searchParams }: { searchParams?
   });
   const byStatus = (key: string) => dialogRows.filter((item) => String(item.status_keseluruhan) === key);
   const nominal = dialogRows.reduce((sum, item) => sum + nominalMasa(item), 0);
+  const totalOpd = dialogRows.length;
   const sptMasaDialogCards: KpiDialogCard[] = [
     {
       key: "hijau",
       label: "Hijau",
       value: formatNumber(byStatus("hijau").length),
-      sub: "Semua kewajiban tepat waktu",
+      sub: `Dari ${formatNumber(totalOpd)} OPD master`,
       accent: "green",
       icon: "clipboard-check",
       columns: sptMasaColumns,
@@ -75,7 +76,7 @@ export default async function ModulSptMasaPage({ searchParams }: { searchParams?
       key: "kuning",
       label: "Kuning",
       value: formatNumber(byStatus("kuning").length),
-      sub: "Ada keterlambatan",
+      sub: `Dari ${formatNumber(totalOpd)} OPD master`,
       accent: "gold",
       icon: "clipboard-check",
       columns: sptMasaColumns,
@@ -85,7 +86,7 @@ export default async function ModulSptMasaPage({ searchParams }: { searchParams?
       key: "merah",
       label: "Merah",
       value: formatNumber(byStatus("merah").length),
-      sub: "Ada nihil setor/lapor",
+      sub: `Dari ${formatNumber(totalOpd)} OPD master`,
       accent: "red",
       icon: "clipboard-check",
       columns: sptMasaColumns,
@@ -95,7 +96,7 @@ export default async function ModulSptMasaPage({ searchParams }: { searchParams?
       key: "nominal",
       label: "Nominal Masa",
       value: formatCompactRupiah(nominal),
-      sub: `${formatNumber(dialogRows.length)} OPD termonitor`,
+      sub: `${formatNumber(totalOpd)} OPD master`,
       accent: "navy",
       icon: "clipboard-check",
       columns: sptMasaColumns,

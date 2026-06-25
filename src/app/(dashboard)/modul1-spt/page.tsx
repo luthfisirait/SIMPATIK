@@ -58,6 +58,7 @@ export default async function ModulSptPage({ searchParams }: { searchParams?: Pa
     };
   };
   const byTraffic = (key: string) => dialogRows.filter((item) => item.traffic_light === key);
+  const totalOpd = dialogRows.length;
   const belumRows = dialogRows.filter((item) => item.jumlah_wajib_lapor > item.jumlah_sudah_lapor);
   const totalBelum = belumRows.reduce((sum, item) => sum + item.jumlah_wajib_lapor - item.jumlah_sudah_lapor, 0);
   const sptDialogCards: KpiDialogCard[] = [
@@ -65,7 +66,7 @@ export default async function ModulSptPage({ searchParams }: { searchParams?: Pa
       key: "hijau",
       label: "OPD Hijau (>70%)",
       value: formatNumber(byTraffic("hijau").length),
-      sub: "Sesuai filter aktif",
+      sub: `Dari ${formatNumber(totalOpd)} OPD master`,
       accent: "green",
       icon: "file-check",
       columns: sptColumns,
@@ -75,7 +76,7 @@ export default async function ModulSptPage({ searchParams }: { searchParams?: Pa
       key: "kuning",
       label: "OPD Kuning (40-70%)",
       value: formatNumber(byTraffic("kuning").length),
-      sub: "Perlu perhatian AR",
+      sub: `Dari ${formatNumber(totalOpd)} OPD master`,
       accent: "gold",
       icon: "file-check",
       columns: sptColumns,
@@ -85,7 +86,7 @@ export default async function ModulSptPage({ searchParams }: { searchParams?: Pa
       key: "merah",
       label: "OPD Merah (<40%)",
       value: formatNumber(byTraffic("merah").length),
-      sub: "Prioritas tindak lanjut",
+      sub: `Dari ${formatNumber(totalOpd)} OPD master`,
       accent: "red",
       icon: "file-check",
       columns: sptColumns,
@@ -95,7 +96,7 @@ export default async function ModulSptPage({ searchParams }: { searchParams?: Pa
       key: "belum_lapor",
       label: "Total Belum Lapor",
       value: formatNumber(totalBelum),
-      sub: `${formatNumber(dialogRows.length)} OPD termonitor`,
+      sub: `${formatNumber(totalOpd)} OPD master`,
       accent: "teal",
       icon: "file-check",
       columns: sptColumns,
