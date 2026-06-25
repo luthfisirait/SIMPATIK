@@ -2577,6 +2577,10 @@ function importLookup(value: string | null | undefined) {
     .trim();
 }
 
+function importNpwpDigits(value: string | null | undefined) {
+  return String(value ?? "").replace(/\D/g, "");
+}
+
 function opdLookupAliases(value: string | null | undefined) {
   const clean = importLookup(value);
   const aliases = new Set<string>();
@@ -3216,7 +3220,6 @@ export async function commitImportData(template: ImportTemplateKey, payload: Imp
     // --- Registry OPD -----------------------------------------------------
     const opdByNpwp = new Map<string, number>();
     const opdByName = new Map<string, number | null>();
-    const opdNameAliases: Array<{ key: string; id: number }> = [];
     const registerOpdName = (nama: string, id: number) => {
       opdLookupAliases(nama).forEach((key) => {
         const existing = opdByName.get(key);
@@ -3225,21 +3228,22 @@ export async function commitImportData(template: ImportTemplateKey, payload: Imp
         } else if (existing !== id) {
           opdByName.set(key, null);
         }
-        opdNameAliases.push({ key, id });
       });
     };
     (database.prepare("SELECT id, nama, npwp_opd FROM opd").all() as Array<{ id: number; nama: string; npwp_opd: string | null }>).forEach((o) => {
       registerOpdName(o.nama, o.id);
-      if (o.npwp_opd) opdByNpwp.set(o.npwp_opd.replace(/\D/g, ""), o.id);
+      const npwp = importNpwpDigits(o.npwp_opd);
+      if (npwp) opdByNpwp.set(npwp, o.id);
     });
     const resolveOpd = (npwp: string | null, nama: string | null): number | null => {
-      if (npwp) {
-        const digits = npwp.replace(/\D/g, "");
+      const digits = importNpwpDigits(npwp);
+      if (digits) {
         const hit =
           opdByNpwp.get(digits) ??
           (digits.length === 15 ? opdByNpwp.get(`0${digits}`) : undefined) ??
           (digits.length === 16 && digits.startsWith("0") ? opdByNpwp.get(digits.slice(1)) : undefined);
         if (hit) return hit;
+        return null;
       }
       if (nama) {
         const aliases = [...opdLookupAliases(nama)];
@@ -3247,19 +3251,6 @@ export async function commitImportData(template: ImportTemplateKey, payload: Imp
           const hit = opdByName.get(alias);
           if (typeof hit === "number") return hit;
         }
-
-        const looseHits = new Set<number>();
-        for (const alias of aliases) {
-          if (alias.length < 8) continue;
-          for (const candidate of opdNameAliases) {
-            if (candidate.key.length < 8) continue;
-            if (candidate.key.includes(alias) || alias.includes(candidate.key)) {
-              looseHits.add(candidate.id);
-              if (looseHits.size > 1) return null;
-            }
-          }
-        }
-        if (looseHits.size === 1) return [...looseHits][0];
       }
       return null;
     };
@@ -3276,8 +3267,10 @@ export async function commitImportData(template: ImportTemplateKey, payload: Imp
     );
     const updateOpdMaster = database.prepare(
       `UPDATE opd SET
+         nama = ?,
          wilayah_id = ?,
          jenis_instansi = COALESCE(?, jenis_instansi),
+         npwp_opd = COALESCE(?, npwp_opd),
          ar_id = COALESCE(?, ar_id),
          nama_ar = COALESCE(?, nama_ar),
          status_pemungut_ppn = COALESCE(?, status_pemungut_ppn),
@@ -3295,14 +3288,16 @@ export async function commitImportData(template: ImportTemplateKey, payload: Imp
        WHERE id = ?`,
     );
     payload.opd.forEach((row) => {
-      const npwpDigits = row.npwp ? row.npwp.replace(/\D/g, "") : null;
+      const npwpDigits = importNpwpDigits(row.npwp);
       const wilayahId = ensureWilayah(row.wilayah);
       const arId = ensureAr(row.ar_nama, row.ar_nip);
       const existing = resolveOpd(row.npwp, row.nama);
       if (existing) {
         updateOpdMaster.run(
+          row.nama,
           wilayahId,
           row.jenis_instansi,
+          row.npwp,
           arId,
           row.ar_nama,
           row.status_pemungut_ppn,
@@ -3319,6 +3314,8 @@ export async function commitImportData(template: ImportTemplateKey, payload: Imp
           row.tanggal_update_kontak,
           existing,
         );
+        registerOpdName(row.nama, existing);
+        if (npwpDigits) opdByNpwp.set(npwpDigits, existing);
         result.opd_updated += 1;
       } else {
         const id = Number(

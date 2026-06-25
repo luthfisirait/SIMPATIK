@@ -90,7 +90,7 @@ const importRules = [
     urutan: "6",
     template: "Rekam Sosialisasi",
     aturan: "Dipakai untuk status sudah/belum sosialisasi per OPD. Tidak membuat OPD baru.",
-    kunci: "NPWP atau Nama OPD harus cocok ke Masterfile",
+    kunci: "Rekam Sosialisasi.NPWP = Masterfile.NPWP16; nama OPD hanya cadangan bila NPWP kosong",
   },
 ];
 
@@ -182,7 +182,7 @@ export default function ImportPage() {
         <div className="card-header">
           <div>
             <div className="card-title">Template yang didukung</div>
-            <div className="card-subtitle">Pencocokan ke OPD memakai NPWP (utama) atau nama OPD (cadangan).</div>
+            <div className="card-subtitle">Pencocokan ke OPD memakai NPWP sebagai kunci utama; nama OPD hanya cadangan bila NPWP kosong.</div>
           </div>
           <FileSpreadsheet size={18} />
         </div>

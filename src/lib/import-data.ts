@@ -505,7 +505,7 @@ function normalizeMasterfile(sheet: ParsedSheet, payload: ImportPayload, warning
   forEachRow(sheet, (row) => {
     const nama = textValue(row.pick("nama_wp"));
     if (!nama) return;
-    const npwp = textValue(row.pick("npwp16", "npwp15"));
+    const npwp = normalizeNpwp(row.pick("npwp16")) || normalizeNpwp(row.pick("npwp15"));
     const wilayahOpd = textValue(row.pick("wilayah_opd", "wilayah"));
     const kota = textValue(row.pick("kota", "kabupaten", "propinsi"));
     payload.opd.push({
@@ -528,7 +528,7 @@ function normalizeMasterfile(sheet: ParsedSheet, payload: ImportPayload, warning
       tanggal_input: toIsoDate(row.pick("tanggal_daftar")),
       tanggal_update_kontak: toIsoDate(row.pick("tanggal_update_kontak")),
     });
-    if (!npwp) warnings.push(`Masterfile: WP "${nama}" tidak punya NPWP, pencocokan memakai nama.`);
+    if (!npwp) warnings.push(`Masterfile: WP "${nama}" tidak punya NPWP16/NPWP15, pencocokan memakai nama sebagai cadangan.`);
   });
 }
 
@@ -553,7 +553,7 @@ function normalizePenerimaan(sheet: ParsedSheet, payload: ImportPayload, warning
   >();
 
   forEachRow(sheet, (row) => {
-    const npwp = textValue(row.pick("npwp")) || null;
+    const npwp = normalizeNpwp(row.pick("npwp"));
     const nama = textValue(row.pick("nama_wajib_pajak", "nama_wp")) || null;
     if (!npwp && !nama) return;
     const masa = parseMasaPajak(row.pick("masa_pajak"));
@@ -643,7 +643,7 @@ function normalizePelaporan(sheet: ParsedSheet, payload: ImportPayload, fallback
   const blocks = splitBlocks(sheet);
   blocks.forEach((block) => {
     forEachRowOf(block, (row) => {
-      const npwp = textValue(row.pick("npwp")) || null;
+      const npwp = normalizeNpwp(row.pick("npwp"));
       const nama = textValue(row.pick("nama_wp", "nama_wajib_pajak")) || null;
       if (!npwp && !nama) return;
       const masa = parseMasaPajak(row.pick("masa_pajak"));
@@ -789,7 +789,7 @@ function normalizeSosialisasi(sheet: ParsedSheet, payload: ImportPayload) {
     const nama = textValue(row.pick("nama_opd"));
     if (!nama) return;
     const base = {
-      npwp: textValue(row.pick("npwp")) || null,
+      npwp: normalizeNpwp(row.pick("npwp")),
       nama_opd: nama,
       wilayah: textValue(row.pick("wilayah_kerja", "wilayah")) || null,
       penyuluh_nama: textValue(row.pick("nama_penyuluh", "penyuluh")) || null,
@@ -826,12 +826,13 @@ function normalizeSosialisasi(sheet: ParsedSheet, payload: ImportPayload) {
 }
 
 function ensureSptMasaRow(payload: ImportPayload, npwp: string | null, nama: string | null, masa: string) {
+  const cleanNpwp = normalizeNpwp(npwp);
   const existing = payload.sptMasa.find(
-    (item) => item.masa_pajak === masa && ((npwp && item.npwp === npwp) || (!npwp && item.nama_opd === nama)),
+    (item) => item.masa_pajak === masa && ((cleanNpwp && item.npwp === cleanNpwp) || (!cleanNpwp && item.nama_opd === nama)),
   );
   if (existing) return existing;
   const created = {
-    npwp,
+    npwp: cleanNpwp,
     nama_opd: nama,
     masa_pajak: masa,
     pph22_nominal: 0,
