@@ -3474,16 +3474,21 @@ export async function commitImportData(template: ImportTemplateKey, payload: Imp
          phone = excluded.phone, npwp = excluded.npwp, npwp_satker = excluded.npwp_satker, nik = excluded.nik,
          email = excluded.email, jenis_kepegawaian = excluded.jenis_kepegawaian`,
     );
-    payload.pegawai.forEach((row) => {
+    payload.pegawai.forEach((row, rowIndex) => {
       const opdId = resolveOpd(row.npwp_satker, row.opd_nama);
-      if (!opdId || !row.nip) {
-        addSkip(!opdId ? "Pegawai: OPD tidak ditemukan." : "Pegawai: NIP kosong.");
+      if (!opdId) {
+        addSkip("Pegawai: OPD tidak ditemukan.");
         return;
       }
+      const pegawaiKey =
+        row.nip?.trim() ||
+        row.nik?.replace(/\D/g, "") ||
+        row.npwp?.replace(/\D/g, "") ||
+        `IMPORT-${opdId}-${importSlug(row.nama)}-${rowIndex + 1}`;
       try {
         upsertPegawai.run(
           row.nama,
-          row.nip,
+          pegawaiKey,
           opdId,
           row.jabatan || "Pegawai",
           row.status_coretax ?? "belum_aktivasi",

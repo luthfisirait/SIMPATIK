@@ -852,7 +852,12 @@ function penerimaanKindFromMap(kdMap: string): PenerimaanKind | null {
 
 function pelaporanKindFromJenisSpt(value: unknown): "pph21" | "unifikasi" | "ppn" | "tahunan_op" | null {
   const jenis = textValue(value).toLowerCase();
-  if (jenis.includes("tahunan") && jenis.includes("orang pribadi")) return "tahunan_op";
+  if (
+    jenis.includes("tahunan") &&
+    (jenis.includes("orang pribadi") || /(?:^|\b)(?:op|wp\s*op)(?:\b|$)/.test(jenis))
+  ) {
+    return "tahunan_op";
+  }
   if (jenis.includes("ppn")) return "ppn";
   if (jenis.includes("unifikasi")) return "unifikasi";
   if (jenis.includes("21") || jenis.includes("26")) return "pph21";
