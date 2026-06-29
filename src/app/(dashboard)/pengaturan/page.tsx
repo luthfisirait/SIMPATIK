@@ -19,10 +19,10 @@ export default function PengaturanPage() {
           </div>
           <div className="settings-row">
             <div>
-              <div className="settings-row-label">Alert Deposit Pajak Kritis</div>
-              <div className="settings-row-desc">Saldo OPD &lt; Rp 2 juta</div>
+              <div className="settings-row-label">Alert Deposit Pajak Rendah</div>
+              <div className="settings-row-desc">Saldo OPD &lt; Rp 100 juta</div>
             </div>
-            <Toggle active label="Alert Deposit Pajak Kritis" />
+            <Toggle active label="Alert Deposit Pajak Rendah" />
           </div>
           <div className="settings-row">
             <div>

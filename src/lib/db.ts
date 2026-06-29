@@ -48,6 +48,7 @@ function initSchema(database: Database.Database) {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       nama TEXT NOT NULL,
       wilayah_id INTEGER NOT NULL REFERENCES wilayah(id),
+      seksi TEXT,
       jenis_instansi TEXT,
       jumlah_asn INTEGER NOT NULL DEFAULT 0,
       jumlah_pppk INTEGER NOT NULL DEFAULT 0,
@@ -258,6 +259,7 @@ function ensureExistingSchema(database: Database.Database) {
   const columns: Record<string, string[]> = {
     opd: [
       "jenis_instansi TEXT",
+      "seksi TEXT",
       "jumlah_pppk INTEGER NOT NULL DEFAULT 0",
       "npwp_opd TEXT",
       "status_pemungut_ppn TEXT NOT NULL DEFAULT 'TIDAK'",

@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 
 import { Shell } from "@/components/layout/Shell";
 import { authOptions } from "@/lib/auth";
-import { getDataStatus } from "@/lib/queries";
+import { getDataStatus, getImportStatus } from "@/lib/queries";
 
 export const dynamic = "force-dynamic";
 
@@ -15,6 +15,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
   }
 
   const dataStatus = getDataStatus();
+  const importStatus = getImportStatus();
   const monitoringKosong =
     dataStatus.opd === 0 ||
     dataStatus.spt === 0 ||
@@ -32,7 +33,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
     "Data disimpan di database SQLite lokal pada folder database. Isi data lewat halaman Import agar dashboard dan modul monitoring menampilkan angka.";
 
   return (
-    <Shell user={session.user}>
+    <Shell user={session.user} dataLastUpdate={importStatus.lastAt}>
       {monitoringKosong ? (
         <div className="alert data-status-banner">
           <div>

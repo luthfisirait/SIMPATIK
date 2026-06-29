@@ -512,6 +512,7 @@ function normalizeMasterfile(sheet: ParsedSheet, payload: ImportPayload, warning
       npwp: npwp || null,
       nama,
       wilayah: wilayahOpd || kota || null,
+      seksi: textValue(row.pick("seksi", "seksi_satker")) || null,
       jenis_instansi: textValue(row.pick("jenis_wp", "kategori")) || null,
       ar_nama: textValue(row.pick("nama_ar")) || null,
       ar_nip: textValue(row.pick("nip_ar")) || null,

@@ -26,6 +26,7 @@ export type Opd = {
   wilayah_id: number;
   wilayah_nama: string;
   wilayah_kode: string;
+  seksi: string | null;
   jenis_instansi: string | null;
   jumlah_asn: number;
   jumlah_pppk: number;
@@ -52,6 +53,7 @@ export type SptRecord = {
   opd_id: number;
   opd_nama: string;
   wilayah_nama: string;
+  seksi: string | null;
   ar_nama: string | null;
   tahun_pajak: number;
   periode: string;
@@ -135,6 +137,7 @@ export type DepositRecord = {
   opd_id: number;
   opd_nama: string;
   wilayah_nama: string;
+  seksi: string | null;
   ar_nama: string | null;
   masa_pajak: string;
   deposit_pph21: number;
@@ -243,6 +246,7 @@ export type ImportOpdRow = {
   npwp: string | null;
   nama: string;
   wilayah: string | null;
+  seksi: string | null;
   jenis_instansi: string | null;
   ar_nama: string | null;
   ar_nip: string | null;

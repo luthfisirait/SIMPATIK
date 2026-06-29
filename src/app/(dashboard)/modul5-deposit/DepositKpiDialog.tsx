@@ -19,9 +19,9 @@ type DepositDialogCard = {
 };
 
 function depositStatusLabel(value: string) {
-  if (value === "hijau") return "Aman";
-  if (value === "kuning") return "Rendah";
-  if (value === "merah") return "Kritis";
+  if (value === "hijau") return "Tinggi";
+  if (value === "kuning") return "Sedang";
+  if (value === "merah") return "Rendah";
   return value;
 }
 
@@ -37,32 +37,33 @@ export function DepositKpiDialog({ rows }: { rows: DepositRecord[] }) {
     const totalRows = rows.length;
     const totalSaldo = rows.reduce((sum, item) => sum + item.total_deposit, 0);
     const count = (status: DepositStatusKey) => rowsByStatus(rows, status).length;
-    const amanPercent = totalRows === 0 ? 0 : (count("hijau") * 100) / totalRows;
+    const tinggiPercent = totalRows === 0 ? 0 : (count("hijau") * 100) / totalRows;
 
     return [
       {
         key: "all",
-        label: `Total Saldo (${formatNumber(totalRows)} OPD)`,
+        label: "Total Saldo",
         value: formatCompactRupiah(totalSaldo),
+        sub: `${formatNumber(totalRows)} OPD master`,
         accent: "navy",
       },
       {
         key: "hijau",
-        label: "Saldo Aman (>Rp 10 jt)",
+        label: "Saldo Tinggi (> Rp 1 Miliar)",
         value: formatNumber(count("hijau")),
-        sub: `${formatPercent(amanPercent)} dari OPD master`,
+        sub: `${formatPercent(tinggiPercent)} dari OPD master`,
         accent: "green",
       },
       {
         key: "kuning",
-        label: "Saldo Rendah (Rp 2-10 jt)",
+        label: "Saldo Sedang (Rp 100 Jt-1 Miliar)",
         value: formatNumber(count("kuning")),
         sub: `Dari ${formatNumber(totalRows)} OPD master`,
         accent: "gold",
       },
       {
         key: "merah",
-        label: "Saldo Kritis (<Rp 2 jt)",
+        label: "Saldo Rendah (Rp 0-100 Jt)",
         value: formatNumber(count("merah")),
         sub: `Dari ${formatNumber(totalRows)} OPD master`,
         accent: "red",
@@ -124,6 +125,7 @@ export function DepositKpiDialog({ rows }: { rows: DepositRecord[] }) {
                     <tr>
                       <th>Nama OPD</th>
                       <th>Wilayah</th>
+                      <th>Seksi</th>
                       <th>Saldo Deposit</th>
                       <th>Status</th>
                       <th>AR</th>
@@ -132,7 +134,7 @@ export function DepositKpiDialog({ rows }: { rows: DepositRecord[] }) {
                   <tbody>
                     {dialogRows.length === 0 ? (
                       <tr>
-                        <td colSpan={5} className="muted">
+                        <td colSpan={6} className="muted">
                           Belum ada data untuk kategori ini.
                         </td>
                       </tr>
@@ -143,6 +145,7 @@ export function DepositKpiDialog({ rows }: { rows: DepositRecord[] }) {
                             <strong>{item.opd_nama}</strong>
                           </td>
                           <td className="td-mono">{item.wilayah_nama}</td>
+                          <td>{item.seksi ?? "-"}</td>
                           <td className="td-mono">
                             <strong>{formatCompactRupiah(item.total_deposit)}</strong>
                           </td>

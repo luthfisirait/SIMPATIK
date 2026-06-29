@@ -23,7 +23,7 @@ import { signOut } from "next-auth/react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 
 import { initials, roleLabel } from "@/lib/utils";
 import { roleCanSeeNav } from "@/lib/rbac";
@@ -31,6 +31,7 @@ import type { Role } from "@/types";
 
 type ShellProps = {
   children: React.ReactNode;
+  dataLastUpdate?: string | null;
   user: {
     name?: string | null;
     role?: string;
@@ -73,31 +74,24 @@ const navGroups = [
   },
 ];
 
-const meta: Record<string, { title: string; bc: string }> = {
-  "/dashboard": { title: "Dashboard", bc: "/ Ringkasan Kepatuhan" },
-  "/modul1-spt": { title: "SPT Tahunan OP", bc: "/ Monitoring Kepatuhan SPT" },
-  "/modul2-pph21": { title: "PPh Masa", bc: "/ Pembayaran dan Pelaporan" },
-  "/modul3-sosialisasi": { title: "Sosialisasi Coretax", bc: "/ Rekam Jejak Sosialisasi" },
-  "/modul4-spt-masa": { title: "SPT Masa", bc: "/ PPh Unifikasi dan PPN PUT" },
-  "/modul5-deposit": { title: "Deposit Pajak OPD", bc: "/ Saldo dan Realisasi Setoran" },
-  "/rincian-pph-masa": { title: "Rincian PPh Masa OPD", bc: "/ Manajemen" },
-  "/scoring-opd": { title: "Scoring OPD", bc: "/ Skor Komposit Kepatuhan" },
-  "/reward-punishment": { title: "Reward & Punishment", bc: "/ Tindak Lanjut Berbasis Scoring" },
-  "/pegawai-belum-lapor": { title: "Rincian Pegawai SPT", bc: "/ Manajemen" },
-  "/data-opd": { title: "Data OPD", bc: "/ Master OPD" },
-  "/direktori-ar": { title: "Data AR", bc: "/ Account Representative" },
-  "/direktori-bendahara": { title: "Direktori Bendahara", bc: "/ Kontak Bendahara Pengeluaran" },
-  "/analitik": { title: "Analitik", bc: "/ Tren dan Insight" },
-  "/pengguna": { title: "Pengguna", bc: "/ Manajemen Akun" },
-  "/pengaturan": { title: "Pengaturan", bc: "/ Sistem" },
-  "/action-log/input": { title: "Action Log AR", bc: "/ Rekam Jejak Tindak Lanjut" },
-  "/import": { title: "Import Data", bc: "/ Administrasi" },
-};
+const officeHeader = "KPP Pratama Padang Satu, Kanwil DJP Sumatera Barat dan Jambi";
 
-export function Shell({ children, user }: ShellProps) {
+function formatDataLastUpdate(value?: string | null) {
+  if (!value) return "Belum ada import data";
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Belum ada import data";
+
+  return new Intl.DateTimeFormat("id-ID", {
+    dateStyle: "medium",
+    timeStyle: "short",
+    timeZone: "Asia/Jakarta",
+  }).format(date);
+}
+
+export function Shell({ children, dataLastUpdate, user }: ShellProps) {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
-  const current = useMemo(() => meta[pathname] ?? meta["/dashboard"], [pathname]);
   const name = user.name ?? "Pengguna";
   const role = user.role as Role | undefined;
 
@@ -162,9 +156,9 @@ export function Shell({ children, user }: ShellProps) {
       </aside>
 
       <header className="topbar">
-        <div>
-          <div className="topbar-title">{current.title}</div>
-          <div className="topbar-breadcrumb">{current.bc}</div>
+        <div className="topbar-heading">
+          <div className="topbar-office">{officeHeader}</div>
+          <div className="topbar-data-update">Data last update: {formatDataLastUpdate(dataLastUpdate)}</div>
         </div>
         <div className="topbar-spacer" />
         <form className="topbar-search" action="/modul1-spt">

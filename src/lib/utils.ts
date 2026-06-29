@@ -30,21 +30,23 @@ export function formatRupiah(value: number | null | undefined) {
 
 export function formatCompactRupiah(value: number | null | undefined) {
   const safeValue = safeNumber(value);
+  const absValue = Math.abs(safeValue);
+  const sign = safeValue < 0 ? "-" : "";
 
-  if (safeValue >= 1_000_000_000_000) {
-    return `Rp ${(safeValue / 1_000_000_000_000).toLocaleString("id-ID", {
+  if (absValue >= 1_000_000_000_000) {
+    return `${sign}Rp ${(absValue / 1_000_000_000_000).toLocaleString("id-ID", {
       maximumFractionDigits: 1,
     })} T`;
   }
 
-  if (safeValue >= 1_000_000_000) {
-    return `Rp ${(safeValue / 1_000_000_000).toLocaleString("id-ID", {
+  if (absValue >= 1_000_000_000) {
+    return `${sign}Rp ${(absValue / 1_000_000_000).toLocaleString("id-ID", {
       maximumFractionDigits: 1,
     })} M`;
   }
 
-  if (safeValue >= 1_000_000) {
-    return `Rp ${(safeValue / 1_000_000).toLocaleString("id-ID", {
+  if (absValue >= 1_000_000) {
+    return `${sign}Rp ${(absValue / 1_000_000).toLocaleString("id-ID", {
       maximumFractionDigits: 1,
     })} Jt`;
   }

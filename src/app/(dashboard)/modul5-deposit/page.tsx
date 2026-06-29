@@ -1,4 +1,4 @@
-import { Download, Search, Send } from "lucide-react";
+import { ArrowDown, ArrowUp, Download, Search, Send } from "lucide-react";
 import { getServerSession } from "next-auth";
 import Link from "next/link";
 
@@ -13,10 +13,14 @@ import { formatCompactRupiah, formatNumber } from "@/lib/utils";
 import { DepositKpiDialog } from "./DepositKpiDialog";
 
 function depositStatusLabel(value: string) {
-  if (value === "hijau") return "Aman";
-  if (value === "kuning") return "Rendah";
-  if (value === "merah") return "Kritis";
+  if (value === "hijau") return "Tinggi";
+  if (value === "kuning") return "Sedang";
+  if (value === "merah") return "Rendah";
   return value;
+}
+
+function normalizeSaldoSort(value: string) {
+  return value === "saldo_asc" ? "saldo_asc" : "saldo_desc";
 }
 
 export default async function ModulDepositPage({ searchParams }: { searchParams?: PageSearchParams }) {
@@ -24,14 +28,18 @@ export default async function ModulDepositPage({ searchParams }: { searchParams?
   const q = firstParam(searchParams, "q");
   const wilayah = firstParam(searchParams, "wilayah", "all");
   const status = firstParam(searchParams, "status", "all");
+  const sort = normalizeSaldoSort(firstParam(searchParams, "sort", "saldo_desc"));
   const ar = session?.user.role === "ar" ? session.user.id : firstParam(searchParams, "ar", "all");
   const page = numericParam(searchParams, "page");
-  const result = listDeposit({ q, wilayah, overallStatus: status, ar, page, pageSize: 12 });
-  const dialogRows = listDepositDialogRows({ q, wilayah, ar, masa: result.masa });
+  const result = listDeposit({ q, wilayah, overallStatus: status, ar, sort, page, pageSize: 12 });
+  const dialogRows = listDepositDialogRows({ q, wilayah, ar, sort, masa: result.masa });
   const wilayahOptions = getWilayah();
   const arOptions = listAr();
-  const exportQuery = queryString({ q, wilayah, status, ar, masa: result.masa });
+  const exportQuery = queryString({ q, wilayah, status, ar, sort, masa: result.masa });
   const exportHref = exportQuery ? `/api/export/deposit?${exportQuery}` : "/api/export/deposit";
+  const nextSaldoSort = sort === "saldo_desc" ? "saldo_asc" : "saldo_desc";
+  const saldoSortHref = `/modul5-deposit?${queryString({ q, wilayah, status, ar, sort: nextSaldoSort })}`;
+  const SaldoSortIcon = sort === "saldo_desc" ? ArrowDown : ArrowUp;
 
   return (
     <>
@@ -63,12 +71,13 @@ export default async function ModulDepositPage({ searchParams }: { searchParams?
         </div>
         <div className="card-body">
           <form className="filter-bar">
+            <input type="hidden" name="sort" value={sort} />
             <input className="search-input" name="q" placeholder="Cari OPD" defaultValue={q} style={{ maxWidth: 260 }} />
             <select className="search-input" name="status" defaultValue={status} style={{ maxWidth: 180 }}>
-              <option value="all">Semua Status</option>
-              <option value="hijau">Aman</option>
-              <option value="kuning">Rendah</option>
-              <option value="merah">Kritis</option>
+              <option value="all">Semua Kategori</option>
+              <option value="hijau">Saldo Tinggi</option>
+              <option value="kuning">Saldo Sedang</option>
+              <option value="merah">Saldo Rendah</option>
             </select>
             <select className="search-input" name="wilayah" defaultValue={wilayah} style={{ maxWidth: 220 }}>
               <option value="all">Semua wilayah</option>
@@ -98,7 +107,18 @@ export default async function ModulDepositPage({ searchParams }: { searchParams?
               <tr>
                 <th>Nama OPD</th>
                 <th>Wilayah</th>
-                <th>Saldo Deposit</th>
+                <th>Seksi</th>
+                <th aria-sort={sort === "saldo_desc" ? "descending" : "ascending"}>
+                  <Link
+                    href={saldoSortHref}
+                    aria-label={`Urutkan saldo deposit ${nextSaldoSort === "saldo_desc" ? "terbesar ke terkecil" : "terkecil ke terbesar"}`}
+                    style={{ display: "inline-flex", alignItems: "center", gap: 6 }}
+                    title={sort === "saldo_desc" ? "Saat ini terbesar ke terkecil" : "Saat ini terkecil ke terbesar"}
+                  >
+                    Saldo Deposit
+                    <SaldoSortIcon size={13} aria-hidden="true" />
+                  </Link>
+                </th>
                 <th>Status</th>
                 <th>AR</th>
               </tr>
@@ -106,7 +126,7 @@ export default async function ModulDepositPage({ searchParams }: { searchParams?
             <tbody>
               {result.data.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="muted">
+                  <td colSpan={6} className="muted">
                     Belum ada data deposit.
                   </td>
                 </tr>
@@ -117,6 +137,7 @@ export default async function ModulDepositPage({ searchParams }: { searchParams?
                       <strong>{item.opd_nama}</strong>
                     </td>
                     <td className="td-mono">{item.wilayah_nama}</td>
+                    <td>{item.seksi ?? "-"}</td>
                     <td className="td-mono">
                       <strong>{formatCompactRupiah(item.total_deposit)}</strong>
                     </td>
@@ -132,9 +153,9 @@ export default async function ModulDepositPage({ searchParams }: { searchParams?
         </div>
         <div className="card-footer">
           <span className="muted">
-            Menampilkan {formatNumber(result.data.length)} dari {formatNumber(result.total)} OPD - Kritis &lt;Rp 2 jt - Rendah Rp 2-10 jt - Aman &gt;Rp 10 jt
+            Menampilkan {formatNumber(result.data.length)} dari {formatNumber(result.total)} OPD - Rendah Rp 0-100 Jt - Sedang Rp 100 Jt-1 Miliar - Tinggi &gt;Rp 1 Miliar
           </span>
-          <Pagination page={result.page} pages={result.pages} basePath="/modul5-deposit" query={keepQuery({ q, wilayah, status, ar })} />
+          <Pagination page={result.page} pages={result.pages} basePath="/modul5-deposit" query={keepQuery({ q, wilayah, status, ar, sort })} />
         </div>
       </div>
     </>

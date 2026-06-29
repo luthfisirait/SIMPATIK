@@ -31,6 +31,7 @@ export default async function ModulSptPage({ searchParams }: { searchParams?: Pa
   const sptColumns: KpiDialogColumn[] = [
     { key: "opd", label: "Nama OPD" },
     { key: "wilayah", label: "Wilayah", className: "td-mono" },
+    { key: "seksi", label: "Seksi" },
     { key: "wajib", label: "Wajib Lapor" },
     { key: "sudah", label: "Sudah Lapor" },
     { key: "belum", label: "Belum Lapor" },
@@ -47,6 +48,7 @@ export default async function ModulSptPage({ searchParams }: { searchParams?: Pa
       cells: {
         opd: { value: item.opd_nama, strong: true },
         wilayah: item.wilayah_nama,
+        seksi: item.seksi ?? "-",
         wajib: formatNumber(item.jumlah_wajib_lapor),
         sudah: formatNumber(item.jumlah_sudah_lapor),
         belum: formatNumber(belum),
@@ -169,6 +171,7 @@ export default async function ModulSptPage({ searchParams }: { searchParams?: Pa
               <tr>
                 <th>Nama OPD</th>
                 <th>Wilayah</th>
+                <th>Seksi</th>
                 <th>ASN & PPPK</th>
                 <th>Sudah Lapor</th>
                 <th>Belum Lapor</th>
@@ -181,7 +184,7 @@ export default async function ModulSptPage({ searchParams }: { searchParams?: Pa
             <tbody>
               {result.data.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="muted">
+                  <td colSpan={10} className="muted">
                     Belum ada data SPT.
                   </td>
                 </tr>
@@ -194,6 +197,7 @@ export default async function ModulSptPage({ searchParams }: { searchParams?: Pa
                         <strong>{item.opd_nama}</strong>
                       </td>
                       <td className="td-mono">{item.wilayah_nama}</td>
+                      <td>{item.seksi ?? "-"}</td>
                       <td>{formatNumber(item.jumlah_wajib_lapor)}</td>
                       <td className="text-green">{formatNumber(item.jumlah_sudah_lapor)}</td>
                       <td className={item.traffic_light === "kuning" ? "text-amber" : item.traffic_light === "merah" ? "text-red" : ""}>

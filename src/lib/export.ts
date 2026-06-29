@@ -73,7 +73,7 @@ export function exportDataset(dataset: string, params: URLSearchParams) {
       .prepare(
         `
         SELECT o.id, o.nama, w.nama AS wilayah, o.jumlah_asn, o.nama_bendahara, o.hp_bendahara,
-          o.jenis_instansi, o.jumlah_pppk, o.npwp_opd, o.status_pemungut_ppn,
+          o.seksi, o.jenis_instansi, o.jumlah_pppk, o.npwp_opd, o.status_pemungut_ppn,
           o.nip_bendahara, o.email_bendahara, o.nama_bendahara_penerimaan, o.hp_bendahara_penerimaan,
           o.nama_pic_kepeg, o.hp_pic_kepeg, u.nama AS ar_pengampu, o.status
         FROM opd o
@@ -102,8 +102,8 @@ export function exportDataset(dataset: string, params: URLSearchParams) {
     }
     const q = params.get("q");
     if (q) {
-      baseWhere.push("(LOWER(o.nama) LIKE ? OR LOWER(w.nama) LIKE ?)");
-      baseValues.push(`%${q.toLowerCase()}%`, `%${q.toLowerCase()}%`);
+      baseWhere.push("(LOWER(o.nama) LIKE ? OR LOWER(w.nama) LIKE ? OR LOWER(COALESCE(o.seksi, '')) LIKE ? OR LOWER(COALESCE(o.nama_ar, '')) LIKE ?)");
+      baseValues.push(`%${q.toLowerCase()}%`, `%${q.toLowerCase()}%`, `%${q.toLowerCase()}%`, `%${q.toLowerCase()}%`);
     }
     const whereClause = baseWhere.length ? `WHERE ${baseWhere.join(" AND ")}` : "";
     const status = params.get("status");
@@ -113,7 +113,8 @@ export function exportDataset(dataset: string, params: URLSearchParams) {
       .prepare(
         `
         WITH base AS (
-          SELECT o.nama AS opd, w.nama AS wilayah, u.nama AS ar_pengampu,
+          SELECT o.nama AS opd, w.nama AS wilayah, o.seksi,
+            NULLIF(TRIM(COALESCE(o.nama_ar, '')), '') AS ar_pengampu,
             COUNT(DISTINCT p.id) AS asn_pppk,
             COUNT(DISTINCT CASE WHEN sto.id IS NOT NULL THEN p.id END) AS sudah_lapor
           FROM opd o
@@ -122,7 +123,7 @@ export function exportDataset(dataset: string, params: URLSearchParams) {
           LEFT JOIN pegawai p ON p.opd_id = o.id
           LEFT JOIN spt_tahunan_op sto ON ${pegawaiNpwp} <> '' AND sto.npwp_pegawai = ${pegawaiNpwp}
           ${whereClause}
-          GROUP BY o.id, o.nama, w.nama, u.nama
+          GROUP BY o.id, o.nama, w.nama, o.seksi, o.nama_ar
         ),
         scored AS (
           SELECT base.*, (asn_pppk - sudah_lapor) AS belum_lapor,
@@ -133,7 +134,7 @@ export function exportDataset(dataset: string, params: URLSearchParams) {
               ELSE 'merah' END AS traffic_light
           FROM base
         )
-        SELECT opd, wilayah, ar_pengampu, asn_pppk, sudah_lapor, belum_lapor, persen_kepatuhan, traffic_light
+        SELECT opd, wilayah, seksi, ar_pengampu, asn_pppk, sudah_lapor, belum_lapor, persen_kepatuhan, traffic_light
         FROM scored ${trafficClause}
         ORDER BY persen_kepatuhan ASC, opd
       `,
@@ -217,34 +218,36 @@ export function exportDataset(dataset: string, params: URLSearchParams) {
     }
     const q = params.get("q");
     if (q) {
-      baseWhere.push("(LOWER(o.nama) LIKE ? OR LOWER(w.nama) LIKE ?)");
-      baseValues.push(`%${q.toLowerCase()}%`, `%${q.toLowerCase()}%`);
+      baseWhere.push("(LOWER(o.nama) LIKE ? OR LOWER(w.nama) LIKE ? OR LOWER(COALESCE(o.seksi, '')) LIKE ? OR LOWER(COALESCE(o.nama_ar, '')) LIKE ?)");
+      baseValues.push(`%${q.toLowerCase()}%`, `%${q.toLowerCase()}%`, `%${q.toLowerCase()}%`, `%${q.toLowerCase()}%`);
     }
     const whereClause = baseWhere.length ? `WHERE ${baseWhere.join(" AND ")}` : "";
     const statusExpr =
-      "CASE WHEN saldo_deposit > 10000000 THEN 'hijau' WHEN saldo_deposit >= 2000000 THEN 'kuning' ELSE 'merah' END";
+      "CASE WHEN saldo_deposit > 1000000000 THEN 'hijau' WHEN saldo_deposit >= 100000000 THEN 'kuning' ELSE 'merah' END";
     const status = params.get("status");
     const statusClause = status && status !== "all" ? "WHERE status = ?" : "";
     const statusValues = status && status !== "all" ? [status.toLowerCase()] : [];
+    const orderBy = params.get("sort") === "saldo_asc" ? "saldo_deposit ASC, opd" : "saldo_deposit DESC, opd";
     return db
       .prepare(
         `
         WITH base AS (
-          SELECT o.nama AS opd, w.nama AS wilayah, u.nama AS ar_pengampu,
+          SELECT o.nama AS opd, w.nama AS wilayah, o.seksi,
+            NULLIF(TRIM(COALESCE(o.nama_ar, '')), '') AS ar_pengampu,
             COALESCE(SUM(d.nilai_setor), 0) AS saldo_deposit
           FROM opd o
           JOIN wilayah w ON w.id = o.wilayah_id
           LEFT JOIN users u ON u.id = o.ar_id
           LEFT JOIN deposit_penerimaan d ON d.opd_id = o.id AND d.kd_map = '411618'
           ${whereClause}
-          GROUP BY o.id, o.nama, w.nama, u.nama
+          GROUP BY o.id, o.nama, w.nama, o.seksi, o.nama_ar
         ),
         scored AS (
           SELECT base.*, ${statusExpr} AS status FROM base
         )
-        SELECT opd, wilayah, ar_pengampu, saldo_deposit, status
+        SELECT opd, wilayah, seksi, ar_pengampu, saldo_deposit, status
         FROM scored ${statusClause}
-        ORDER BY CASE status WHEN 'merah' THEN 1 WHEN 'kuning' THEN 2 ELSE 3 END, saldo_deposit ASC, opd
+        ORDER BY ${orderBy}
       `,
       )
       .all(...baseValues, ...statusValues) as CsvRow[];

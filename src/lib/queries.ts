@@ -37,6 +37,7 @@ type ListParams = {
 export type WriteOpdPayload = {
   nama: string;
   wilayah_id: number;
+  seksi?: string | null;
   jenis_instansi?: string | null;
   jumlah_asn: number;
   jumlah_pppk?: number;
@@ -141,7 +142,7 @@ function depositPenerimaanAmountSql(alias = "d") {
 }
 
 function depositStatusForAmountSql(amount: string) {
-  return `CASE WHEN ${amount} > 10000000 THEN 'hijau' WHEN ${amount} >= 2000000 THEN 'kuning' ELSE 'merah' END`;
+  return `CASE WHEN ${amount} > 1000000000 THEN 'hijau' WHEN ${amount} >= 100000000 THEN 'kuning' ELSE 'merah' END`;
 }
 
 function depositStatusSql(alias = "d") {
@@ -156,6 +157,10 @@ function opdArNameSql(alias = "o") {
   return `NULLIF(TRIM(COALESCE(${alias}.nama_ar, '')), '')`;
 }
 
+function opdSeksiSql(alias = "o") {
+  return `NULLIF(TRIM(COALESCE(${alias}.seksi, '')), '')`;
+}
+
 // Saldo deposit per OPD: jumlahkan NILAI SETOR (boleh minus) untuk KD MAP 411618,
 // dikelompokkan per NPWP16 (opd.id) lintas seluruh masa pajak. Semua OPD masterfile
 // ditampilkan; OPD tanpa data penerimaan dianggap bersaldo 0.
@@ -163,14 +168,14 @@ function depositSaldoScoredSql(whereClause: string) {
   return `
     WITH base AS (
       SELECT o.id AS id, o.id AS opd_id, o.nama AS opd_nama,
-        w.nama AS wilayah_nama, ${opdArNameSql("o")} AS ar_nama,
+        w.nama AS wilayah_nama, ${opdSeksiSql("o")} AS seksi, ${opdArNameSql("o")} AS ar_nama,
         COALESCE(SUM(d.nilai_setor), 0) AS total_deposit
       FROM opd o
       JOIN wilayah w ON w.id = o.wilayah_id
       LEFT JOIN users u ON u.id = o.ar_id
       LEFT JOIN deposit_penerimaan d ON d.opd_id = o.id AND d.kd_map = '411618'
       ${whereClause}
-      GROUP BY o.id, o.nama, w.nama, u.nama
+      GROUP BY o.id, o.nama, w.nama, o.seksi, o.nama_ar
     ),
     scored AS (
       SELECT base.*, ${depositStatusForAmountSql("total_deposit")} AS status_deposit_overall
@@ -190,6 +195,7 @@ function sptTahunanScoredSql(whereClause: string) {
     WITH base AS (
       SELECT o.id AS id, o.id AS opd_id, o.nama AS opd_nama,
         w.nama AS wilayah_nama,
+        ${opdSeksiSql("o")} AS seksi,
         ${opdArNameSql("o")} AS ar_nama,
         COUNT(DISTINCT p.id) AS jumlah_wajib_lapor,
         COUNT(DISTINCT CASE WHEN sto.id IS NOT NULL THEN p.id END) AS jumlah_sudah_lapor
@@ -200,7 +206,7 @@ function sptTahunanScoredSql(whereClause: string) {
         OR (${pegawaiSatker} <> '' AND ${pegawaiSatker} = ${opdNpwp})
       LEFT JOIN spt_tahunan_op sto ON ${pegawaiNpwp} <> '' AND sto.npwp_pegawai = ${pegawaiNpwp}
       ${whereClause}
-      GROUP BY o.id, o.nama, w.nama, u.nama, o.nama_ar
+      GROUP BY o.id, o.nama, w.nama, o.seksi, o.nama_ar
     ),
     scored AS (
       SELECT base.*,
@@ -637,7 +643,7 @@ export function getDashboardData() {
   const trafficTop = database
     .prepare(
       `${sptScored}
-      SELECT id, opd_id, opd_nama, wilayah_nama, ar_nama,
+      SELECT id, opd_id, opd_nama, wilayah_nama, seksi, ar_nama,
         2025 AS tahun_pajak, ? AS periode, jumlah_wajib_lapor, jumlah_sudah_lapor,
         persen_kepatuhan, traffic_light
       FROM scored
@@ -790,17 +796,18 @@ export function createOpd(payload: WriteOpdPayload, audit?: { actor?: AuditActor
     .prepare(
       `
       INSERT INTO opd (
-        nama, wilayah_id, jenis_instansi, jumlah_asn, jumlah_pppk, npwp_opd, status_pemungut_ppn,
+        nama, wilayah_id, seksi, jenis_instansi, jumlah_asn, jumlah_pppk, npwp_opd, status_pemungut_ppn,
         nama_bendahara, nip_bendahara, hp_bendahara, email_bendahara,
         nama_bendahara_penerimaan, hp_bendahara_penerimaan,
         nama_pic_kepeg, hp_pic_kepeg, ar_id, status, tanggal_input, tanggal_update_kontak
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `,
     )
     .run(
       payload.nama,
       payload.wilayah_id,
+      payload.seksi ?? null,
       payload.jenis_instansi ?? null,
       payload.jumlah_asn,
       payload.jumlah_pppk ?? 0,
@@ -844,6 +851,7 @@ export function updateOpd(id: number, payload: Partial<WriteOpdPayload>, audit?:
       UPDATE opd SET
         nama = ?,
         wilayah_id = ?,
+        seksi = ?,
         jenis_instansi = ?,
         jumlah_asn = ?,
         jumlah_pppk = ?,
@@ -867,6 +875,7 @@ export function updateOpd(id: number, payload: Partial<WriteOpdPayload>, audit?:
     .run(
       payload.nama ?? current.nama,
       payload.wilayah_id ?? current.wilayah_id,
+      payload.seksi ?? current.seksi,
       payload.jenis_instansi ?? current.jenis_instansi,
       payload.jumlah_asn ?? current.jumlah_asn,
       payload.jumlah_pppk ?? current.jumlah_pppk,
@@ -964,7 +973,7 @@ export function listSpt(params: ListParams & { periode?: string; traffic?: strin
   const rows = database
     .prepare(
       `${scored}
-       SELECT id, opd_id, opd_nama, wilayah_nama, ar_nama,
+       SELECT id, opd_id, opd_nama, wilayah_nama, seksi, ar_nama,
          jumlah_wajib_lapor, jumlah_sudah_lapor, persen_kepatuhan, traffic_light
        FROM scored ${trafficClause}
        ORDER BY persen_kepatuhan ASC, opd_nama ASC
@@ -999,7 +1008,7 @@ export function listSptDialogRows(params: ListParams & { periode?: string; traff
   const rows = database
     .prepare(
       `${scored}
-       SELECT id, opd_id, opd_nama, wilayah_nama, ar_nama,
+       SELECT id, opd_id, opd_nama, wilayah_nama, seksi, ar_nama,
          jumlah_wajib_lapor, jumlah_sudah_lapor, persen_kepatuhan, traffic_light
        FROM scored ${trafficClause}
        ORDER BY persen_kepatuhan ASC, opd_nama ASC`,
@@ -1492,9 +1501,9 @@ function depositSaldoFilters(params: ListParams) {
   const values: Array<string | number> = [];
 
   if (params.q) {
-    where.push(`(LOWER(o.nama) LIKE ? OR LOWER(COALESCE(d.nama_wajib_pajak, '')) LIKE ? OR LOWER(COALESCE(${opdArNameSql("o")}, '')) LIKE ?)`);
+    where.push(`(LOWER(o.nama) LIKE ? OR LOWER(COALESCE(d.nama_wajib_pajak, '')) LIKE ? OR LOWER(COALESCE(${opdSeksiSql("o")}, '')) LIKE ? OR LOWER(COALESCE(${opdArNameSql("o")}, '')) LIKE ?)`);
     const q = `%${params.q.toLowerCase()}%`;
-    values.push(q, q, q);
+    values.push(q, q, q, q);
   }
   if (params.wilayah && params.wilayah !== "all") {
     where.push("w.kode = ?");
@@ -1513,6 +1522,7 @@ function mapDepositSaldoRow(row: {
   opd_id: number;
   opd_nama: string;
   wilayah_nama: string;
+  seksi: string | null;
   ar_nama: string | null;
   total_deposit: number;
   status_deposit_overall: string;
@@ -1522,6 +1532,7 @@ function mapDepositSaldoRow(row: {
     opd_id: row.opd_id,
     opd_nama: row.opd_nama,
     wilayah_nama: row.wilayah_nama,
+    seksi: row.seksi,
     ar_nama: row.ar_nama,
     masa_pajak: masa,
     deposit_pph21: 0,
@@ -1536,11 +1547,16 @@ function mapDepositSaldoRow(row: {
   };
 }
 
-export function listDeposit(params: ListParams & { masa?: string; overallStatus?: string } = {}) {
+function depositSaldoOrderSql(sort?: string) {
+  return sort === "saldo_asc" ? "total_deposit ASC, opd_nama" : "total_deposit DESC, opd_nama";
+}
+
+export function listDeposit(params: ListParams & { masa?: string; overallStatus?: string; sort?: string } = {}) {
   const database = db();
   const masa = params.masa ?? latestDepositPeriod();
   const { whereClause, values } = depositSaldoFilters(params);
   const scored = depositSaldoScoredSql(whereClause);
+  const orderBy = depositSaldoOrderSql(params.sort);
 
   const statusFilter = params.overallStatus && params.overallStatus !== "all" ? params.overallStatus.toLowerCase() : null;
   const statusClause = statusFilter ? "WHERE status_deposit_overall = ?" : "";
@@ -1559,9 +1575,9 @@ export function listDeposit(params: ListParams & { masa?: string; overallStatus?
   const rows = database
     .prepare(
       `${scored}
-       SELECT id, opd_id, opd_nama, wilayah_nama, ar_nama, total_deposit, status_deposit_overall
+       SELECT id, opd_id, opd_nama, wilayah_nama, seksi, ar_nama, total_deposit, status_deposit_overall
        FROM scored ${statusClause}
-        ORDER BY CASE status_deposit_overall WHEN 'merah' THEN 1 WHEN 'kuning' THEN 2 ELSE 3 END, total_deposit ASC, opd_nama
+        ORDER BY ${orderBy}
         LIMIT ? OFFSET ?`,
     )
     .all(...values, ...statusValues, pageSize, offset) as Parameters<typeof mapDepositSaldoRow>[0][];
@@ -1579,11 +1595,12 @@ export function listDeposit(params: ListParams & { masa?: string; overallStatus?
   return { data, summary, total, page, pageSize, pages: Math.ceil(total / pageSize) || 1, masa };
 }
 
-export function listDepositDialogRows(params: ListParams & { masa?: string; overallStatus?: string } = {}) {
+export function listDepositDialogRows(params: ListParams & { masa?: string; overallStatus?: string; sort?: string } = {}) {
   const database = db();
   const masa = params.masa ?? latestDepositPeriod();
   const { whereClause, values } = depositSaldoFilters(params);
   const scored = depositSaldoScoredSql(whereClause);
+  const orderBy = depositSaldoOrderSql(params.sort);
 
   const statusFilter = params.overallStatus && params.overallStatus !== "all" ? params.overallStatus.toLowerCase() : null;
   const statusClause = statusFilter ? "WHERE status_deposit_overall = ?" : "";
@@ -1592,9 +1609,9 @@ export function listDepositDialogRows(params: ListParams & { masa?: string; over
   const rows = database
     .prepare(
       `${scored}
-       SELECT id, opd_id, opd_nama, wilayah_nama, ar_nama, total_deposit, status_deposit_overall
+       SELECT id, opd_id, opd_nama, wilayah_nama, seksi, ar_nama, total_deposit, status_deposit_overall
        FROM scored ${statusClause}
-        ORDER BY CASE status_deposit_overall WHEN 'merah' THEN 1 WHEN 'kuning' THEN 2 ELSE 3 END, total_deposit ASC, opd_nama`,
+        ORDER BY ${orderBy}`,
     )
     .all(...values, ...statusValues) as Parameters<typeof mapDepositSaldoRow>[0][];
 
@@ -2485,6 +2502,8 @@ export function getAnalyticsData() {
   const database = db();
   const dashboard = getDashboardData();
   const sptScored = sptTahunanScoredSql("");
+  const depositScored = depositSaldoScoredSql("");
+  const sptTahunanStatus = pegawaiSptTahunanStatusSql();
   const pphTrend = database
     .prepare(
       `
@@ -2514,7 +2533,33 @@ export function getAnalyticsData() {
     )
     .all() as Array<{ sosialisasi: number; kepatuhan: number; asn: number; nama: string }>;
 
-  return { dashboard, pphTrend, scatter };
+  const depositBySeksi = database
+    .prepare(
+      `${depositScored}
+      SELECT COALESCE(seksi, 'Tanpa seksi') AS seksi,
+        COALESCE(SUM(total_deposit), 0) AS total_deposit
+      FROM scored
+      GROUP BY COALESCE(seksi, 'Tanpa seksi')
+      ORDER BY total_deposit DESC, seksi
+    `,
+    )
+    .all() as Array<{ seksi: string; total_deposit: number }>;
+
+  const pegawaiBelumLaporBySeksi = database
+    .prepare(
+      `
+      SELECT COALESCE(${opdSeksiSql("o")}, 'Tanpa seksi') AS seksi,
+        COUNT(*) AS belum_lapor
+      FROM pegawai p
+      JOIN opd o ON o.id = p.opd_id
+      WHERE ${sptTahunanStatus} = 'aktif_belum_lapor'
+      GROUP BY COALESCE(${opdSeksiSql("o")}, 'Tanpa seksi')
+      ORDER BY belum_lapor DESC, seksi
+    `,
+    )
+    .all() as Array<{ seksi: string; belum_lapor: number }>;
+
+  return { dashboard, pphTrend, scatter, depositBySeksi, pegawaiBelumLaporBySeksi };
 }
 
 export function listSettings() {
@@ -3262,17 +3307,18 @@ export async function commitImportData(template: ImportTemplateKey, payload: Imp
     // --- 1. OPD masterfile -----------------------------------------------
     const insertOpdMaster = database.prepare(
       `INSERT INTO opd (
-         nama, wilayah_id, jenis_instansi, npwp_opd, status_pemungut_ppn,
+         nama, wilayah_id, seksi, jenis_instansi, npwp_opd, status_pemungut_ppn,
          nama_bendahara, nip_bendahara, hp_bendahara, email_bendahara,
          nama_bendahara_penerimaan, hp_bendahara_penerimaan,
          nama_pic_kepeg, hp_pic_kepeg, ar_id, nama_ar, status, tanggal_input, tanggal_update_kontak
        )
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     );
     const updateOpdMaster = database.prepare(
       `UPDATE opd SET
          nama = ?,
          wilayah_id = ?,
+         seksi = COALESCE(?, seksi),
          jenis_instansi = COALESCE(?, jenis_instansi),
          npwp_opd = COALESCE(?, npwp_opd),
          ar_id = COALESCE(?, ar_id),
@@ -3300,6 +3346,7 @@ export async function commitImportData(template: ImportTemplateKey, payload: Imp
         updateOpdMaster.run(
           row.nama,
           wilayahId,
+          row.seksi,
           row.jenis_instansi,
           row.npwp,
           arId,
@@ -3326,6 +3373,7 @@ export async function commitImportData(template: ImportTemplateKey, payload: Imp
           insertOpdMaster.run(
             row.nama,
             wilayahId,
+            row.seksi,
             row.jenis_instansi,
             row.npwp,
             row.status_pemungut_ppn ?? "TIDAK",

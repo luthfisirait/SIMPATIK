@@ -277,12 +277,12 @@ export function seedDatabase(options: { force?: boolean } = {}): SeedResult {
 
     const insertOpd = database.prepare(`
       INSERT INTO opd (
-        nama, wilayah_id, jenis_instansi, jumlah_asn, jumlah_pppk, npwp_opd, status_pemungut_ppn,
+        nama, wilayah_id, seksi, jenis_instansi, jumlah_asn, jumlah_pppk, npwp_opd, status_pemungut_ppn,
         nama_bendahara, nip_bendahara, hp_bendahara, email_bendahara,
         nama_bendahara_penerimaan, hp_bendahara_penerimaan,
         nama_pic_kepeg, hp_pic_kepeg, ar_id, status, tanggal_input, tanggal_update_kontak
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     const opdRows: Array<{ id: number; index: number; jumlahAsn: number; wilayahIndex: number }> = [];
@@ -302,6 +302,7 @@ export function seedDatabase(options: { force?: boolean } = {}): SeedResult {
         const result = insertOpd.run(
           nama,
           wilayahIds[wilayahIndex],
+          `Seksi Pengawasan ${((globalIndex - 1) % 6) + 1}`,
           base.startsWith("Dinas")
             ? "Dinas"
             : base.startsWith("Badan")
@@ -435,7 +436,7 @@ export function seedDatabase(options: { force?: boolean } = {}): SeedResult {
       const pph = latestPph.get(opd.id) as { ketepatan: string; nominal_setor: number };
       const statusPph21 = pph.ketepatan === "belum_setor" ? "NIHIL" : pph.ketepatan === "terlambat" ? "TERLAMBAT" : "TEPAT WAKTU";
       const depositKd411618 = opd.index % 17 === 0 ? 0 : Math.round(opd.jumlahAsn * (55_000 + (opd.index % 7) * 12_000));
-      const statusDepositOverall = depositKd411618 > 10_000_000 ? "hijau" : depositKd411618 >= 2_000_000 ? "kuning" : "merah";
+      const statusDepositOverall = depositKd411618 > 1_000_000_000 ? "hijau" : depositKd411618 >= 100_000_000 ? "kuning" : "merah";
       insertDeposit.run(opd.id, "2026-03", 0, null, 0, depositKd411618 > 0 ? "TEPAT WAKTU" : "NIHIL", 0, null, depositKd411618, depositKd411618, statusDepositOverall);
 
       const spt = latestSpt.get(opd.id) as { persen_kepatuhan: number };

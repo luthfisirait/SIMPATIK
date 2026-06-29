@@ -384,15 +384,32 @@ textarea {
   left: 60px;
 }
 
-.topbar-title {
+.topbar-heading {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.topbar-office {
+  max-width: min(700px, 52vw);
+  overflow: hidden;
+  color: var(--teal);
   font-size: 15px;
   font-weight: 800;
+  line-height: 1.25;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.topbar-breadcrumb {
-  color: var(--text-3);
-  font-size: 12px;
+.topbar-data-update {
+  max-width: min(700px, 52vw);
+  overflow: hidden;
+  color: var(--green);
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .topbar-spacer {
@@ -1678,7 +1695,6 @@ button.kpi-card {
   .nav-section,
   .nav-badge,
   .topbar-search,
-  .topbar-breadcrumb,
   .user-pill > div:not(.user-avatar) {
     display: none;
   }

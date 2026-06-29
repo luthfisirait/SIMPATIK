@@ -14,6 +14,8 @@ import {
 } from "chart.js";
 import { Bar, Doughnut, Line, Scatter } from "react-chartjs-2";
 
+import { formatCompactRupiah, formatNumber } from "@/lib/utils";
+
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, ArcElement, Tooltip, Legend, Filler);
 ChartJS.defaults.font.family = "DM Sans, sans-serif";
 ChartJS.defaults.color = "#4A637A";
@@ -28,6 +30,13 @@ const palette = {
   amber: "#D97706",
   red: "#D64550",
 };
+
+type ValueFormat = "number" | "compact-rupiah";
+
+function formatChartValue(value: number, format: ValueFormat = "number") {
+  if (format === "compact-rupiah") return formatCompactRupiah(value);
+  return formatNumber(value);
+}
 
 export function SptTrendChart({
   current,
@@ -149,7 +158,17 @@ export function DoughnutPanel({ labels, data }: { labels: string[]; data: number
   );
 }
 
-export function SingleBarChart({ labels, values, label }: { labels: string[]; values: number[]; label: string }) {
+export function SingleBarChart({
+  labels,
+  values,
+  label,
+  valueFormat = "number",
+}: {
+  labels: string[];
+  values: number[];
+  label: string;
+  valueFormat?: ValueFormat;
+}) {
   return (
     <Bar
       data={{
@@ -159,8 +178,64 @@ export function SingleBarChart({ labels, values, label }: { labels: string[]; va
       options={{
         responsive: true,
         maintainAspectRatio: false,
-        plugins: { legend: { position: "bottom" } },
-        scales: { x: { grid: { display: false } }, y: { beginAtZero: true, grid: { color: "rgba(0,0,0,.04)" } } },
+        plugins: {
+          legend: { position: "bottom" },
+          tooltip: {
+            callbacks: {
+              label: (context) => `${context.dataset.label}: ${formatChartValue(Number(context.raw ?? 0), valueFormat)}`,
+            },
+          },
+        },
+        scales: {
+          x: { grid: { display: false } },
+          y: {
+            beginAtZero: true,
+            grid: { color: "rgba(0,0,0,.04)" },
+            ticks: { callback: (value) => formatChartValue(Number(value), valueFormat) },
+          },
+        },
+      }}
+    />
+  );
+}
+
+export function HorizontalBarChart({
+  labels,
+  values,
+  label,
+  valueFormat = "number",
+}: {
+  labels: string[];
+  values: number[];
+  label: string;
+  valueFormat?: ValueFormat;
+}) {
+  return (
+    <Bar
+      data={{
+        labels,
+        datasets: [{ label, data: values, backgroundColor: palette.teal, borderRadius: 6 }],
+      }}
+      options={{
+        indexAxis: "y",
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { position: "bottom" },
+          tooltip: {
+            callbacks: {
+              label: (context) => `${context.dataset.label}: ${formatChartValue(Number(context.raw ?? 0), valueFormat)}`,
+            },
+          },
+        },
+        scales: {
+          x: {
+            beginAtZero: true,
+            grid: { color: "rgba(0,0,0,.04)" },
+            ticks: { callback: (value) => formatChartValue(Number(value), valueFormat) },
+          },
+          y: { grid: { display: false } },
+        },
       }}
     />
   );

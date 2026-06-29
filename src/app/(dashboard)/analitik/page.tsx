@@ -2,18 +2,22 @@ import { BarChart3, LineChart, ScatterChart, TrendingUp } from "lucide-react";
 
 import {
   DoughnutPanel,
+  HorizontalBarChart,
   ScatterPanel,
   SingleBarChart,
 } from "@/components/charts/ChartPanels";
 import { KpiCard } from "@/components/ui/KpiCard";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { getAnalyticsData } from "@/lib/queries";
-import { formatNumber, formatPercent, monthLabel } from "@/lib/utils";
+import { formatCompactRupiah, formatNumber, formatPercent, monthLabel } from "@/lib/utils";
 
 export default function AnalitikPage() {
-  const { dashboard, pphTrend, scatter } = getAnalyticsData();
+  const { dashboard, pphTrend, scatter, depositBySeksi, pegawaiBelumLaporBySeksi } = getAnalyticsData();
   const trendLabels = dashboard.trend.map((item) => monthLabel(item.periode));
   const opdMerah = dashboard.trafficCounts.find((item) => item.status === "merah")?.total ?? 0;
+  const totalDepositBySeksi = depositBySeksi.reduce((sum, item) => sum + item.total_deposit, 0);
+  const totalPegawaiBelumLapor = pegawaiBelumLaporBySeksi.reduce((sum, item) => sum + item.belum_lapor, 0);
+  const hasDepositBySeksi = depositBySeksi.some((item) => item.total_deposit !== 0);
 
   return (
     <>
@@ -27,6 +31,53 @@ export default function AnalitikPage() {
         <KpiCard label="PPh Tepat Waktu" value={formatNumber(dashboard.kpis.pphTepat)} sub={`OPD pada ${monthLabel(dashboard.pphMonth)}`} accent="navy" icon={<BarChart3 size={18} />} />
         <KpiCard label="OPD Merah" value={formatNumber(opdMerah)} sub="Prioritas tindak lanjut" accent="red" icon={<LineChart size={18} />} />
         <KpiCard label="OPD Sosialisasi" value={formatNumber(dashboard.kpis.sudahSosialisasi)} sub="Sudah/perlu ulang" accent="gold" icon={<ScatterChart size={18} />} />
+      </section>
+
+      <section className="grid-2">
+        <div className="card">
+          <div className="card-header">
+            <div>
+              <div className="card-title">Jumlah Saldo Deposit per Seksi</div>
+              <div className="card-subtitle">Total saldo: {formatCompactRupiah(totalDepositBySeksi)}</div>
+            </div>
+          </div>
+          <div className="card-body">
+            {!hasDepositBySeksi ? (
+              <span className="muted">Belum ada saldo deposit.</span>
+            ) : (
+              <div className="chart-wrap">
+                <HorizontalBarChart
+                  labels={depositBySeksi.map((item) => item.seksi)}
+                  values={depositBySeksi.map((item) => item.total_deposit)}
+                  label="Saldo deposit"
+                  valueFormat="compact-rupiah"
+                />
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="card">
+          <div className="card-header">
+            <div>
+              <div className="card-title">SPT Pegawai Belum Lapor per Seksi</div>
+              <div className="card-subtitle">Total belum lapor: {formatNumber(totalPegawaiBelumLapor)} pegawai</div>
+            </div>
+          </div>
+          <div className="card-body">
+            {pegawaiBelumLaporBySeksi.length === 0 ? (
+              <span className="muted">Tidak ada pegawai yang belum lapor.</span>
+            ) : (
+              <div className="chart-wrap">
+                <HorizontalBarChart
+                  labels={pegawaiBelumLaporBySeksi.map((item) => item.seksi)}
+                  values={pegawaiBelumLaporBySeksi.map((item) => item.belum_lapor)}
+                  label="Pegawai belum lapor"
+                />
+              </div>
+            )}
+          </div>
+        </div>
       </section>
 
       <section className="grid-2">

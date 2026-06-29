@@ -19,6 +19,7 @@ export async function GET(request: Request) {
       overallStatus: searchParams.get("status") ?? undefined,
       ar,
       masa: searchParams.get("masa") ?? undefined,
+      sort: searchParams.get("sort") ?? undefined,
       page: Number(searchParams.get("page") ?? 1),
       pageSize: Number(searchParams.get("pageSize") ?? 12),
     }),

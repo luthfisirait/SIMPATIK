@@ -95,6 +95,7 @@ export function validateOpdPayload(input: unknown): ValidationResult<WriteOpdPay
   const data: WriteOpdPayload = {
     nama: requiredText(source, "nama", "Nama OPD", errors),
     wilayah_id: wilayahId,
+    seksi: optionalText(source.seksi),
     jenis_instansi: optionalText(source.jenis_instansi),
     jumlah_asn: jumlahAsn,
     jumlah_pppk: jumlahPppk,
