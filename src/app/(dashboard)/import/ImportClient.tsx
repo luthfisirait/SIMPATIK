@@ -27,7 +27,7 @@ const RESULT_LABELS: Array<{ key: NumericResultKey; label: string }> = [
   { key: "opd_created", label: "OPD baru" },
   { key: "opd_updated", label: "OPD diperbarui" },
   { key: "pph21", label: "Setoran PPh 21" },
-  { key: "deposit", label: "Deposit" },
+  { key: "deposit", label: "Data Penerimaan" },
   { key: "spt_masa", label: "SPT Masa" },
   { key: "spt_tahunan_op", label: "SPT Tahunan OP" },
   { key: "pegawai", label: "Pegawai" },

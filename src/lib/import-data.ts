@@ -325,7 +325,7 @@ export async function buildTemplateBuffer(key: ImportTemplateKey): Promise<Array
 const DATASET_META: Record<keyof ImportPayload, { label: string; modul: string }> = {
   opd: { label: "OPD / Wajib Pajak", modul: "Direktori OPD & Bendahara" },
   pph21: { label: "Setoran PPh 21", modul: "Modul 2 PPh 21" },
-  deposit: { label: "Deposit pajak", modul: "Modul 5 Deposit" },
+  deposit: { label: "Data Penerimaan", modul: "PPh Masa + Deposit" },
   sptMasa: { label: "Pelaporan SPT Masa", modul: "Modul 4 SPT Masa" },
   sptTahunanOp: { label: "Pelaporan SPT Tahunan OP", modul: "Rincian Pegawai SPT" },
   pegawai: { label: "Pegawai instansi", modul: "Direktori Pegawai" },
@@ -569,18 +569,18 @@ function normalizePenerimaan(sheet: ParsedSheet, payload: ImportPayload, warning
       warnings.push(`Penerimaan: KD MAP ${map || "(kosong)"} untuk ${nama ?? npwp} belum dipetakan dan dilewati.`);
       return;
     }
+    payload.deposit.push({
+      npwp,
+      nama_opd: nama,
+      masa_pajak: masa,
+      kd_map: map,
+      kd_setor: textValue(row.pick("kd_setor")) || null,
+      nilai_setor: nilai,
+      tgl_setor: toIsoDate(row.pick("tgl_setor", "tanggal_setor")),
+      ntpn: textValue(row.pick("ntpn")) || null,
+      sumber_data: textValue(row.pick("sumber_data")) || null,
+    });
     if (kind === "deposit") {
-      payload.deposit.push({
-        npwp,
-        nama_opd: nama,
-        masa_pajak: masa,
-        kd_map: map,
-        kd_setor: textValue(row.pick("kd_setor")) || null,
-        nilai_setor: nilai,
-        tgl_setor: toIsoDate(row.pick("tgl_setor", "tanggal_setor")),
-        ntpn: textValue(row.pick("ntpn")) || null,
-        sumber_data: textValue(row.pick("sumber_data")) || null,
-      });
       return;
     }
     const key = `${npwp ?? nama}__${masa}`;

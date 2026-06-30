@@ -73,6 +73,7 @@ export default function AnalitikPage() {
                   labels={pegawaiBelumLaporBySeksi.map((item) => item.seksi)}
                   values={pegawaiBelumLaporBySeksi.map((item) => item.belum_lapor)}
                   label="Pegawai belum lapor"
+                  barColor="red"
                 />
               </div>
             )}

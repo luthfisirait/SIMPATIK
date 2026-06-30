@@ -1,11 +1,13 @@
 "use client";
 
 import { Download, Eye, X } from "lucide-react";
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
 import type { PphMasaJenisSummary, PphMasaLaporDetailRow, PphMasaLaporStatus } from "@/types";
 import { downloadCsv, safeCsvFileName } from "@/lib/client-csv";
-import { formatNumber, monthFullLabel } from "@/lib/utils";
+import { queryString } from "@/lib/search";
+import { formatCompactRupiah, formatNumber, monthFullLabel } from "@/lib/utils";
 
 type ActiveList = {
   jenis: string;
@@ -24,6 +26,11 @@ type PphMasaRekapTableProps = {
 
 function statusLabel(status: PphMasaLaporStatus) {
   return status === "sudah_lapor" ? "Sudah Lapor" : "Belum Lapor";
+}
+
+function detailHref(item: PphMasaJenisSummary, q: string, wilayah: string, ar: string, bulan: string) {
+  const query = queryString({ q, wilayah, ar, masa: bulan, jenis: item.key });
+  return query ? `/rincian-pph-masa?${query}` : "/rincian-pph-masa";
 }
 
 export function PphMasaRekapTable({ summary, detailRows, q, wilayah, ar, bulan, periodOptions }: PphMasaRekapTableProps) {
@@ -88,19 +95,23 @@ export function PphMasaRekapTable({ summary, detailRows, q, wilayah, ar, bulan, 
         <div className="table-wrap">
           <table className="data-table compact-table" style={{ tableLayout: "fixed" }}>
             <colgroup>
-              <col style={{ width: "20%" }} />
-              <col style={{ width: "42%" }} />
+              <col style={{ width: "17%" }} />
+              <col style={{ width: "32%" }} />
               <col style={{ width: "12%" }} />
-              <col style={{ width: "13%" }} />
-              <col style={{ width: "13%" }} />
+              <col style={{ width: "12%" }} />
+              <col style={{ width: "11%" }} />
+              <col style={{ width: "11%" }} />
+              <col style={{ width: "5%" }} />
             </colgroup>
             <thead>
               <tr>
                 <th>Jenis PPh Masa</th>
                 <th>Keterangan</th>
+                <th>Nilai Setor</th>
                 <th>Wajib Lapor</th>
                 <th>Sudah Lapor</th>
                 <th>Belum Lapor</th>
+                <th>Aksi</th>
               </tr>
             </thead>
             <tbody>
@@ -110,6 +121,9 @@ export function PphMasaRekapTable({ summary, detailRows, q, wilayah, ar, bulan, 
                     <strong>{item.jenis}</strong>
                   </td>
                   <td className="muted">{item.keterangan}</td>
+                  <td className="td-mono">
+                    <strong>{formatCompactRupiah(item.nilai_setor)}</strong>
+                  </td>
                   <td>
                     <strong>{formatNumber(item.wajib_lapor)}</strong>
                   </td>
@@ -130,6 +144,12 @@ export function PphMasaRekapTable({ summary, detailRows, q, wilayah, ar, bulan, 
                         Lihat
                       </button>
                     </div>
+                  </td>
+                  <td>
+                    <Link className="btn btn-ghost btn-sm" href={detailHref(item, q, wilayah, ar, bulan)}>
+                      <Eye size={14} />
+                      Detail
+                    </Link>
                   </td>
                 </tr>
               ))}

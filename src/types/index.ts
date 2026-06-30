@@ -80,11 +80,13 @@ export type Pph21Record = {
 };
 
 export type PphMasaJenisSummary = {
+  key: string;
   jenis: string;
   keterangan: string;
   wajib_lapor: number;
   sudah_lapor: number;
   belum_lapor: number;
+  nilai_setor: number;
 };
 
 export type PphMasaLaporStatus = "sudah_lapor" | "belum_lapor";
@@ -111,6 +113,19 @@ export type PphMasaPaymentRecord = {
   bulan: string;
   jenis_pph: string;
   jumlah_pembayaran: number;
+};
+
+export type RincianPphMasaRecord = {
+  id: number;
+  opd_id: number;
+  opd_nama: string;
+  wilayah_nama: string;
+  seksi: string | null;
+  masa_pajak: string;
+  jenis_pph_masa: string;
+  kd_map: string;
+  nilai_setor: number;
+  tgl_setor: string | null;
 };
 
 export type SptMasaRecord = {

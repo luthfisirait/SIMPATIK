@@ -13,6 +13,7 @@ import type {
   Opd,
   PegawaiRecord,
   Pph21Record,
+  RincianPphMasaRecord,
   ScoringRecord,
   PphMasaPaymentRecord,
   SosialisasiRecord,
@@ -1135,16 +1136,37 @@ export function listPph21(params: ListParams & { bulan?: string; pphStatus?: str
 
   const laporFilters = pphMasaLaporFilters(params);
 
-  function sptMasaLaporSummary(jenis: string, keterangan: string, sudahLaporSql: string) {
+  function sptMasaLaporSummary(definition: ReturnType<typeof pphMasaJenisDefinitions>[number]) {
+    const mapClause =
+      definition.key === "pph21"
+        ? "d.kd_map = '411121'"
+        : definition.key === "unifikasi"
+          ? "d.kd_map IN ('411122', '411124', '411128')"
+          : "d.kd_map = '411211'";
+    const penerimaanFilterClause = laporFilters.clause
+      ? `AND ${laporFilters.clause.replace(/^WHERE\s+/, "").replace(/\bo\./g, "od.").replace(/\bw\./g, "wd.").replace(/\bu\./g, "ud.")}`
+      : "";
+
     return database
       .prepare(
         `
         SELECT
+          ? AS key,
           ? AS jenis,
           ? AS keterangan,
           COUNT(o.id) AS wajib_lapor,
-          COALESCE(SUM(CASE WHEN ${sudahLaporSql} THEN 1 ELSE 0 END), 0) AS sudah_lapor,
-          COUNT(o.id) - COALESCE(SUM(CASE WHEN ${sudahLaporSql} THEN 1 ELSE 0 END), 0) AS belum_lapor
+          COALESCE(SUM(CASE WHEN ${definition.sudahLaporSql} THEN 1 ELSE 0 END), 0) AS sudah_lapor,
+          COUNT(o.id) - COALESCE(SUM(CASE WHEN ${definition.sudahLaporSql} THEN 1 ELSE 0 END), 0) AS belum_lapor,
+          COALESCE((
+            SELECT SUM(d.nilai_setor)
+            FROM deposit_penerimaan d
+            JOIN opd od ON od.id = d.opd_id
+            JOIN wilayah wd ON wd.id = od.wilayah_id
+            LEFT JOIN users ud ON ud.id = od.ar_id
+            WHERE d.masa_pajak = ?
+              AND ${mapClause}
+              ${penerimaanFilterClause}
+          ), 0) AS nilai_setor
         FROM opd o
         JOIN wilayah w ON w.id = o.wilayah_id
         LEFT JOIN users u ON u.id = o.ar_id
@@ -1152,10 +1174,10 @@ export function listPph21(params: ListParams & { bulan?: string; pphStatus?: str
         ${laporFilters.clause}
       `,
       )
-      .get(jenis, keterangan, bulan, ...laporFilters.values) as PphMasaJenisSummary;
+      .get(definition.key, definition.jenis, definition.keterangan, bulan, ...laporFilters.values, bulan, ...laporFilters.values) as PphMasaJenisSummary;
   }
 
-  const jenisSummary = pphMasaJenisDefinitions().map((definition) => sptMasaLaporSummary(definition.jenis, definition.keterangan, definition.sudahLaporSql));
+  const jenisSummary = pphMasaJenisDefinitions().map((definition) => sptMasaLaporSummary(definition));
 
   return { data, summary, jenisSummary, total, page, pageSize, pages: Math.ceil(total / pageSize) || 1, bulan };
 }
@@ -1327,6 +1349,101 @@ export function listPphMasaPaymentDialogRows(params: ListParams & { bulan?: stri
     `,
     )
     .all(...values) as PphMasaPaymentRecord[];
+}
+
+const PPH_MASA_PENERIMAAN_MAPS = ["411121", "411122", "411124", "411128", "411211"];
+
+function pphMasaPenerimaanJenisSql(alias = "d") {
+  const prefix = alias ? `${alias}.` : "";
+  return `CASE
+    WHEN ${prefix}kd_map = '411121' THEN 'PPh Masa 21'
+    WHEN ${prefix}kd_map IN ('411122', '411124', '411128') THEN 'Unifikasi'
+    WHEN ${prefix}kd_map = '411211' THEN 'PPN'
+    ELSE ${prefix}kd_map
+  END`;
+}
+
+export function listRincianPphMasaPeriods() {
+  const rows = db()
+    .prepare(
+      `
+      SELECT DISTINCT masa_pajak AS period
+      FROM deposit_penerimaan
+      WHERE kd_map IN (${PPH_MASA_PENERIMAAN_MAPS.map(() => "?").join(", ")})
+        AND masa_pajak IS NOT NULL
+        AND masa_pajak <> ''
+      ORDER BY masa_pajak DESC
+    `,
+    )
+    .all(...PPH_MASA_PENERIMAAN_MAPS) as Array<{ period: string }>;
+
+  return rows.map((row) => row.period);
+}
+
+export function listRincianPphMasa(params: ListParams & { masa?: string; jenis?: string } = {}) {
+  const database = db();
+  const page = Math.max(1, params.page ?? 1);
+  const pageSize = Math.min(100, Math.max(5, params.pageSize ?? 12));
+  const offset = (page - 1) * pageSize;
+  const where: string[] = [`d.kd_map IN (${PPH_MASA_PENERIMAAN_MAPS.map(() => "?").join(", ")})`];
+  const values: Array<string | number> = [...PPH_MASA_PENERIMAAN_MAPS];
+
+  if (params.q) {
+    where.push(`(LOWER(o.nama) LIKE ? OR LOWER(COALESCE(d.nama_wajib_pajak, '')) LIKE ? OR LOWER(COALESCE(${opdSeksiSql("o")}, '')) LIKE ? OR LOWER(COALESCE(${opdArNameSql("o")}, '')) LIKE ?)`);
+    const q = `%${params.q.toLowerCase()}%`;
+    values.push(q, q, q, q);
+  }
+  if (params.wilayah && params.wilayah !== "all") {
+    where.push("w.kode = ?");
+    values.push(params.wilayah);
+  }
+  if (params.ar && params.ar !== "all") {
+    where.push("o.ar_id = ?");
+    values.push(Number(params.ar));
+  }
+  if (params.masa && params.masa !== "all") {
+    where.push("d.masa_pajak = ?");
+    values.push(params.masa);
+  }
+  if (params.jenis && params.jenis !== "all") {
+    if (params.jenis === "pph21") where.push("d.kd_map = '411121'");
+    else if (params.jenis === "unifikasi") where.push("d.kd_map IN ('411122', '411124', '411128')");
+    else if (params.jenis === "ppn") where.push("d.kd_map = '411211'");
+  }
+
+  const clause = `WHERE ${where.join(" AND ")}`;
+  const aggregate = database
+    .prepare(
+      `
+      SELECT COUNT(*) AS total, COALESCE(SUM(d.nilai_setor), 0) AS total_setor
+      FROM deposit_penerimaan d
+      JOIN opd o ON o.id = d.opd_id
+      JOIN wilayah w ON w.id = o.wilayah_id
+      LEFT JOIN users u ON u.id = o.ar_id
+      ${clause}
+    `,
+    )
+    .get(...values) as { total: number; total_setor: number };
+
+  const data = database
+    .prepare(
+      `
+      SELECT d.id, o.id AS opd_id, o.nama AS opd_nama, w.nama AS wilayah_nama,
+        ${opdSeksiSql("o")} AS seksi,
+        d.masa_pajak, ${pphMasaPenerimaanJenisSql("d")} AS jenis_pph_masa,
+        d.kd_map, d.nilai_setor, d.tgl_setor
+      FROM deposit_penerimaan d
+      JOIN opd o ON o.id = d.opd_id
+      JOIN wilayah w ON w.id = o.wilayah_id
+      LEFT JOIN users u ON u.id = o.ar_id
+      ${clause}
+      ORDER BY d.masa_pajak DESC, COALESCE(d.tgl_setor, '') DESC, o.nama ASC, d.id DESC
+      LIMIT ? OFFSET ?
+    `,
+    )
+    .all(...values, pageSize, offset) as RincianPphMasaRecord[];
+
+  return { data, total: aggregate.total, totalSetor: aggregate.total_setor, page, pageSize, pages: Math.ceil(aggregate.total / pageSize) || 1 };
 }
 
 export function listPph21DialogRows(params: ListParams & { bulan?: string } = {}) {
@@ -3427,7 +3544,7 @@ export async function commitImportData(template: ImportTemplateKey, payload: Imp
       result.pph21 += 1;
     });
 
-    // --- 3. Deposit -------------------------------------------------------
+    // --- 3. Data penerimaan ----------------------------------------------
     const insertDepositRow = database.prepare(
       `INSERT INTO deposit_penerimaan (
          opd_id, npwp, nama_wajib_pajak, masa_pajak, kd_map, kd_setor, nilai_setor, tgl_setor, ntpn, sumber_data
@@ -3448,7 +3565,7 @@ export async function commitImportData(template: ImportTemplateKey, payload: Imp
     payload.deposit.forEach((row) => {
       const opdId = resolveOpd(row.npwp, row.nama_opd);
       if (!opdId) {
-        addSkip("Deposit: OPD tidak ditemukan.");
+        addSkip("Penerimaan: OPD tidak ditemukan.");
         return;
       }
       const nilaiSetor = Math.round(row.nilai_setor);
@@ -3464,10 +3581,12 @@ export async function commitImportData(template: ImportTemplateKey, payload: Imp
         row.ntpn,
         row.sumber_data,
       );
-      const key = `${opdId}__${row.masa_pajak}`;
-      const current = depositTotals.get(key) ?? { opdId, masaPajak: row.masa_pajak, nilaiSetor: 0 };
-      current.nilaiSetor += nilaiSetor;
-      depositTotals.set(key, current);
+      if (row.kd_map === "411618") {
+        const key = `${opdId}__${row.masa_pajak}`;
+        const current = depositTotals.get(key) ?? { opdId, masaPajak: row.masa_pajak, nilaiSetor: 0 };
+        current.nilaiSetor += nilaiSetor;
+        depositTotals.set(key, current);
+      }
       result.deposit += 1;
     });
     depositTotals.forEach((row) => {

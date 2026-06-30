@@ -32,6 +32,7 @@ const palette = {
 };
 
 type ValueFormat = "number" | "compact-rupiah";
+type BarColor = "teal" | "green" | "amber" | "red" | "navy";
 
 function formatChartValue(value: number, format: ValueFormat = "number") {
   if (format === "compact-rupiah") return formatCompactRupiah(value);
@@ -147,6 +148,14 @@ export function SptVolumeTrendChart({
 }
 
 export function DoughnutPanel({ labels, data }: { labels: string[]; data: number[] }) {
+  const backgroundColor = labels.map((label) => {
+    const normalized = label.toLowerCase();
+    if (normalized === "hijau") return palette.green;
+    if (normalized === "kuning") return palette.amber;
+    if (normalized === "merah") return palette.red;
+    return palette.teal;
+  });
+
   return (
     <Doughnut
       data={{
@@ -154,7 +163,7 @@ export function DoughnutPanel({ labels, data }: { labels: string[]; data: number
         datasets: [
           {
             data,
-            backgroundColor: [palette.green, palette.teal, palette.tealLt, palette.amber, palette.red],
+            backgroundColor,
             borderColor: "#fff",
             borderWidth: 2,
           },
@@ -216,17 +225,19 @@ export function HorizontalBarChart({
   values,
   label,
   valueFormat = "number",
+  barColor = "teal",
 }: {
   labels: string[];
   values: number[];
   label: string;
   valueFormat?: ValueFormat;
+  barColor?: BarColor;
 }) {
   return (
     <Bar
       data={{
         labels,
-        datasets: [{ label, data: values, backgroundColor: palette.teal, borderRadius: 6 }],
+        datasets: [{ label, data: values, backgroundColor: palette[barColor], borderRadius: 6 }],
       }}
       options={{
         indexAxis: "y",
