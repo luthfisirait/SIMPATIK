@@ -33,22 +33,25 @@ export function formatCompactRupiah(value: number | null | undefined) {
   const absValue = Math.abs(safeValue);
   const sign = safeValue < 0 ? "-" : "";
 
-  if (absValue >= 1_000_000_000_000) {
-    return `${sign}Rp ${(absValue / 1_000_000_000_000).toLocaleString("id-ID", {
+  const formatCompactUnit = (divisor: number, suffix: string) =>
+    `${sign}Rp ${(absValue / divisor).toLocaleString("id-ID", {
       maximumFractionDigits: 1,
-    })} T`;
+    })} ${suffix}`;
+
+  if (absValue >= 1_000_000_000_000) {
+    return formatCompactUnit(1_000_000_000_000, "T");
   }
 
   if (absValue >= 1_000_000_000) {
-    return `${sign}Rp ${(absValue / 1_000_000_000).toLocaleString("id-ID", {
-      maximumFractionDigits: 1,
-    })} M`;
+    return formatCompactUnit(1_000_000_000, "M");
   }
 
   if (absValue >= 1_000_000) {
-    return `${sign}Rp ${(absValue / 1_000_000).toLocaleString("id-ID", {
-      maximumFractionDigits: 1,
-    })} Jt`;
+    return formatCompactUnit(1_000_000, "Jt");
+  }
+
+  if (absValue >= 1_000) {
+    return formatCompactUnit(1_000, "rb");
   }
 
   return formatRupiah(safeValue);

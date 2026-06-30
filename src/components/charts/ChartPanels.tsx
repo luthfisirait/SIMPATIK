@@ -38,6 +38,18 @@ function formatChartValue(value: number, format: ValueFormat = "number") {
   return formatNumber(value);
 }
 
+function formatAxisCategoryLabel(label: string) {
+  const normalized = label.replace(/\s+/g, " ").trim().replace(/^SEKSI\s+/i, "");
+  if (!normalized) return label;
+  if (normalized !== normalized.toUpperCase()) return normalized;
+
+  return normalized
+    .toLowerCase()
+    .split(" ")
+    .map((word) => (/^[ivxlcdm]+$/i.test(word) ? word.toUpperCase() : `${word.charAt(0).toUpperCase()}${word.slice(1)}`))
+    .join(" ");
+}
+
 export function SptTrendChart({
   current,
   previous,
@@ -232,9 +244,22 @@ export function HorizontalBarChart({
           x: {
             beginAtZero: true,
             grid: { color: "rgba(0,0,0,.04)" },
-            ticks: { callback: (value) => formatChartValue(Number(value), valueFormat) },
+            ticks: {
+              maxRotation: 0,
+              minRotation: 0,
+              maxTicksLimit: 5,
+              padding: 6,
+              callback: (value) => formatChartValue(Number(value), valueFormat),
+            },
           },
-          y: { grid: { display: false } },
+          y: {
+            grid: { display: false },
+            ticks: {
+              autoSkip: false,
+              padding: 8,
+              callback: (_, index) => formatAxisCategoryLabel(labels[index] ?? ""),
+            },
+          },
         },
       }}
     />

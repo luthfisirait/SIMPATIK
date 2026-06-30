@@ -3,7 +3,6 @@ import {
   Landmark,
   Presentation,
   ReceiptText,
-  Send,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -18,7 +17,6 @@ const quickIcon = {
   "/modul2-pph21": ReceiptText,
   "/modul3-sosialisasi": Presentation,
   "/modul5-deposit": Landmark,
-  "/action-log/input": Send,
 };
 
 export default function DashboardPage() {
@@ -36,8 +34,7 @@ export default function DashboardPage() {
     {
       href: "/modul2-pph21",
       label: "PPh Masa",
-      value: `${formatNumber(data.kpis.pphMasaSudahLapor)}/${formatNumber(data.kpis.totalOpd)}`,
-      sub: "OPD sudah lapor masa",
+      sub: "Buka monitoring",
       accent: "green",
     },
     {
@@ -54,7 +51,6 @@ export default function DashboardPage() {
       sub: `${formatNumber(data.kpis.opdDeposit)} dari ${formatNumber(data.kpis.totalOpd)} OPD ada deposit`,
       accent: "navy",
     },
-    { href: "/action-log/input", label: "Kirim Imbauan", sub: "WA / Surat resmi", accent: "green" },
   ] as const;
 
   return (
