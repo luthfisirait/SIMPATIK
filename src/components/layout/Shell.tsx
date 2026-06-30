@@ -132,7 +132,7 @@ export function Shell({ children, dataLastUpdate, user }: ShellProps) {
                 const Icon = item.icon;
                 const active = pathname === item.href;
                 return (
-                  <Link key={item.href} href={item.href} className={active ? "nav-item active" : "nav-item"} title={item.label}>
+                  <Link key={item.href} href={item.href} prefetch={false} className={active ? "nav-item active" : "nav-item"} title={item.label}>
                     <span className="nav-icon">
                       <Icon size={18} />
                     </span>

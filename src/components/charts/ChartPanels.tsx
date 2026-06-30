@@ -358,3 +358,47 @@ export function ScatterPanel({
     />
   );
 }
+
+export function SptSosialisasiBarChart({
+  data,
+}: {
+  data: Array<{ status: string; rata_kepatuhan: number; jumlah_opd: number }>;
+}) {
+  return (
+    <Bar
+      data={{
+        labels: data.map((item) => item.status),
+        datasets: [
+          {
+            label: "Rata-rata kepatuhan SPT",
+            data: data.map((item) => item.rata_kepatuhan),
+            backgroundColor: data.map((item) => (item.status.toLowerCase().startsWith("sudah") ? palette.teal : palette.red)),
+            borderRadius: 6,
+          },
+        ],
+      }}
+      options={{
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { position: "bottom" },
+          tooltip: {
+            callbacks: {
+              label: (context) => `${context.dataset.label}: ${Number(context.raw ?? 0)}%`,
+              afterLabel: (context) => `OPD: ${formatNumber(data[context.dataIndex]?.jumlah_opd ?? 0)}`,
+            },
+          },
+        },
+        scales: {
+          x: { grid: { display: false } },
+          y: {
+            min: 0,
+            max: 100,
+            grid: { color: "rgba(0,0,0,.04)" },
+            ticks: { callback: (value) => `${Number(value)}%` },
+          },
+        },
+      }}
+    />
+  );
+}

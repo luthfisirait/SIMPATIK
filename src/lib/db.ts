@@ -235,6 +235,8 @@ function initSchema(database: Database.Database) {
     );
 
     CREATE INDEX IF NOT EXISTS idx_opd_wilayah ON opd(wilayah_id);
+    CREATE INDEX IF NOT EXISTS idx_opd_ar ON opd(ar_id);
+    CREATE INDEX IF NOT EXISTS idx_opd_npwp ON opd(npwp_opd);
     CREATE INDEX IF NOT EXISTS idx_spt_period ON spt_monitoring(periode, tahun_pajak);
     CREATE INDEX IF NOT EXISTS idx_spt_tahunan_op_period ON spt_tahunan_op(masa_pajak);
     CREATE INDEX IF NOT EXISTS idx_spt_tahunan_op_npwp ON spt_tahunan_op(npwp_pegawai);
@@ -243,9 +245,15 @@ function initSchema(database: Database.Database) {
     CREATE INDEX IF NOT EXISTS idx_deposit_period ON deposit_monitoring(masa_pajak);
     CREATE INDEX IF NOT EXISTS idx_deposit_penerimaan_period ON deposit_penerimaan(masa_pajak);
     CREATE INDEX IF NOT EXISTS idx_deposit_penerimaan_map ON deposit_penerimaan(kd_map);
+    CREATE INDEX IF NOT EXISTS idx_deposit_penerimaan_map_period_opd ON deposit_penerimaan(kd_map, masa_pajak, opd_id);
+    CREATE INDEX IF NOT EXISTS idx_deposit_penerimaan_opd_period ON deposit_penerimaan(opd_id, masa_pajak);
     CREATE INDEX IF NOT EXISTS idx_scoring_period ON scoring_opd(bulan_scoring);
     CREATE INDEX IF NOT EXISTS idx_scoring_status ON scoring_opd(status_rp, kategori);
+    CREATE INDEX IF NOT EXISTS idx_pegawai_opd ON pegawai(opd_id);
     CREATE INDEX IF NOT EXISTS idx_pegawai_status ON pegawai(status_coretax);
+    CREATE INDEX IF NOT EXISTS idx_pegawai_npwp ON pegawai(npwp);
+    CREATE INDEX IF NOT EXISTS idx_pegawai_npwp_satker ON pegawai(npwp_satker);
+    CREATE INDEX IF NOT EXISTS idx_sosialisasi_opd_status ON sosialisasi(opd_id, status);
     CREATE INDEX IF NOT EXISTS idx_audit_log_entity ON audit_log(entity_type, entity_id);
   `);
 

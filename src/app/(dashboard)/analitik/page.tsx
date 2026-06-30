@@ -3,8 +3,8 @@ import { BarChart3, LineChart, ScatterChart, TrendingUp } from "lucide-react";
 import {
   DoughnutPanel,
   HorizontalBarChart,
-  ScatterPanel,
   SingleBarChart,
+  SptSosialisasiBarChart,
 } from "@/components/charts/ChartPanels";
 import { KpiCard } from "@/components/ui/KpiCard";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -12,7 +12,7 @@ import { getAnalyticsData } from "@/lib/queries";
 import { formatCompactRupiah, formatNumber, formatPercent, monthLabel } from "@/lib/utils";
 
 export default function AnalitikPage() {
-  const { dashboard, pphTrend, scatter, depositBySeksi, pegawaiBelumLaporBySeksi } = getAnalyticsData();
+  const { dashboard, pphTrend, sptSosialisasiBars, depositBySeksi, pegawaiBelumLaporBySeksi } = getAnalyticsData();
   const trendLabels = dashboard.trend.map((item) => monthLabel(item.periode));
   const opdMerah = dashboard.trafficCounts.find((item) => item.status === "merah")?.total ?? 0;
   const totalDepositBySeksi = depositBySeksi.reduce((sum, item) => sum + item.total_deposit, 0);
@@ -103,7 +103,10 @@ export default function AnalitikPage() {
 
         <div className="card">
           <div className="card-header">
-            <div className="card-title">Tren Penyetoran PPh 21 Masa per Bulan</div>
+            <div>
+              <div className="card-title">Tren Penyetoran PPh 21 Masa per Bulan</div>
+              <div className="card-subtitle">KD MAP 411121 berdasarkan tanggal setor</div>
+            </div>
           </div>
           <div className="card-body">
             {pphTrend.length === 0 ? (
@@ -111,9 +114,10 @@ export default function AnalitikPage() {
             ) : (
               <div className="chart-wrap">
                 <SingleBarChart
-                  labels={pphTrend.map((item) => monthLabel(item.bulan))}
-                  values={pphTrend.map((item) => item.tepat)}
-                  label="OPD tepat waktu bayar PPh 21"
+                  labels={pphTrend.map((item) => monthLabel(item.periode))}
+                  values={pphTrend.map((item) => item.nilai_setor)}
+                  label="Nilai setor PPh 21"
+                  valueFormat="compact-rupiah"
                 />
               </div>
             )}
@@ -124,14 +128,17 @@ export default function AnalitikPage() {
       <section className="grid-3">
         <div className="card">
           <div className="card-header">
-            <div className="card-title">Korelasi SPT vs Sosialisasi</div>
+            <div>
+              <div className="card-title">Kepatuhan SPT vs Sosialisasi</div>
+              <div className="card-subtitle">Rata-rata kepatuhan per status OPD</div>
+            </div>
           </div>
           <div className="card-body">
-            {scatter.length === 0 ? (
+            {sptSosialisasiBars.length === 0 ? (
               <span className="muted">Belum ada data korelasi.</span>
             ) : (
               <div className="chart-wrap-sm">
-                <ScatterPanel data={scatter} />
+                <SptSosialisasiBarChart data={sptSosialisasiBars} />
               </div>
             )}
           </div>

@@ -110,19 +110,15 @@ export function listPphMasaPeriods() {
   const rows = db()
     .prepare(
       `
-      SELECT period
-      FROM (
-        SELECT bulan AS period FROM pph21_monitoring
-        UNION
-        SELECT masa_pajak AS period FROM spt_masa_monitoring
-      )
-      WHERE period IS NOT NULL AND period <> ''
+      SELECT DISTINCT masa_pajak AS period
+      FROM spt_masa_monitoring
+      WHERE masa_pajak IS NOT NULL AND masa_pajak <> ''
       ORDER BY period DESC
     `,
     )
     .all() as Array<{ period: string }>;
 
-  return rows.length > 0 ? rows.map((row) => row.period) : [latestPphMonth()];
+  return rows.length > 0 ? rows.map((row) => row.period) : [latestSptMasaPeriod()];
 }
 
 function latestSptMasaPeriod() {
@@ -1021,7 +1017,7 @@ export function listSptDialogRows(params: ListParams & { periode?: string; traff
 
 export function listPph21(params: ListParams & { bulan?: string; pphStatus?: string } = {}) {
   const database = db();
-  const bulan = params.bulan ?? latestPphMonth();
+  const bulan = params.bulan ?? latestSptMasaPeriod();
   const where = ["p.bulan = ?"];
   const values: Array<string | number> = [bulan];
   const laporValue = "LOWER(COALESCE(m.pph21_status, ''))";
@@ -1276,7 +1272,7 @@ function repeatedPphMasaPaymentValues(bulan: string, filterValues: Array<string 
 
 export function listPphMasaLaporDetailRows(params: ListParams & { bulan?: string } = {}) {
   const database = db();
-  const bulan = params.bulan ?? latestPphMonth();
+  const bulan = params.bulan ?? latestSptMasaPeriod();
   const filters = pphMasaLaporFilters(params);
 
   return pphMasaJenisDefinitions().flatMap((definition) =>
@@ -1307,7 +1303,7 @@ export function listPphMasaLaporDetailRows(params: ListParams & { bulan?: string
 
 export function listPphMasaPayments(params: ListParams & { bulan?: string } = {}) {
   const database = db();
-  const bulan = params.bulan ?? latestPphMonth();
+  const bulan = params.bulan ?? latestSptMasaPeriod();
   const page = Math.max(1, params.page ?? 1);
   const pageSize = Math.min(100, Math.max(5, params.pageSize ?? 12));
   const offset = (page - 1) * pageSize;
@@ -1335,7 +1331,7 @@ export function listPphMasaPayments(params: ListParams & { bulan?: string } = {}
 
 export function listPphMasaPaymentDialogRows(params: ListParams & { bulan?: string } = {}) {
   const database = db();
-  const bulan = params.bulan ?? latestPphMonth();
+  const bulan = params.bulan ?? latestSptMasaPeriod();
   const filters = pphMasaPaymentFilters(params);
   const values = repeatedPphMasaPaymentValues(bulan, filters.values);
 
@@ -2624,16 +2620,18 @@ export function getAnalyticsData() {
   const pphTrend = database
     .prepare(
       `
-      SELECT bulan,
-        SUM(CASE WHEN ketepatan = 'tepat_waktu' THEN 1 ELSE 0 END) AS tepat,
-        SUM(CASE WHEN ketepatan != 'tepat_waktu' THEN 1 ELSE 0 END) AS terlambat,
-        SUM(nominal_setor) AS setor
-      FROM pph21_monitoring
-      GROUP BY bulan
-      ORDER BY bulan
+      SELECT strftime('%Y-%m', tgl_setor) AS periode,
+        COALESCE(SUM(nilai_setor), 0) AS nilai_setor
+      FROM deposit_penerimaan
+      WHERE kd_map = '411121'
+        AND tgl_setor IS NOT NULL
+        AND tgl_setor <> ''
+        AND strftime('%Y-%m', tgl_setor) IS NOT NULL
+      GROUP BY periode
+      ORDER BY periode
     `,
     )
-    .all() as Array<{ bulan: string; tepat: number; terlambat: number; setor: number }>;
+    .all() as Array<{ periode: string; nilai_setor: number }>;
 
   const scatter = database
     .prepare(
@@ -2649,6 +2647,21 @@ export function getAnalyticsData() {
     `,
     )
     .all() as Array<{ sosialisasi: number; kepatuhan: number; asn: number; nama: string }>;
+
+  const sptSosialisasiBars = database
+    .prepare(
+      `${sptScored}
+      SELECT
+        CASE WHEN EXISTS (SELECT 1 FROM sosialisasi so WHERE so.opd_id = scored.opd_id AND so.status IN ('sudah','perlu_ulang'))
+          THEN 'Sudah sosialisasi' ELSE 'Belum sosialisasi' END AS status,
+        ROUND(AVG(scored.persen_kepatuhan), 1) AS rata_kepatuhan,
+        COUNT(*) AS jumlah_opd
+      FROM scored
+      GROUP BY status
+      ORDER BY CASE status WHEN 'Sudah sosialisasi' THEN 0 ELSE 1 END
+    `,
+    )
+    .all() as Array<{ status: string; rata_kepatuhan: number; jumlah_opd: number }>;
 
   const depositBySeksi = database
     .prepare(
@@ -2676,7 +2689,7 @@ export function getAnalyticsData() {
     )
     .all() as Array<{ seksi: string; belum_lapor: number }>;
 
-  return { dashboard, pphTrend, scatter, depositBySeksi, pegawaiBelumLaporBySeksi };
+  return { dashboard, pphTrend, scatter, sptSosialisasiBars, depositBySeksi, pegawaiBelumLaporBySeksi };
 }
 
 export function listSettings() {

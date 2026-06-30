@@ -15,11 +15,12 @@ export default async function ModulPph21Page({ searchParams }: { searchParams?: 
   const session = await getServerSession(authOptions);
   const q = firstParam(searchParams, "q");
   const wilayah = firstParam(searchParams, "wilayah", "all");
-  const bulan = firstParam(searchParams, "bulan") || undefined;
+  const requestedBulan = firstParam(searchParams, "bulan") || undefined;
   const ar = session?.user.role === "ar" ? session.user.id : firstParam(searchParams, "ar", "all");
+  const periodOptions = listPphMasaPeriods();
+  const bulan = requestedBulan && periodOptions.includes(requestedBulan) ? requestedBulan : periodOptions[0];
   const result = listPph21({ q, wilayah, ar, bulan, page: 1, pageSize: 5 });
   const laporDetailRows = listPphMasaLaporDetailRows({ q, wilayah, ar, bulan: result.bulan });
-  const periodOptions = Array.from(new Set([result.bulan, ...listPphMasaPeriods()]));
   const periodeLabel = monthFullLabel(result.bulan);
   const exportQuery = queryString({ q, wilayah, ar, bulan: result.bulan });
   const exportHref = exportQuery ? `/api/export/pph21?${exportQuery}` : "/api/export/pph21";
