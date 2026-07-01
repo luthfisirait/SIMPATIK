@@ -63,6 +63,7 @@ function initSchema(database: Database.Database) {
       nama_pic_kepeg TEXT NOT NULL,
       hp_pic_kepeg TEXT NOT NULL,
       ar_id INTEGER REFERENCES users(id),
+      nama_ar TEXT,
       status TEXT NOT NULL DEFAULT 'aktif' CHECK(status IN ('aktif','tidak_aktif','perlu_update')),
       tanggal_input TEXT,
       tanggal_update_kontak TEXT,
@@ -234,6 +235,11 @@ function initSchema(database: Database.Database) {
       value TEXT NOT NULL
     );
 
+  `);
+
+  ensureExistingSchema(database);
+
+  database.exec(`
     CREATE INDEX IF NOT EXISTS idx_opd_wilayah ON opd(wilayah_id);
     CREATE INDEX IF NOT EXISTS idx_opd_ar ON opd(ar_id);
     CREATE INDEX IF NOT EXISTS idx_opd_npwp ON opd(npwp_opd);
@@ -256,8 +262,6 @@ function initSchema(database: Database.Database) {
     CREATE INDEX IF NOT EXISTS idx_sosialisasi_opd_status ON sosialisasi(opd_id, status);
     CREATE INDEX IF NOT EXISTS idx_audit_log_entity ON audit_log(entity_type, entity_id);
   `);
-
-  ensureExistingSchema(database);
 
   database.exec("CREATE INDEX IF NOT EXISTS idx_action_log_opd ON action_log(opd_id)");
   database.exec("CREATE INDEX IF NOT EXISTS idx_audit_log_created ON audit_log(created_at)");
